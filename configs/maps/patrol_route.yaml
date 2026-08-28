@@ -1,0 +1,21 @@
+map:
+  origin: [-2.25, -1.75]
+  size: [4.5, 3.5]
+  resolution: 0.10
+  inflation_radius: 0.20
+  static_rectangles:
+    - id: central_cabinet
+      center: [0.0, 0.0]
+      size: [1.20, 0.80]
+
+robot_start: [-1.60, 0.0]
+
+checkpoints:
+  - id: P1
+    position: [1.60, 0.0]
+  - id: P2
+    position: [1.60, 1.15]
+  - id: P3
+    position: [-1.60, 1.15]
+  - id: P4
+    position: [-1.60, -1.15]

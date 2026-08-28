@@ -1,0 +1,22 @@
+schema_version: 1
+transfer_model: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+port_base: 12490
+validation:
+  split: validation
+  seed_start: 5000
+  episodes: 20
+  min_success_rate: 0.75
+  max_collision_rate: 0.15
+stages:
+  - id: W0
+    name: empty_room_transfer
+    obstacle_count: 0
+    training_steps: 50000
+  - id: W1
+    name: single_dynamic_obstacle
+    obstacle_count: 1
+    training_steps: 150000
+  - id: W2
+    name: three_dynamic_obstacles
+    obstacle_count: 3
+    training_steps: 300000

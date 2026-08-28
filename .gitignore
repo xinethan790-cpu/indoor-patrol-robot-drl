@@ -1,0 +1,29 @@
+.DS_Store
+.idea/
+.vscode/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Generated training and evaluation outputs
+artifacts/logs/*
+artifacts/models/*
+artifacts/videos/*
+artifacts/results/*
+!artifacts/logs/.gitkeep
+!artifacts/models/.gitkeep
+!artifacts/videos/.gitkeep
+!artifacts/results/.gitkeep
+
+# Webots generated files
+controllers/**/__pycache__/
+controllers/**/runtime.ini
+*.wbproj
+*.wbt.~*

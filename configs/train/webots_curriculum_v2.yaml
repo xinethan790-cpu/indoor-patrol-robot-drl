@@ -1,0 +1,92 @@
+schema_version: 1
+transfer_model: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+policy_transfer_model: artifacts/models/webots/seed_11/ppo_webots_s11_step000050176.zip
+model_variant: curriculum_v2
+port_base: 12920
+validation:
+  split: validation
+  seed_start: 5000
+  episodes: 20
+  min_success_rate: 0.75
+  max_collision_rate: 0.25
+stages:
+  - id: R1
+    name: single_slow_obstacle
+    obstacle_count: 1
+    training_steps: 50000
+    validation:
+      min_success_rate: 0.75
+      max_collision_rate: 0.25
+    controller_env:
+      WEBOTS_RUN_ID: r1_slow
+      WEBOTS_OBSTACLE_SPEED_MIN: "0.05"
+      WEBOTS_OBSTACLE_SPEED_MAX: "0.15"
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_REWARD_SAFETY_DISTANCE: "0.35"
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: "0.60"
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: "0.40"
+      WEBOTS_REWARD_SAFETY_WEIGHT: "-0.60"
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: "-0.005"
+      WEBOTS_PPO_N_STEPS: "2048"
+      WEBOTS_PPO_BATCH_SIZE: "128"
+      WEBOTS_PPO_N_EPOCHS: "5"
+      WEBOTS_PPO_LEARNING_RATE: "0.00005"
+      WEBOTS_PPO_ENT_COEF: "0.005"
+      WEBOTS_PPO_GAMMA: "0.995"
+      WEBOTS_PPO_TARGET_KL: "0.02"
+      WEBOTS_PPO_INITIAL_ACTION_STD: "0.6"
+      WEBOTS_PPO_RESET_LINEAR_HEAD: "0.2"
+  - id: R2
+    name: single_medium_obstacle
+    obstacle_count: 1
+    training_steps: 75000
+    preferred_resume_model: artifacts/models/webots/seed_11/curriculum_v2/checkpoints/ppo_webots_s11_curriculum_v2_40960_steps.zip
+    validation:
+      min_success_rate: 0.75
+      max_collision_rate: 0.25
+    controller_env:
+      WEBOTS_RUN_ID: r2_medium
+      WEBOTS_OBSTACLE_SPEED_MIN: "0.10"
+      WEBOTS_OBSTACLE_SPEED_MAX: "0.25"
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_REWARD_SAFETY_DISTANCE: "0.35"
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: "0.60"
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: "0.40"
+      WEBOTS_REWARD_SAFETY_WEIGHT: "-0.60"
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: "-0.005"
+      WEBOTS_PPO_N_STEPS: "2048"
+      WEBOTS_PPO_BATCH_SIZE: "128"
+      WEBOTS_PPO_N_EPOCHS: "5"
+      WEBOTS_PPO_LEARNING_RATE: "0.00005"
+      WEBOTS_PPO_ENT_COEF: "0.005"
+      WEBOTS_PPO_GAMMA: "0.995"
+      WEBOTS_PPO_TARGET_KL: "0.02"
+  - id: R3
+    name: single_fast_obstacle
+    obstacle_count: 1
+    training_steps: 100000
+    # Fill this after R2 checkpoint validation, or pass --preferred-resume R3=MODEL.
+    preferred_resume_model:
+    validation:
+      min_success_rate: 0.70
+      max_collision_rate: 0.30
+    controller_env:
+      WEBOTS_RUN_ID: r3_fast
+      WEBOTS_OBSTACLE_SPEED_MIN: "0.18"
+      WEBOTS_OBSTACLE_SPEED_MAX: "0.35"
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_REWARD_SAFETY_DISTANCE: "0.35"
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: "0.60"
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: "0.40"
+      WEBOTS_REWARD_SAFETY_WEIGHT: "-0.60"
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: "-0.005"
+      WEBOTS_PPO_N_STEPS: "2048"
+      WEBOTS_PPO_BATCH_SIZE: "128"
+      WEBOTS_PPO_N_EPOCHS: "5"
+      WEBOTS_PPO_LEARNING_RATE: "0.00005"
+      WEBOTS_PPO_ENT_COEF: "0.005"
+      WEBOTS_PPO_GAMMA: "0.995"
+      WEBOTS_PPO_TARGET_KL: "0.02"

@@ -1,0 +1,46 @@
+schema_version: "1.0"
+updated_at: "2026-08-28"
+
+selection_policy:
+  split: validation
+  seed_start: 5000
+  seed_count: 20
+  conditions: [G0, G1, G2, G3]
+  held_out_test_consumed: false
+
+kinematic_seed11:
+  requested_curriculum_steps: 800000
+  actual_final_steps: 811008
+  candidates:
+    - id: stage1_sparse_dynamic
+      path: artifacts/models/ppo_curriculum_seed11_stage1_sparse_dynamic.zip
+      actual_steps: 253952
+      sha256: cfa50a4f33e121afc3fd1caed167ca63567d278c01791ee7adb6306a05b772b9
+      validation_episodes: 80
+      validation_success_rate: 0.6500
+      validation_collision_rate: 0.3500
+      selected: false
+    - id: stage2_nominal_dynamic
+      path: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+      actual_steps: 557056
+      sha256: e01bfcfa5dba22db4a8adf8b0ae8b325a6f7ef7eb50c2b1af1840e3d0c079c67
+      validation_episodes: 80
+      validation_success_rate: 0.6875
+      validation_collision_rate: 0.3125
+      selected: true
+      role: webots_policy_warm_start
+    - id: stage3_dense_fast
+      path: artifacts/models/ppo_curriculum_seed11_stage3_dense_fast.zip
+      actual_steps: 811008
+      sha256: b90e6a812d971b11160372c2b682025ba9f17e87098401457fbd6e93c7c94270
+      validation_episodes: 80
+      validation_success_rate: 0.6250
+      validation_collision_rate: 0.3750
+      selected: false
+
+webots:
+  formal_model_selected: false
+  completed_training_seeds: []
+  note: >-
+    Webots 冒烟模型不进入正式候选集。只有完成正式微调并在 Webots 验证集上选择后，
+    才能在此登记模型、实际步数、Git commit、配置和 SHA-256。

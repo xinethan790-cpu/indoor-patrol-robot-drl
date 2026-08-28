@@ -1,0 +1,62 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+
+WorldInfo {
+  basicTimeStep 32
+  title "Indoor Patrol Robot - M4 Smoke Test"
+}
+Viewpoint {
+  orientation -0.357 0.863 0.357 1.718
+  position 2.8 -2.8 2.4
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+Solid {
+  translation 0 0 -0.025
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.72 0.75 0.78
+        roughness 0.9
+        metalness 0
+      }
+      geometry Box {
+        size 4 4 0.05
+      }
+    }
+  ]
+  name "floor"
+  boundingObject Box {
+    size 4 4 0.05
+  }
+  locked TRUE
+}
+DEF SMOKE_ROBOT Robot {
+  translation 0 0 0.12
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.08 0.42 0.78
+        roughness 0.5
+        metalness 0
+      }
+      geometry Cylinder {
+        height 0.18
+        radius 0.16
+      }
+    }
+  ]
+  name "m4_smoke_robot"
+  boundingObject Cylinder {
+    height 0.18
+    radius 0.16
+  }
+  physics Physics {
+  }
+  controller "smoke_controller"
+  supervisor TRUE
+}

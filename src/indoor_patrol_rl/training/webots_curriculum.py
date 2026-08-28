@@ -1,0 +1,1203 @@
+"""Restartable orchestration for staged Webots PPO training and validation."""
+
+from __future__ import annotations
+
+import json
+import math
+import os
+import re
+import shutil
+import socket
+import subprocess
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+_MODEL_STEP_PATTERN = re.compile(r"step(?P<steps>\d+)\.zip$")
+_CHECKPOINT_STEP_PATTERN = re.compile(r"_(?P<steps>\d+)_steps\.zip$")
+_MODEL_VARIANT_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
+_CONTROLLER_ENV_PATTERN = re.compile(r"WEBOTS_[A-Z0-9_]+")
+_EVALUATION_SHARED_ENV = frozenset(
+    {
+        "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH",
+        "WEBOTS_OBSTACLE_SPEED_MAX",
+        "WEBOTS_OBSTACLE_SPEED_MIN",
+        "WEBOTS_SAFETY_SHIELD",
+        "WEBOTS_VERTICAL_ROUTE_HALF_LENGTH",
+    }
+)
+
+
+@dataclass(frozen=True)
+class ValidationGate:
+    """Acceptance thresholds evaluated only on the validation split."""
+
+    seed_start: int
+    episodes: int
+    min_success_rate: float
+    max_collision_rate: float
+
+    def __post_init__(self) -> None:
+        if self.seed_start < 0 or self.episodes <= 0:
+            raise ValueError("Validation seed_start must be non-negative and episodes positive.")
+        if not 0.0 <= self.min_success_rate <= 1.0:
+            raise ValueError("min_success_rate must be between zero and one.")
+        if not 0.0 <= self.max_collision_rate <= 1.0:
+            raise ValueError("max_collision_rate must be between zero and one.")
+
+
+@dataclass(frozen=True)
+class WebotsStage:
+    """One simulator training segment followed by a validation gate."""
+
+    stage_id: str
+    name: str
+    obstacle_count: int
+    training_steps: int
+    gate: ValidationGate
+    controller_env: Mapping[str, str] | None = None
+    preferred_resume_model: Path | None = None
+
+    def __post_init__(self) -> None:
+        if not self.stage_id or not self.name:
+            raise ValueError("A Webots curriculum stage must have an id and name.")
+        if not 0 <= self.obstacle_count <= 3:
+            raise ValueError("Webots obstacle_count must be between zero and three.")
+        if self.training_steps <= 0:
+            raise ValueError("Webots training_steps must be positive.")
+        if self.controller_env is not None and not isinstance(self.controller_env, Mapping):
+            raise ValueError("controller_env must be a mapping.")
+        controller_env = normalize_controller_env(self.controller_env or {})
+        object.__setattr__(self, "controller_env", controller_env)
+
+
+@dataclass(frozen=True)
+class WebotsCurriculumConfig:
+    """Validated configuration for the external Webots process orchestrator."""
+
+    transfer_model: Path
+    port_base: int
+    stages: tuple[WebotsStage, ...]
+    model_variant: str | None = None
+    policy_transfer_model: Path | None = None
+
+    def __post_init__(self) -> None:
+        if not 1024 <= self.port_base <= 65500:
+            raise ValueError("port_base must be between 1024 and 65500.")
+        if not self.stages:
+            raise ValueError("The Webots curriculum must contain at least one stage.")
+        stage_ids = [stage.stage_id for stage in self.stages]
+        if len(stage_ids) != len(set(stage_ids)):
+            raise ValueError("Webots curriculum stage ids must be unique.")
+        if self.model_variant and _MODEL_VARIANT_PATTERN.fullmatch(self.model_variant) is None:
+            raise ValueError(
+                "model_variant may contain only letters, digits, '.', '_' and '-'."
+            )
+        for stage in self.stages:
+            stage_variant = stage.controller_env.get("WEBOTS_MODEL_VARIANT")
+            if stage_variant and stage_variant != self.model_variant:
+                raise ValueError(
+                    f"Stage {stage.stage_id} WEBOTS_MODEL_VARIANT must match model_variant."
+                )
+
+
+@dataclass(frozen=True)
+class ModelSnapshot:
+    """A resumable model artifact and the cumulative Webots step it represents."""
+
+    path: Path
+    steps: int
+    obstacle_count: int | None = None
+    metadata_path: Path | None = None
+    is_completed_run: bool = False
+    model_variant: str | None = None
+    starting_steps: int | None = None
+    additional_steps_requested: int | None = None
+    obstacle_speed_range: tuple[float, float] | None = None
+    route_half_lengths: tuple[float, float] | None = None
+    monitor_log: str | None = None
+    modified_at_ns: int | None = None
+
+
+def utc_now() -> str:
+    """Return a stable UTC timestamp suitable for manifests."""
+
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _mapping(value: Any, label: str) -> Mapping[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a mapping.")
+    return value
+
+
+def _environment_value(value: Any, name: str) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (str, int, float)) and not isinstance(value, complex):
+        return str(value)
+    raise ValueError(f"controller_env value for {name} must be a string, number, or boolean.")
+
+
+def normalize_controller_env(raw: Mapping[str, Any]) -> dict[str, str]:
+    """Validate controller overrides and make held-out test execution impossible."""
+
+    normalized: dict[str, str] = {}
+    for raw_name, raw_value in raw.items():
+        name = str(raw_name)
+        if _CONTROLLER_ENV_PATTERN.fullmatch(name) is None:
+            raise ValueError(
+                f"controller_env key {name!r} is invalid; only uppercase WEBOTS_* is allowed."
+            )
+        if name == "WEBOTS_CONFIRM_TEST":
+            raise ValueError("controller_env must never set WEBOTS_CONFIRM_TEST.")
+        value = _environment_value(raw_value, name)
+        if name == "WEBOTS_EVAL_SPLIT" and value.casefold() != "validation":
+            raise ValueError("controller_env WEBOTS_EVAL_SPLIT may only be validation.")
+        normalized[name] = value
+    return normalized
+
+
+def evaluation_controller_env(controller_env: Mapping[str, str]) -> dict[str, str]:
+    """Select scenario/evaluation values that the evaluator actually consumes."""
+
+    return {
+        name: value
+        for name, value in controller_env.items()
+        if name in _EVALUATION_SHARED_ENV or name.startswith("WEBOTS_EVAL_")
+    }
+
+
+def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
+    """Load the simulator curriculum and reject any automatic test split."""
+
+    with path.open(encoding="utf-8") as stream:
+        raw = _mapping(yaml.safe_load(stream), "Webots curriculum")
+    if int(raw.get("schema_version", 0)) != 1:
+        raise ValueError("Unsupported Webots curriculum schema_version.")
+    validation = _mapping(raw.get("validation"), "validation")
+    split = str(validation.get("split", "validation"))
+    if split != "validation":
+        raise ValueError("The Webots curriculum may only run the validation split automatically.")
+    default_gate = ValidationGate(
+        seed_start=int(validation["seed_start"]),
+        episodes=int(validation["episodes"]),
+        min_success_rate=float(validation["min_success_rate"]),
+        max_collision_rate=float(validation["max_collision_rate"]),
+    )
+    raw_stages = raw.get("stages")
+    if not isinstance(raw_stages, list):
+        raise ValueError("Webots curriculum stages must be a list.")
+    stages = []
+    for raw_stage_value in raw_stages:
+        raw_stage = _mapping(raw_stage_value, "stage")
+        raw_gate_value = raw_stage.get("validation")
+        if raw_gate_value is None:
+            gate = default_gate
+        else:
+            raw_gate = _mapping(raw_gate_value, "stage.validation")
+            gate = ValidationGate(
+                seed_start=int(raw_gate.get("seed_start", default_gate.seed_start)),
+                episodes=int(raw_gate.get("episodes", default_gate.episodes)),
+                min_success_rate=float(
+                    raw_gate.get("min_success_rate", default_gate.min_success_rate)
+                ),
+                max_collision_rate=float(
+                    raw_gate.get("max_collision_rate", default_gate.max_collision_rate)
+                ),
+            )
+        controller_env_value = raw_stage.get("controller_env", {})
+        controller_env = normalize_controller_env(
+            _mapping(controller_env_value, "stage.controller_env")
+        )
+        stages.append(
+            WebotsStage(
+                stage_id=str(raw_stage["id"]),
+                name=str(raw_stage["name"]),
+                obstacle_count=int(raw_stage["obstacle_count"]),
+                training_steps=int(raw_stage["training_steps"]),
+                gate=gate,
+                controller_env=controller_env,
+                preferred_resume_model=(
+                    Path(str(raw_stage["preferred_resume_model"]))
+                    if raw_stage.get("preferred_resume_model")
+                    else None
+                ),
+            )
+        )
+    model_variant_value = raw.get("model_variant")
+    model_variant = str(model_variant_value) if model_variant_value else None
+    policy_transfer_value = raw.get("policy_transfer_model")
+    return WebotsCurriculumConfig(
+        transfer_model=Path(str(raw["transfer_model"])),
+        port_base=int(raw.get("port_base", 12490)),
+        stages=tuple(stages),
+        model_variant=model_variant,
+        policy_transfer_model=(
+            Path(str(policy_transfer_value)) if policy_transfer_value else None
+        ),
+    )
+
+
+def apply_preferred_resume_overrides(
+    config: WebotsCurriculumConfig, entries: Sequence[str]
+) -> WebotsCurriculumConfig:
+    """Apply repeatable ``STAGE=MODEL`` CLI overrides without mutating the config."""
+
+    overrides: dict[str, Path] = {}
+    stage_ids = {stage.stage_id.casefold(): stage.stage_id for stage in config.stages}
+    for entry in entries:
+        raw_stage_id, separator, raw_path = entry.partition("=")
+        stage_id = stage_ids.get(raw_stage_id.casefold())
+        if not separator or stage_id is None or not raw_path:
+            raise ValueError(
+                f"Invalid preferred resume override {entry!r}; expected STAGE=MODEL."
+            )
+        if stage_id in overrides:
+            raise ValueError(f"Duplicate preferred resume override for {stage_id}.")
+        overrides[stage_id] = Path(raw_path)
+    if not overrides:
+        return config
+    stages = tuple(
+        replace(
+            stage,
+            preferred_resume_model=overrides.get(
+                stage.stage_id, stage.preferred_resume_model
+            ),
+        )
+        for stage in config.stages
+    )
+    return replace(config, stages=stages)
+
+
+def resolve_stage_index(stages: Sequence[WebotsStage], value: str | None, default: int) -> int:
+    """Resolve a stage selector by case-insensitive id or zero-based index."""
+
+    if value is None:
+        return default
+    if value.isdigit():
+        index = int(value)
+        if 0 <= index < len(stages):
+            return index
+    for index, stage in enumerate(stages):
+        if value.casefold() == stage.stage_id.casefold():
+            return index
+    raise ValueError(f"Unknown Webots curriculum stage: {value}")
+
+
+def resolve_webots_executable(explicit: Path | None = None) -> Path:
+    """Resolve Webots on macOS, Linux, or Windows, with an explicit override."""
+
+    candidates: list[Path] = []
+    if explicit is not None:
+        candidates.append(explicit)
+        if explicit.suffix == ".app" or explicit.name.endswith(".app"):
+            candidates.append(explicit / "Contents/MacOS/webots")
+    webots_home = os.environ.get("WEBOTS_HOME")
+    if webots_home:
+        home = Path(webots_home)
+        candidates.extend(
+            (
+                home / "webots",
+                home / "webots.exe",
+                home / "Contents/MacOS/webots",
+                home / "msys64/mingw64/bin/webots.exe",
+            )
+        )
+    discovered = shutil.which("webots") or shutil.which("webots.exe")
+    if discovered:
+        candidates.append(Path(discovered))
+    candidates.extend(
+        (
+            Path("/Applications/Webots.app/Contents/MacOS/webots"),
+            Path("/usr/local/webots/webots"),
+            Path("/snap/bin/webots"),
+            Path("C:/Program Files/Webots/msys64/mingw64/bin/webots.exe"),
+        )
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.absolute()
+    if explicit is not None:
+        raise FileNotFoundError(f"Webots executable not found at {explicit}")
+    raise FileNotFoundError("Webots executable was not found; pass --webots explicitly.")
+
+
+def choose_available_port(preferred: int, reserved: set[int] | None = None) -> int:
+    """Choose an unused localhost TCP port without reusing one in this run."""
+
+    reserved = reserved if reserved is not None else set()
+    for port in range(preferred, min(preferred + 200, 65536)):
+        if port in reserved:
+            continue
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+        reserved.add(port)
+        return port
+    raise RuntimeError(f"No available Webots port near {preferred}.")
+
+
+def _path_from_metadata(value: object, repository_root: Path) -> Path:
+    path = Path(str(value))
+    return path if path.is_absolute() else repository_root / path
+
+
+def _model_directory(repository_root: Path, seed: int, model_variant: str | None) -> Path:
+    directory = repository_root / "artifacts/models/webots" / f"seed_{seed}"
+    return directory / model_variant if model_variant else directory
+
+
+def _metadata_float_pair(
+    raw: Mapping[str, Any], name: str, first: str | None = None, second: str | None = None
+) -> tuple[float, float] | None:
+    value = raw.get(name)
+    if first is not None and second is not None and isinstance(value, dict):
+        try:
+            return float(value[first]), float(value[second])
+        except (KeyError, TypeError, ValueError):
+            return None
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        return None
+    try:
+        return float(value[0]), float(value[1])
+    except (TypeError, ValueError):
+        return None
+
+
+def discover_model_snapshots(
+    repository_root: Path,
+    seed: int,
+    model_variant: str | None = None,
+) -> tuple[ModelSnapshot, ...]:
+    """Discover models recursively inside exactly one variant, never across variants."""
+
+    model_directory = _model_directory(repository_root, seed, model_variant)
+    snapshots: dict[tuple[Path, int], ModelSnapshot] = {}
+    if model_variant:
+        metadata_paths = sorted(model_directory.rglob("run_metadata_step*.yaml"))
+        latest_metadata_paths = sorted(model_directory.rglob("run_metadata.yaml"))
+        final_model_paths = model_directory.rglob("ppo_webots_s*_step*.zip")
+        checkpoint_paths = model_directory.rglob("checkpoints/*.zip")
+    else:
+        metadata_paths = sorted(model_directory.glob("run_metadata_step*.yaml"))
+        latest_metadata_paths = [model_directory / "run_metadata.yaml"]
+        final_model_paths = model_directory.glob("ppo_webots_s*_step*.zip")
+        checkpoint_paths = (model_directory / "checkpoints").rglob("*.zip")
+    metadata_paths.extend(path for path in latest_metadata_paths if path.is_file())
+    for metadata_path in metadata_paths:
+        try:
+            raw = _mapping(yaml.safe_load(metadata_path.read_text(encoding="utf-8")), "metadata")
+            final_model = _path_from_metadata(raw["final_model"], repository_root)
+            steps = int(raw["final_model_steps"])
+            obstacle_count = int(raw["obstacle_count"])
+            metadata_variant_value = raw.get("model_variant")
+            metadata_variant = (
+                str(metadata_variant_value) if metadata_variant_value else None
+            )
+            if metadata_variant != model_variant:
+                continue
+            if model_variant:
+                final_model.absolute().relative_to(model_directory.absolute())
+            elif final_model.absolute().parent != model_directory.absolute():
+                continue
+        except (KeyError, TypeError, ValueError, OSError, yaml.YAMLError):
+            continue
+        if final_model.is_file():
+            snapshot = ModelSnapshot(
+                path=final_model,
+                steps=steps,
+                obstacle_count=obstacle_count,
+                metadata_path=metadata_path,
+                is_completed_run=True,
+                model_variant=metadata_variant,
+                starting_steps=(
+                    int(raw["starting_webots_steps"])
+                    if raw.get("starting_webots_steps") is not None
+                    else None
+                ),
+                additional_steps_requested=(
+                    int(raw["additional_steps_requested"])
+                    if raw.get("additional_steps_requested") is not None
+                    else None
+                ),
+                obstacle_speed_range=_metadata_float_pair(raw, "obstacle_speed_range"),
+                route_half_lengths=_metadata_float_pair(
+                    raw, "route_half_lengths", "horizontal", "vertical"
+                ),
+                monitor_log=(str(raw["monitor_log"]) if raw.get("monitor_log") else None),
+                modified_at_ns=final_model.stat().st_mtime_ns,
+            )
+            snapshots[(snapshot.path, snapshot.steps)] = snapshot
+    for model_path in final_model_paths:
+        match = _MODEL_STEP_PATTERN.search(model_path.name)
+        if match:
+            steps = int(match.group("steps"))
+            snapshots.setdefault(
+                (model_path, steps),
+                ModelSnapshot(
+                    model_path,
+                    steps,
+                    model_variant=model_variant,
+                    modified_at_ns=model_path.stat().st_mtime_ns,
+                ),
+            )
+    for model_path in checkpoint_paths:
+        match = _CHECKPOINT_STEP_PATTERN.search(model_path.name)
+        if match:
+            steps = int(match.group("steps"))
+            snapshots.setdefault(
+                (model_path, steps),
+                ModelSnapshot(
+                    model_path,
+                    steps,
+                    model_variant=model_variant,
+                    modified_at_ns=model_path.stat().st_mtime_ns,
+                ),
+            )
+    return tuple(sorted(snapshots.values(), key=lambda item: (item.steps, item.is_completed_run)))
+
+
+def _environment_float(stage: WebotsStage, name: str) -> float | None:
+    value = stage.controller_env.get(name)
+    return float(value) if value is not None else None
+
+
+def snapshot_matches_stage(snapshot: ModelSnapshot, stage: WebotsStage) -> bool:
+    """Match same-obstacle variant stages using their recorded scenario signature."""
+
+    if not snapshot.is_completed_run or snapshot.obstacle_count != stage.obstacle_count:
+        return False
+    expected_speed = (
+        _environment_float(stage, "WEBOTS_OBSTACLE_SPEED_MIN"),
+        _environment_float(stage, "WEBOTS_OBSTACLE_SPEED_MAX"),
+    )
+    if any(value is not None for value in expected_speed):
+        if None in expected_speed or snapshot.obstacle_speed_range is None:
+            return False
+        if not all(
+            math.isclose(float(expected), actual, rel_tol=0.0, abs_tol=1e-9)
+            for expected, actual in zip(expected_speed, snapshot.obstacle_speed_range, strict=True)
+        ):
+            return False
+    expected_route = (
+        _environment_float(stage, "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH"),
+        _environment_float(stage, "WEBOTS_VERTICAL_ROUTE_HALF_LENGTH"),
+    )
+    if any(value is not None for value in expected_route):
+        if None in expected_route or snapshot.route_half_lengths is None:
+            return False
+        if not all(
+            math.isclose(float(expected), actual, rel_tol=0.0, abs_tol=1e-9)
+            for expected, actual in zip(expected_route, snapshot.route_half_lengths, strict=True)
+        ):
+            return False
+    expected_run_id = stage.controller_env.get("WEBOTS_RUN_ID")
+    if expected_run_id and (
+        snapshot.monitor_log is None
+        or f"training_{expected_run_id}.monitor.csv" not in snapshot.monitor_log
+    ):
+        return False
+    return True
+
+
+def select_completed_snapshot(
+    snapshots: Sequence[ModelSnapshot],
+    *,
+    obstacle_count: int,
+    target_steps: int,
+) -> ModelSnapshot | None:
+    """Return the earliest recorded completed run that reaches a stage target."""
+
+    matches = [
+        snapshot
+        for snapshot in snapshots
+        if snapshot.is_completed_run
+        and snapshot.obstacle_count == obstacle_count
+        and snapshot.steps >= target_steps
+    ]
+    return min(matches, key=lambda item: item.steps, default=None)
+
+
+def select_stage_completed_snapshot(
+    snapshots: Sequence[ModelSnapshot],
+    *,
+    stage: WebotsStage,
+    target_steps: int,
+) -> ModelSnapshot | None:
+    """Select a completed stage by signature, supporting non-latest resume sources."""
+
+    matches = [
+        snapshot
+        for snapshot in snapshots
+        if snapshot_matches_stage(snapshot, stage)
+        and (
+            snapshot.steps >= target_steps
+            or (
+                snapshot.additional_steps_requested is not None
+                and snapshot.additional_steps_requested >= stage.training_steps
+            )
+        )
+    ]
+    return min(matches, key=lambda item: item.steps, default=None)
+
+
+def model_steps_from_path(path: Path) -> int | None:
+    """Read the cumulative step encoded in an immutable model/checkpoint filename."""
+
+    for pattern in (_MODEL_STEP_PATTERN, _CHECKPOINT_STEP_PATTERN):
+        match = pattern.search(path.name)
+        if match:
+            return int(match.group("steps"))
+    return None
+
+
+def _timestamp_ns(value: object) -> int | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return int(datetime.fromisoformat(value).timestamp() * 1_000_000_000)
+    except ValueError:
+        return None
+
+
+def relative_artifact_path(path: Path, repository_root: Path) -> str:
+    """Use repository-relative paths in controller environment variables when possible."""
+
+    try:
+        return str(path.absolute().relative_to(repository_root.absolute()))
+    except ValueError:
+        return str(path.absolute())
+
+
+def load_validation_metrics(summary_path: Path) -> dict[str, float | int]:
+    """Read the single-planner Webots summary and verify it is validation data."""
+
+    with summary_path.open(encoding="utf-8") as stream:
+        raw = _mapping(json.load(stream), "Webots validation summary")
+    if raw.get("split") != "validation":
+        raise ValueError("Refusing to gate on a non-validation Webots result.")
+    planners = raw.get("by_planner")
+    if not isinstance(planners, list) or len(planners) != 1:
+        raise ValueError("Webots validation summary must contain exactly one planner.")
+    planner = _mapping(planners[0], "Webots planner summary")
+    metrics: dict[str, float | int] = {
+        "episodes": int(planner["episodes"]),
+        "success_rate": float(planner["success_rate"]),
+        "collision_rate": float(planner["collision_rate"]),
+    }
+    if metrics["episodes"] <= 0:
+        raise ValueError("Webots validation summary contains no episodes.")
+    return metrics
+
+
+def gate_passed(metrics: Mapping[str, float | int], gate: ValidationGate) -> bool:
+    """Evaluate the success and collision thresholds."""
+
+    return (
+        int(metrics["episodes"]) >= gate.episodes
+        and float(metrics["success_rate"]) >= gate.min_success_rate
+        and float(metrics["collision_rate"]) <= gate.max_collision_rate
+    )
+
+
+ProcessRunner = Callable[..., subprocess.CompletedProcess[Any]]
+
+
+class WebotsCurriculumRunner:
+    """Run training/evaluation processes and persist restart state after each action."""
+
+    def __init__(
+        self,
+        *,
+        repository_root: Path,
+        config: WebotsCurriculumConfig,
+        webots_executable: Path,
+        seed: int,
+        manifest_path: Path,
+        process_runner: ProcessRunner = subprocess.run,
+        dry_run: bool = False,
+        success_rate_override: float | None = None,
+        collision_rate_override: float | None = None,
+        episodes_override: int | None = None,
+        seed_start_override: int | None = None,
+    ) -> None:
+        self.repository_root = repository_root.absolute()
+        self.config = config
+        self.webots_executable = webots_executable.absolute()
+        self.seed = seed
+        manifest_path = manifest_path.absolute()
+        if manifest_path.suffix.casefold() not in {".yaml", ".yml", ".json"}:
+            manifest_path = manifest_path.with_suffix(".yaml")
+        self.manifest_path = manifest_path
+        self.process_runner = process_runner
+        self.dry_run = dry_run
+        self.success_rate_override = success_rate_override
+        self.collision_rate_override = collision_rate_override
+        self.episodes_override = episodes_override
+        self.seed_start_override = seed_start_override
+        self.reserved_ports: set[int] = set()
+        self.manifest = self._load_or_create_manifest()
+
+    def _load_or_create_manifest(self) -> dict[str, Any]:
+        if self.manifest_path.is_file():
+            raw = yaml.safe_load(self.manifest_path.read_text(encoding="utf-8"))
+            manifest = dict(_mapping(raw, "run manifest"))
+            if int(manifest.get("seed", -1)) != self.seed:
+                raise ValueError("Existing manifest seed does not match --seed.")
+            if manifest.get("model_variant") != self.config.model_variant:
+                raise ValueError("Existing manifest model_variant does not match the config.")
+            return manifest
+        return {
+            "schema_version": 1,
+            "seed": self.seed,
+            "model_variant": self.config.model_variant,
+            "created_at": utc_now(),
+            "updated_at": utc_now(),
+            "status": "planned" if self.dry_run else "running",
+            "webots_executable": str(self.webots_executable),
+            "automatic_split": "validation",
+            "test_split_was_run": False,
+            "stages": [],
+        }
+
+    def _write_manifest(self) -> None:
+        self.manifest["updated_at"] = utc_now()
+        self.manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        yaml_path = self.manifest_path.with_suffix(".yaml")
+        json_path = self.manifest_path.with_suffix(".json")
+        yaml_path.write_text(
+            yaml.safe_dump(self.manifest, sort_keys=False), encoding="utf-8"
+        )
+        json_path.write_text(
+            json.dumps(self.manifest, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+
+    def _stage_record(self, stage: WebotsStage) -> dict[str, Any]:
+        records = self.manifest["stages"]
+        for record in records:
+            if record.get("id") == stage.stage_id:
+                return record
+        record = {
+            "id": stage.stage_id,
+            "name": stage.name,
+            "obstacle_count": stage.obstacle_count,
+            "training_steps": stage.training_steps,
+            "controller_env": dict(stage.controller_env),
+            "preferred_resume_model": (
+                str(stage.preferred_resume_model)
+                if stage.preferred_resume_model is not None
+                else None
+            ),
+            "status": "pending",
+            "training_attempts": [],
+        }
+        records.append(record)
+        return record
+
+    def _gate_for(self, stage: WebotsStage) -> ValidationGate:
+        return ValidationGate(
+            seed_start=(
+                self.seed_start_override
+                if self.seed_start_override is not None
+                else stage.gate.seed_start
+            ),
+            episodes=(
+                self.episodes_override
+                if self.episodes_override is not None
+                else stage.gate.episodes
+            ),
+            min_success_rate=(
+                self.success_rate_override
+                if self.success_rate_override is not None
+                else stage.gate.min_success_rate
+            ),
+            max_collision_rate=(
+                self.collision_rate_override
+                if self.collision_rate_override is not None
+                else stage.gate.max_collision_rate
+            ),
+        )
+
+    def _webots_command(self, port: int, world: str) -> list[str]:
+        return [
+            str(self.webots_executable),
+            f"--port={port}",
+            "--batch",
+            "--mode=fast",
+            "--no-rendering",
+            "--stdout",
+            "--stderr",
+            str(self.repository_root / "worlds" / world),
+        ]
+
+    def _run_process(self, command: list[str], overrides: dict[str, str]) -> int:
+        if self.dry_run:
+            return 0
+        environment = os.environ.copy()
+        for name in tuple(environment):
+            if name.startswith("WEBOTS_") and name != "WEBOTS_HOME":
+                environment.pop(name)
+        environment.update(overrides)
+        completed = self.process_runner(
+            command,
+            cwd=self.repository_root,
+            env=environment,
+            check=False,
+        )
+        return int(completed.returncode)
+
+    def _evaluation_run_name(self, stage: WebotsStage) -> str:
+        configured = stage.controller_env.get("WEBOTS_EVAL_RUN_NAME")
+        if configured:
+            if Path(configured).name != configured:
+                raise ValueError("WEBOTS_EVAL_RUN_NAME must be a single directory name.")
+            return configured
+        if self.config.model_variant:
+            return (
+                f"webots_validation_seed{self.seed}_{self.config.model_variant}_"
+                f"{stage.stage_id.lower()}"
+            )
+        return f"webots_validation_seed{self.seed}_obstacles{stage.obstacle_count}"
+
+    def _expected_result_directory(self, run_name: str) -> Path:
+        return self.repository_root / "artifacts/results" / run_name
+
+    def _preferred_resume_path(self, stage: WebotsStage) -> Path | None:
+        if stage.preferred_resume_model is None:
+            return None
+        path = self.repository_root / stage.preferred_resume_model
+        model_directory = _model_directory(
+            self.repository_root, self.seed, self.config.model_variant
+        ).absolute()
+        try:
+            relative = path.absolute().relative_to(model_directory)
+        except ValueError as error:
+            raise ValueError(
+                f"Stage {stage.stage_id} preferred_resume_model must be inside "
+                f"{model_directory}."
+            ) from error
+        if self.config.model_variant is None and len(relative.parts) > 1:
+            if relative.parts[0] != "checkpoints":
+                raise ValueError(
+                    f"Stage {stage.stage_id} preferred_resume_model points into "
+                    "a non-legacy model variant."
+                )
+        return path.absolute()
+
+    def _preferred_resume_snapshot(
+        self,
+        stage: WebotsStage,
+        snapshots: Sequence[ModelSnapshot],
+    ) -> ModelSnapshot | None:
+        path = self._preferred_resume_path(stage)
+        if path is None:
+            return None
+        snapshot = next(
+            (item for item in snapshots if item.path.absolute() == path), None
+        )
+        if snapshot is not None:
+            return snapshot
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"Stage {stage.stage_id} preferred resume model does not exist: {path}"
+            )
+        steps = model_steps_from_path(path)
+        if steps is None:
+            raise ValueError(
+                f"Stage {stage.stage_id} preferred resume model must encode its step "
+                "in an immutable filename."
+            )
+        return ModelSnapshot(
+            path=path,
+            steps=steps,
+            model_variant=self.config.model_variant,
+            modified_at_ns=path.stat().st_mtime_ns,
+        )
+
+    def _configured_stage_start_steps(
+        self,
+        stage: WebotsStage,
+        record: Mapping[str, Any] | None,
+        fallback_steps: int,
+    ) -> int:
+        if record is not None and record.get("stage_start_steps") is not None:
+            return int(record["stage_start_steps"])
+        preferred_path = self._preferred_resume_path(stage)
+        if preferred_path is not None:
+            preferred_steps = model_steps_from_path(preferred_path)
+            if preferred_steps is None:
+                raise ValueError(
+                    f"Stage {stage.stage_id} preferred resume model must encode its step."
+                )
+            return preferred_steps
+        return fallback_steps
+
+    def _stage_generated_snapshots(
+        self,
+        stage: WebotsStage,
+        record: Mapping[str, Any],
+        snapshots: Sequence[ModelSnapshot],
+        stage_start_steps: int,
+    ) -> tuple[ModelSnapshot, ...]:
+        generated = {
+            (snapshot.path, snapshot.steps): snapshot
+            for snapshot in snapshots
+            if snapshot.steps > stage_start_steps
+            and snapshot_matches_stage(snapshot, stage)
+        }
+        attempt_starts = [
+            timestamp
+            for attempt in record.get("training_attempts", [])
+            if attempt.get("status") != "planned"
+            if (timestamp := _timestamp_ns(attempt.get("started_at"))) is not None
+        ]
+        if attempt_starts:
+            first_attempt = min(attempt_starts)
+            for snapshot in snapshots:
+                if (
+                    snapshot.steps > stage_start_steps
+                    and snapshot.modified_at_ns is not None
+                    and snapshot.modified_at_ns >= first_attempt
+                ):
+                    generated[(snapshot.path, snapshot.steps)] = snapshot
+        return tuple(generated.values())
+
+    def _run_training(
+        self,
+        stage: WebotsStage,
+        record: dict[str, Any],
+        *,
+        baseline_steps: int,
+        snapshots: Sequence[ModelSnapshot],
+    ) -> ModelSnapshot | None:
+        stage_start_steps = self._configured_stage_start_steps(
+            stage, record, baseline_steps
+        )
+        target_steps = stage_start_steps + stage.training_steps
+        completed = select_stage_completed_snapshot(
+            snapshots,
+            stage=stage,
+            target_steps=target_steps,
+        )
+        if completed is not None:
+            record["training"] = {
+                "status": "reused_completed_metadata",
+                "baseline_steps": (
+                    completed.starting_steps
+                    if completed.starting_steps is not None
+                    else stage_start_steps
+                ),
+                "target_model_steps": target_steps,
+                "final_model_steps": completed.steps,
+                "model": relative_artifact_path(completed.path, self.repository_root),
+                "metadata": (
+                    relative_artifact_path(completed.metadata_path, self.repository_root)
+                    if completed.metadata_path
+                    else None
+                ),
+            }
+            record["stage_start_steps"] = record["training"]["baseline_steps"]
+            return completed
+
+        preferred = self._preferred_resume_snapshot(stage, snapshots)
+        generated = self._stage_generated_snapshots(
+            stage, record, snapshots, stage_start_steps
+        )
+        resumable = max(generated, key=lambda item: item.steps, default=None)
+        if resumable is None:
+            resumable = preferred
+        if resumable is None and self.config.model_variant is None:
+            resumable = max(
+                (snapshot for snapshot in snapshots if snapshot.steps >= stage_start_steps),
+                key=lambda item: item.steps,
+                default=None,
+            )
+        if (
+            resumable is None
+            and self.config.model_variant is not None
+            and stage_start_steps > 0
+        ):
+            raise ValueError(
+                f"Stage {stage.stage_id} requires preferred_resume_model (or "
+                f"--preferred-resume {stage.stage_id}=MODEL) selected by validation; "
+                "the variant endpoint is never chosen automatically."
+            )
+        if self.dry_run and resumable is None and baseline_steps > 0:
+            model_directory = _model_directory(
+                self.repository_root, self.seed, self.config.model_variant
+            )
+            resumable = ModelSnapshot(
+                model_directory / "ppo_webots_latest.zip",
+                stage_start_steps,
+                model_variant=self.config.model_variant,
+            )
+        if (
+            resumable is not None
+            and preferred is None
+            and record.get("stage_start_steps") is None
+            and resumable.starting_steps is not None
+        ):
+            stage_start_steps = resumable.starting_steps
+            target_steps = stage_start_steps + stage.training_steps
+        progressed_steps = (
+            0 if resumable is None else max(0, resumable.steps - stage_start_steps)
+        )
+        remaining_steps = max(1, stage.training_steps - progressed_steps)
+        port = choose_available_port(self.config.port_base, self.reserved_ports)
+        command = self._webots_command(port, "webots_ppo_train.wbt")
+        overrides = dict(stage.controller_env)
+        overrides.update(
+            {
+                "WEBOTS_TRAIN_SEED": str(self.seed),
+                "WEBOTS_TRAIN_STEPS": str(remaining_steps),
+                "WEBOTS_OBSTACLE_COUNT": str(stage.obstacle_count),
+            }
+        )
+        if self.config.model_variant:
+            overrides["WEBOTS_MODEL_VARIANT"] = self.config.model_variant
+        if resumable is not None:
+            overrides.pop("WEBOTS_POLICY_TRANSFER_MODEL", None)
+            overrides.pop("WEBOTS_TRANSFER_MODEL", None)
+            overrides["WEBOTS_RESUME_MODEL"] = relative_artifact_path(
+                resumable.path, self.repository_root
+            )
+        else:
+            overrides.pop("WEBOTS_RESUME_MODEL", None)
+            if self.config.policy_transfer_model is not None:
+                overrides["WEBOTS_POLICY_TRANSFER_MODEL"] = relative_artifact_path(
+                    self.repository_root / self.config.policy_transfer_model,
+                    self.repository_root,
+                )
+                overrides.pop("WEBOTS_TRANSFER_MODEL", None)
+            elif "WEBOTS_POLICY_TRANSFER_MODEL" not in overrides:
+                overrides["WEBOTS_TRANSFER_MODEL"] = relative_artifact_path(
+                    self.repository_root / self.config.transfer_model,
+                    self.repository_root,
+                )
+        attempt = {
+            "started_at": utc_now(),
+            "command": command,
+            "environment": overrides,
+            "port": port,
+            "baseline_steps": stage_start_steps,
+            "progressed_steps_before_attempt": progressed_steps,
+            "additional_steps_requested": remaining_steps,
+        }
+        record["stage_start_steps"] = stage_start_steps
+        record["training_attempts"].append(attempt)
+        record["status"] = "training"
+        self._write_manifest()
+        return_code = self._run_process(command, overrides)
+        attempt["finished_at"] = utc_now()
+        attempt["exit_code"] = return_code
+        if self.dry_run:
+            attempt["status"] = "planned"
+            model_directory = _model_directory(
+                self.repository_root, self.seed, self.config.model_variant
+            )
+            return ModelSnapshot(
+                model_directory / "ppo_webots_latest.zip",
+                target_steps,
+                stage.obstacle_count,
+                model_variant=self.config.model_variant,
+            )
+        if return_code != 0:
+            attempt["status"] = "failed"
+            record["status"] = "training_failed"
+            self.manifest["status"] = "failed"
+            self._write_manifest()
+            return None
+        refreshed = discover_model_snapshots(
+            self.repository_root, self.seed, self.config.model_variant
+        )
+        completed = select_stage_completed_snapshot(
+            refreshed,
+            stage=stage,
+            target_steps=target_steps,
+        )
+        if completed is None:
+            attempt["status"] = "metadata_missing"
+            record["status"] = "training_failed"
+            self.manifest["status"] = "failed"
+            self._write_manifest()
+            return None
+        attempt["status"] = "completed"
+        record["training"] = {
+            "status": "completed",
+            "baseline_steps": baseline_steps,
+            "target_model_steps": target_steps,
+            "final_model_steps": completed.steps,
+            "model": relative_artifact_path(completed.path, self.repository_root),
+            "metadata": relative_artifact_path(completed.metadata_path, self.repository_root),
+        }
+        self._write_manifest()
+        return completed
+
+    def _run_validation(
+        self,
+        stage: WebotsStage,
+        record: dict[str, Any],
+        model: ModelSnapshot,
+    ) -> bool:
+        gate = self._gate_for(stage)
+        port = choose_available_port(self.config.port_base, self.reserved_ports)
+        command = self._webots_command(port, "webots_ppo_evaluate.wbt")
+        run_name = self._evaluation_run_name(stage)
+        overrides = evaluation_controller_env(stage.controller_env)
+        overrides.update(
+            {
+                "WEBOTS_MODEL_SEED": str(self.seed),
+                "WEBOTS_EVAL_MODEL": relative_artifact_path(
+                    model.path, self.repository_root
+                ),
+                "WEBOTS_EVAL_EPISODES": str(gate.episodes),
+                "WEBOTS_EVAL_SEED_START": str(gate.seed_start),
+                "WEBOTS_EVAL_SPLIT": "validation",
+                "WEBOTS_EVAL_CONDITION": stage.stage_id,
+                "WEBOTS_EVAL_RUN_NAME": run_name,
+                "WEBOTS_OBSTACLE_COUNT": str(stage.obstacle_count),
+            }
+        )
+        if self.config.model_variant:
+            overrides.setdefault(
+                "WEBOTS_EVAL_PLANNER_LABEL",
+                f"ppo_seed{self.seed}_{self.config.model_variant}_{stage.stage_id.lower()}",
+            )
+        validation = {
+            "started_at": utc_now(),
+            "command": command,
+            "environment": overrides,
+            "port": port,
+            "model": relative_artifact_path(model.path, self.repository_root),
+            "gate": {
+                "episodes": gate.episodes,
+                "min_success_rate": gate.min_success_rate,
+                "max_collision_rate": gate.max_collision_rate,
+            },
+        }
+        record["validation"] = validation
+        record["status"] = "validating"
+        self._write_manifest()
+        summary_path = self._expected_result_directory(run_name) / "summary.json"
+        previous_summary_mtime = (
+            summary_path.stat().st_mtime_ns if summary_path.is_file() else None
+        )
+        return_code = self._run_process(command, overrides)
+        validation["finished_at"] = utc_now()
+        validation["exit_code"] = return_code
+        if self.dry_run:
+            validation["status"] = "planned"
+            record["status"] = "planned"
+            self._write_manifest()
+            return True
+        if return_code != 0:
+            validation["status"] = "process_failed"
+            record["status"] = "validation_failed"
+            self.manifest["status"] = "failed"
+            self._write_manifest()
+            return False
+        if (
+            previous_summary_mtime is not None
+            and summary_path.is_file()
+            and summary_path.stat().st_mtime_ns == previous_summary_mtime
+        ):
+            validation["status"] = "summary_stale"
+            validation["error"] = "Evaluation did not update the pre-existing summary.json."
+            record["status"] = "validation_failed"
+            self.manifest["status"] = "failed"
+            self._write_manifest()
+            return False
+        try:
+            metrics = load_validation_metrics(summary_path)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            validation["status"] = "summary_invalid"
+            validation["error"] = str(error)
+            record["status"] = "validation_failed"
+            self.manifest["status"] = "failed"
+            self._write_manifest()
+            return False
+        passed = gate_passed(metrics, gate)
+        validation.update(
+            {
+                "status": "passed" if passed else "gate_failed",
+                "summary": relative_artifact_path(summary_path, self.repository_root),
+                "metrics": metrics,
+                "passed": passed,
+            }
+        )
+        record["status"] = "completed" if passed else "gate_failed"
+        if not passed:
+            self.manifest["status"] = "gate_failed"
+        self._write_manifest()
+        return passed
+
+    def run(self, *, start_stage: int, stop_after_stage: int) -> int:
+        """Execute the selected inclusive stage range, stopping on the first failure."""
+
+        if not 0 <= start_stage <= stop_after_stage < len(self.config.stages):
+            raise ValueError("Invalid Webots curriculum stage range.")
+        snapshots = discover_model_snapshots(
+            self.repository_root, self.seed, self.config.model_variant
+        )
+        baseline_steps = 0
+        for index, stage in enumerate(self.config.stages):
+            existing_record = next(
+                (
+                    record
+                    for record in self.manifest["stages"]
+                    if record.get("id") == stage.stage_id
+                ),
+                None,
+            )
+            stage_start_steps = self._configured_stage_start_steps(
+                stage, existing_record, baseline_steps
+            )
+            target_steps = stage_start_steps + stage.training_steps
+            completed = select_stage_completed_snapshot(
+                snapshots,
+                stage=stage,
+                target_steps=target_steps,
+            )
+            if index < start_stage:
+                if completed is None and not self.dry_run:
+                    raise FileNotFoundError(
+                        f"Cannot start at {self.config.stages[start_stage].stage_id}: "
+                        f"prerequisite {stage.stage_id} has no completed metadata."
+                    )
+                baseline_steps = target_steps if completed is None else completed.steps
+                continue
+            if index > stop_after_stage:
+                break
+
+            record = self._stage_record(stage)
+            if record.get("status") == "completed" and record.get("validation", {}).get(
+                "passed"
+            ):
+                baseline_steps = int(record["training"]["final_model_steps"])
+                continue
+            model = self._run_training(
+                stage,
+                record,
+                baseline_steps=baseline_steps,
+                snapshots=snapshots,
+            )
+            if model is None:
+                return 2
+            if not self._run_validation(stage, record, model):
+                return 3
+            baseline_steps = model.steps
+            snapshots = discover_model_snapshots(
+                self.repository_root, self.seed, self.config.model_variant
+            )
+
+        self.manifest["status"] = "planned" if self.dry_run else "completed"
+        self._write_manifest()
+        return 0

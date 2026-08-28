@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from indoor_patrol_rl.core import LidarSafetyShield
+
+
+def scan_with_clearances(*, front: float, left: float, right: float) -> np.ndarray:
+    scan = np.full(360, 3.5, dtype=np.float64)
+    scan[:31] = front
+    scan[-30:] = front
+    scan[35:106] = left
+    scan[-105:-34] = right
+    return scan
+
+
+def test_far_obstacles_do_not_change_policy_action() -> None:
+    shield = LidarSafetyShield()
+    action = np.array([0.55, -0.25], dtype=np.float32)
+
+    result = shield.filter_action(np.full(360, 3.5), action)
+
+    np.testing.assert_array_equal(result.filtered_action, action)
+    assert not result.active
+    assert result.intervention == pytest.approx(0.0)
+    assert result.speed_fraction_limit == pytest.approx(1.0)
+
+
+def test_close_front_obstacle_progressively_stops_and_turns_to_open_side() -> None:
+    shield = LidarSafetyShield()
+    action = np.array([0.8, 0.0], dtype=np.float32)
+
+    result = shield.filter_action(
+        scan_with_clearances(front=0.20, left=1.5, right=0.45),
+        action,
+    )
+
+    assert result.active
+    assert -1.0 <= result.filtered_action[0] < -0.9
+    assert result.filtered_action[1] > 0.5
+    assert result.avoidance_direction == 1
+    assert result.front_clearance == pytest.approx(0.20)
+
+
+@pytest.mark.parametrize(
+    ("left", "right", "expected_sign"),
+    [(0.14, 1.2, -1.0), (1.2, 0.14, 1.0)],
+)
+def test_side_obstacle_turns_toward_the_more_open_side(
+    left: float,
+    right: float,
+    expected_sign: float,
+) -> None:
+    shield = LidarSafetyShield()
+
+    result = shield.filter_action(
+        scan_with_clearances(front=1.5, left=left, right=right),
+        [0.6, 0.0],
+    )
+
+    assert np.sign(result.filtered_action[1]) == expected_sign
+    assert result.active
+
+
+def test_filter_is_continuous_bounded_and_never_requests_reverse_velocity() -> None:
+    shield = LidarSafetyShield()
+    action = np.array([1.0, -0.2], dtype=np.float32)
+    distances = np.linspace(0.10, 0.70, 301)
+    outputs = np.asarray(
+        [
+            shield.filter_action(
+                scan_with_clearances(front=float(distance), left=1.0, right=0.8),
+                action,
+            ).filtered_action
+            for distance in distances
+        ]
+    )
+
+    assert np.all(outputs >= -1.0)
+    assert np.all(outputs <= 1.0)
+    # Adjacent 2 mm clearance changes cannot produce a discontinuous command jump.
+    assert float(np.abs(np.diff(outputs, axis=0)).max()) < 0.03
+    # Normalized -1 is zero forward velocity in this project; no value requests reverse.
+    assert float(outputs[:, 0].min()) == pytest.approx(-1.0)
+
+
+def test_disabled_filter_is_passthrough_but_retains_clearance_diagnostics() -> None:
+    shield = LidarSafetyShield()
+    action = np.array([0.7, 0.1], dtype=np.float32)
+
+    result = shield.filter_action(
+        scan_with_clearances(front=0.15, left=0.2, right=1.0),
+        action,
+        enabled=False,
+    )
+
+    np.testing.assert_array_equal(result.filtered_action, action)
+    assert not result.enabled
+    assert not result.active
+    assert result.intervention == pytest.approx(0.0)
+    assert result.front_clearance == pytest.approx(0.15)

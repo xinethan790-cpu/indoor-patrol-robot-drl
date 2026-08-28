@@ -1,0 +1,116 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/WoodenBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/devices/robotis/protos/RobotisLds01.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/robotis/turtlebot/protos/TurtleBot3Burger.proto"
+
+WorldInfo {
+  title "Indoor Patrol Robot - Dynamic Obstacle Demo"
+  basicTimeStep 64
+}
+Viewpoint {
+  orientation -0.35197837787203723 0.27983229919752844 0.893199365111952 1.90662454005082
+  position 2.8932654100724946 -6.152405300525125 5.897625229137012
+  follow "PatrolRobot"
+  followType "Pan and Tilt Shot"
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+  floorSize 4.5 3.5
+  wallHeight 0.3
+}
+WoodenBox {
+  translation -0.2 1.25 0.2
+  size 1.5 0.3 0.4
+}
+WoodenBox {
+  translation 0.5 -1.25 0.2
+  name "lower static obstacle"
+  size 1.5 0.3 0.4
+}
+Pose {
+  translation 1.65 0 0.025
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.1 0.8 0.25
+        roughness 0.5
+        metalness 0
+        emissiveColor 0.03 0.25 0.08
+      }
+      geometry Cylinder {
+        height 0.05
+        radius 0.22
+      }
+    }
+  ]
+}
+DEF CROSSING_OBSTACLE Robot {
+  translation 0 -0.07079999999999997 0.36
+  children [
+    Pose {
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.9 0.25 0.12
+            roughness 0.65
+            metalness 0
+          }
+          geometry Cylinder {
+            height 0.72
+            radius 0.2
+          }
+        }
+      ]
+    }
+  ]
+  name "CrossingObstacle"
+  boundingObject Pose {
+    children [
+      Cylinder {
+        height 0.72
+        radius 0.2
+      }
+    ]
+  }
+  controller "dynamic_obstacle"
+  supervisor TRUE
+}
+TurtleBot3Burger {
+  hidden position_0_0 94.166646713488
+  hidden position_0_1 94.21673659836421
+  hidden position_0_2 -8.76568580812919
+  hidden position2_0_2 -7.101966369635467
+  hidden position3_0_2 570.7067427514572
+  hidden linearVelocity_0 -2.0004609933476884e-05 7.472711252841744e-07 -3.438007974755417e-05
+  hidden angularVelocity_0 -1.548719672150497e-05 -0.0004144377997631849 8.523203344966842e-09
+  hidden rotation_10 0 1 0 4.631256412973796
+  hidden linearVelocity_10 -1.3676640037046431e-05 5.110855817122162e-07 -2.0507009434629898e-05
+  hidden angularVelocity_10 -1.5487197689387798e-05 -0.0004144378126830608 8.523294061965976e-09
+  hidden rotation_11 0.6960446545175665 3.6113907724475275e-08 0.717998495066334 3.141597306619033
+  hidden linearVelocity_11 -1.3676640005155617e-05 5.110838129502525e-07 -2.064004779493087e-05
+  hidden angularVelocity_11 -1.5487197109159892e-05 -0.00041443781269843056 8.523160627441584e-09
+  hidden rotation_12 0.7633770116861643 0.6159115899552716 -0.19470092806114503 4.067995451033424
+  hidden linearVelocity_12 -1.3311156266701267e-06 4.905293972225989e-08 -5.403688583919212e-05
+  hidden angularVelocity_12 -1.2263234981571337e-05 -0.0003327789080507589 2.3951573735872543e-08
+  translation 1.4681359697704623 0.00642789510134477 -0.0004883044843494236
+  rotation -0.005010463059780016 -0.253391044914602 -0.9673509567974866 0.03653920925421084
+  name "PatrolRobot"
+  controller "patrol_reactive"
+  supervisor TRUE
+  extensionSlot [
+    RobotisLds01 {
+    }
+    GPS {
+    }
+    InertialUnit {
+      name "imu"
+    }
+  ]
+}

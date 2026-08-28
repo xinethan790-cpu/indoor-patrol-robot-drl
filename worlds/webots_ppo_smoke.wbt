@@ -1,0 +1,89 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/devices/robotis/protos/RobotisLds01.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/robotis/turtlebot/protos/TurtleBot3Burger.proto"
+
+WorldInfo {
+  basicTimeStep 32
+  title "Indoor Patrol Robot - Webots PPO Smoke Training"
+}
+Viewpoint {
+  orientation -0.363 0.858 0.363 1.72
+  position 2.8 -3.1 2.7
+  follow "PatrolRobot"
+  followType "Pan and Tilt Shot"
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+  floorSize 4.5 3.5
+  wallHeight 0.3
+}
+DEF PATROL_GOAL Pose {
+  translation 1.55 0 0.025
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.1 0.8 0.25
+        emissiveColor 0.03 0.25 0.08
+        roughness 0.5
+        metalness 0
+      }
+      geometry Cylinder {
+        height 0.05
+        radius 0.22
+      }
+    }
+  ]
+}
+DEF TRAIN_OBSTACLE_0 Solid {
+  translation 0 -0.9 0.36
+  children [
+    Pose {
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.9 0.25 0.12
+            roughness 0.65
+            metalness 0
+          }
+          geometry Cylinder {
+            height 0.72
+            radius 0.20
+          }
+        }
+      ]
+    }
+  ]
+  name "TrainingObstacle0"
+  boundingObject Pose {
+    children [
+      Cylinder {
+        height 0.72
+        radius 0.20
+      }
+    ]
+  }
+  locked TRUE
+}
+TurtleBot3Burger {
+  translation -1.55 0 0
+  name "PatrolRobot"
+  controller "webots_ppo_smoke"
+  supervisor TRUE
+  extensionSlot [
+    RobotisLds01 {
+    }
+    GPS {
+      name "gps"
+    }
+    InertialUnit {
+      name "imu"
+    }
+  ]
+}

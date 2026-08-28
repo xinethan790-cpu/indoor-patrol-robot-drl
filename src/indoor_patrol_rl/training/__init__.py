@@ -1,0 +1,51 @@
+"""Configuration primitives for reproducible curriculum training."""
+
+from indoor_patrol_rl.training.curriculum import (
+    CurriculumConfig,
+    CurriculumStage,
+    load_curriculum,
+)
+from indoor_patrol_rl.training.webots_curriculum import (
+    ModelSnapshot,
+    ValidationGate,
+    WebotsCurriculumConfig,
+    WebotsCurriculumRunner,
+    WebotsStage,
+    apply_preferred_resume_overrides,
+    choose_available_port,
+    discover_model_snapshots,
+    evaluation_controller_env,
+    gate_passed,
+    load_validation_metrics,
+    load_webots_curriculum,
+    normalize_controller_env,
+    resolve_stage_index,
+    resolve_webots_executable,
+    select_completed_snapshot,
+    select_stage_completed_snapshot,
+    snapshot_matches_stage,
+)
+
+__all__ = [
+    "CurriculumConfig",
+    "CurriculumStage",
+    "ModelSnapshot",
+    "ValidationGate",
+    "WebotsCurriculumConfig",
+    "WebotsCurriculumRunner",
+    "WebotsStage",
+    "apply_preferred_resume_overrides",
+    "choose_available_port",
+    "discover_model_snapshots",
+    "evaluation_controller_env",
+    "gate_passed",
+    "load_curriculum",
+    "load_validation_metrics",
+    "load_webots_curriculum",
+    "normalize_controller_env",
+    "resolve_stage_index",
+    "resolve_webots_executable",
+    "select_completed_snapshot",
+    "select_stage_completed_snapshot",
+    "snapshot_matches_stage",
+]

@@ -1,0 +1,127 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/WoodenBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/devices/robotis/protos/RobotisLds01.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/robotis/turtlebot/protos/TurtleBot3Burger.proto"
+
+WorldInfo {
+  basicTimeStep 32
+  title "Indoor Patrol Robot - A Star, Waypoints and PPO"
+}
+Viewpoint {
+  orientation -0.382 0.841 0.382 1.75
+  position 2.9 -3.4 3.2
+  follow "PatrolRobot"
+  followType "Pan and Tilt Shot"
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+  floorSize 4.5 3.5
+  wallHeight 0.3
+}
+WoodenBox {
+  translation 0 0 0.30
+  name "central cabinet"
+  size 1.20 0.80 0.60
+}
+DEF LOCAL_TARGET Pose {
+  translation -1.6 0 0.055
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.82 0.05
+        emissiveColor 0.30 0.16 0
+        roughness 0.5
+        metalness 0
+      }
+      geometry Cylinder {
+        height 0.05
+        radius 0.09
+      }
+    }
+  ]
+}
+DEF ROUTE_CHECKPOINT_P1 Pose {
+  translation 1.6 0 0.025
+  children [ Shape { appearance PBRAppearance { baseColor 0.1 0.8 0.25 emissiveColor 0.02 0.20 0.05 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
+}
+DEF ROUTE_CHECKPOINT_P2 Pose {
+  translation 1.6 1.15 0.025
+  children [ Shape { appearance PBRAppearance { baseColor 0.1 0.55 0.95 emissiveColor 0.02 0.08 0.22 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
+}
+DEF ROUTE_CHECKPOINT_P3 Pose {
+  translation -1.6 1.15 0.025
+  children [ Shape { appearance PBRAppearance { baseColor 0.7 0.25 0.95 emissiveColor 0.14 0.03 0.20 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
+}
+DEF ROUTE_CHECKPOINT_P4 Pose {
+  translation -1.6 -1.15 0.025
+  children [ Shape { appearance PBRAppearance { baseColor 0.95 0.4 0.1 emissiveColor 0.22 0.06 0.01 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
+}
+DEF DYNAMIC_OBSTACLE_0 Solid {
+  translation -0.92 -0.95 0.36
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.92 0.12 0.08
+        emissiveColor 0.12 0.01 0
+        roughness 0.65
+        metalness 0
+      }
+      geometry Cylinder {
+        height 0.72
+        radius 0.18
+      }
+    }
+  ]
+  name "DynamicObstacleVertical"
+  boundingObject Cylinder {
+    height 0.72
+    radius 0.18
+  }
+  locked TRUE
+}
+DEF DYNAMIC_OBSTACLE_1 Solid {
+  translation 0.95 0.92 0.36
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.95 0.58 0.04
+        emissiveColor 0.14 0.05 0
+        roughness 0.65
+        metalness 0
+      }
+      geometry Cylinder {
+        height 0.72
+        radius 0.17
+      }
+    }
+  ]
+  name "DynamicObstacleHorizontal"
+  boundingObject Cylinder {
+    height 0.72
+    radius 0.17
+  }
+  locked TRUE
+}
+TurtleBot3Burger {
+  translation -1.6 0 0
+  name "PatrolRobot"
+  controller "patrol_route_ppo"
+  supervisor TRUE
+  extensionSlot [
+    RobotisLds01 {
+    }
+    GPS {
+      name "gps"
+    }
+    InertialUnit {
+      name "imu"
+    }
+  ]
+}
