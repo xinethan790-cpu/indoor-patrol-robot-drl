@@ -82,49 +82,59 @@ def main() -> None:
     supervisor = Supervisor()
     exit_code = 1
     env = None
+    raw_env = None
+    model = None
+    seed: int | None = None
+    model_variant = ""
+    segment_id = time.strftime("failed_%Y%m%dT%H%M%S")
+    training_steps: int | None = None
+    obstacle_count: int | None = None
+    source_path: Path | None = None
+    monitor_path: Path | None = None
     try:
         seed = int(os.environ.get("WEBOTS_TRAIN_SEED", "11"))
         training_steps = int(os.environ.get("WEBOTS_TRAIN_STEPS", "50000"))
         obstacle_count = int(os.environ.get("WEBOTS_OBSTACLE_COUNT", "1"))
         safety_shield_enabled = environment_flag("WEBOTS_SAFETY_SHIELD")
-        model_variant = os.environ.get("WEBOTS_MODEL_VARIANT", "").strip()
-        if model_variant in {".", ".."} or (
-            model_variant
-            and re.fullmatch(r"[A-Za-z0-9_.-]+", model_variant) is None
+        model_variant_value = os.environ.get("WEBOTS_MODEL_VARIANT", "").strip()
+        if model_variant_value in {".", ".."} or (
+            model_variant_value
+            and re.fullmatch(r"[A-Za-z0-9_.-]+", model_variant_value) is None
         ):
             raise ValueError(
                 "WEBOTS_MODEL_VARIANT must be a path-safe single name containing only "
                 "letters, digits, '.', '_' and '-'."
             )
+        model_variant = model_variant_value
+        segment_id_value = os.environ.get(
+            "WEBOTS_RUN_ID",
+            time.strftime(f"o{obstacle_count}_%Y%m%dT%H%M%S"),
+        )
+        if segment_id_value in {"", ".", ".."} or re.fullmatch(
+            r"[A-Za-z0-9_.-]+", segment_id_value
+        ) is None:
+            raise ValueError(
+                "WEBOTS_RUN_ID must be a path-safe single name containing only "
+                "letters, digits, '.', '_' and '-'."
+            )
+        segment_id = segment_id_value
         obstacle_speed_range = (
             float(os.environ.get("WEBOTS_OBSTACLE_SPEED_MIN", "0.20")),
             float(os.environ.get("WEBOTS_OBSTACLE_SPEED_MAX", "0.42")),
         )
-        reward_safety_distance = float(
-            os.environ.get("WEBOTS_REWARD_SAFETY_DISTANCE", "0.20")
-        )
-        proximity_speed_distance = float(
-            os.environ.get("WEBOTS_REWARD_PROXIMITY_DISTANCE", "0.60")
-        )
+        reward_safety_distance = float(os.environ.get("WEBOTS_REWARD_SAFETY_DISTANCE", "0.20"))
+        proximity_speed_distance = float(os.environ.get("WEBOTS_REWARD_PROXIMITY_DISTANCE", "0.60"))
         proximity_speed_weight = float(
             os.environ.get("WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT", "0.0")
         )
         reward_config = RewardConfig(
-            progress_weight=float(
-                os.environ.get("WEBOTS_REWARD_PROGRESS_WEIGHT", "3.0")
-            ),
+            progress_weight=float(os.environ.get("WEBOTS_REWARD_PROGRESS_WEIGHT", "3.0")),
             time_penalty=float(os.environ.get("WEBOTS_REWARD_TIME_PENALTY", "-0.01")),
             safety_weight=float(os.environ.get("WEBOTS_REWARD_SAFETY_WEIGHT", "-0.20")),
-            smoothness_weight=float(
-                os.environ.get("WEBOTS_REWARD_SMOOTHNESS_WEIGHT", "-0.02")
-            ),
+            smoothness_weight=float(os.environ.get("WEBOTS_REWARD_SMOOTHNESS_WEIGHT", "-0.02")),
             goal_reward=float(os.environ.get("WEBOTS_REWARD_GOAL", "30.0")),
-            collision_penalty=float(
-                os.environ.get("WEBOTS_REWARD_COLLISION_PENALTY", "-30.0")
-            ),
-            timeout_penalty=float(
-                os.environ.get("WEBOTS_REWARD_TIMEOUT_PENALTY", "-5.0")
-            ),
+            collision_penalty=float(os.environ.get("WEBOTS_REWARD_COLLISION_PENALTY", "-30.0")),
+            timeout_penalty=float(os.environ.get("WEBOTS_REWARD_TIMEOUT_PENALTY", "-5.0")),
         )
         n_steps = int(os.environ.get("WEBOTS_PPO_N_STEPS", "512"))
         batch_size = int(os.environ.get("WEBOTS_PPO_BATCH_SIZE", "64"))
@@ -163,10 +173,6 @@ def main() -> None:
         if model_variant:
             log_directory /= model_variant
         log_directory.mkdir(parents=True, exist_ok=True)
-        segment_id = os.environ.get(
-            "WEBOTS_RUN_ID",
-            time.strftime(f"o{obstacle_count}_%Y%m%dT%H%M%S"),
-        )
         monitor_path = log_directory / f"training_{segment_id}.monitor.csv"
         env = Monitor(
             raw_env,
@@ -200,7 +206,6 @@ def main() -> None:
             "WEBOTS_TRANSFER_MODEL",
             "artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip",
         )
-        source_path: Path | None = None
         if resume_value:
             source_path = repository_root / resume_value
             model = PPO.load(source_path, env=env, device="cpu")
@@ -252,11 +257,7 @@ def main() -> None:
                 )
             source_model = PPO.load(source_path, device="cpu")
             model.policy.load_state_dict(source_model.policy.state_dict())
-            mode = (
-                "webots_policy_transfer"
-                if policy_transfer_value
-                else "kinematic_transfer"
-            )
+            mode = "webots_policy_transfer" if policy_transfer_value else "kinematic_transfer"
             reset_num_timesteps = True
 
         initial_action_std = os.environ.get("WEBOTS_PPO_INITIAL_ACTION_STD")
@@ -286,9 +287,7 @@ def main() -> None:
             save_freq=10240,
             save_path=str(checkpoint_directory),
             name_prefix=(
-                f"ppo_webots_s{seed}_{model_variant}"
-                if model_variant
-                else f"ppo_webots_s{seed}"
+                f"ppo_webots_s{seed}_{model_variant}" if model_variant else f"ppo_webots_s{seed}"
             ),
         )
         starting_steps = model.num_timesteps
@@ -305,6 +304,15 @@ def main() -> None:
             progress_bar=False,
             tb_log_name=f"ppo_webots_seed{seed}",
         )
+        reset_health = raw_env.reset_health_diagnostics()
+        if (
+            reset_health["attempts"] != reset_health["successful"]
+            or reset_health["finite_settle_checks"] != 2 * reset_health["successful"]
+            or reset_health["readback_checks"] != reset_health["successful"]
+        ):
+            raise RuntimeError(
+                f"Webots training reset-health counters are inconsistent: {reset_health}."
+            )
         final_path = output_directory / f"ppo_webots_s{seed}_step{model.num_timesteps:09d}"
         latest_path = output_directory / "ppo_webots_latest"
         model.save(final_path)
@@ -332,21 +340,16 @@ def main() -> None:
                 "gamma": model.gamma,
                 "target_kl": model.target_kl,
                 "initial_action_std_override": (
-                    float(initial_action_std)
-                    if initial_action_std is not None
-                    else None
+                    float(initial_action_std) if initial_action_std is not None else None
                 ),
                 "reset_linear_head_mean": (
-                    float(reset_linear_head)
-                    if reset_linear_head is not None
-                    else None
+                    float(reset_linear_head) if reset_linear_head is not None else None
                 ),
             },
             "safety_shield_enabled": safety_shield_enabled,
-            "safety_shield_intervention_penalty": (
-                raw_env.safety_shield_intervention_penalty
-            ),
+            "safety_shield_intervention_penalty": (raw_env.safety_shield_intervention_penalty),
             "safety_shield_config": asdict(raw_env.safety_shield.config),
+            "reset_health": reset_health,
             "starting_webots_steps": starting_steps,
             "additional_steps_requested": training_steps,
             "final_model_steps": model.num_timesteps,
@@ -375,8 +378,54 @@ def main() -> None:
             flush=True,
         )
         exit_code = 0
-    except Exception:
-        traceback.print_exc()
+    except Exception as error:
+        failure_traceback = traceback.format_exc()
+        print(failure_traceback, end="", flush=True)
+        try:
+            failure_directory = repository_root / "artifacts/logs/webots"
+            if seed is not None:
+                failure_directory /= f"seed_{seed}"
+            else:
+                failure_directory /= "seed_unknown"
+            if model_variant:
+                failure_directory /= model_variant
+            failure_directory.mkdir(parents=True, exist_ok=True)
+            runtime_diagnostics: object = None
+            if raw_env is not None:
+                try:
+                    runtime_diagnostics = raw_env.runtime_diagnostics()
+                except Exception as diagnostic_error:  # pragma: no cover - live API failure
+                    runtime_diagnostics = (
+                        f"unavailable: {type(diagnostic_error).__name__}: {diagnostic_error}"
+                    )
+            failure_metadata = {
+                "status": "failed",
+                "seed": seed,
+                "model_variant": model_variant or None,
+                "segment_id": segment_id,
+                "obstacle_count": obstacle_count,
+                "additional_steps_requested": training_steps,
+                "current_model_steps": (int(model.num_timesteps) if model is not None else None),
+                "source_model": str(source_path) if source_path is not None else None,
+                "monitor_log": str(monitor_path) if monitor_path is not None else None,
+                "exception": {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "traceback": failure_traceback,
+                },
+                "runtime_diagnostics": runtime_diagnostics,
+                "git": git_metadata(repository_root),
+                "recorded_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            failure_path = failure_directory / f"failure_{segment_id}_{time.time_ns()}.yaml"
+            temporary_path = failure_path.with_suffix(".yaml.tmp")
+            temporary_path.write_text(
+                yaml.safe_dump(failure_metadata, sort_keys=False), encoding="utf-8"
+            )
+            temporary_path.replace(failure_path)
+            print(f"WEBOTS_TRAINING_FAILURE_METADATA path={failure_path}", flush=True)
+        except Exception:
+            traceback.print_exc()
     finally:
         if env is not None:
             env.close()

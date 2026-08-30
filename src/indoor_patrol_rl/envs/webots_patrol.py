@@ -63,9 +63,7 @@ def validate_obstacle_cross_lanes(
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
         raise ValueError("obstacle_cross_lanes must be a numeric sequence.")
     if len(value) != expected_count:
-        raise ValueError(
-            f"obstacle_cross_lanes must contain exactly {expected_count} values."
-        )
+        raise ValueError(f"obstacle_cross_lanes must contain exactly {expected_count} values.")
     lanes: list[float] = []
     for index, raw_lane in enumerate(value):
         if isinstance(raw_lane, bool) or not isinstance(raw_lane, (int, float)):
@@ -77,9 +75,7 @@ def validate_obstacle_cross_lanes(
     for first in range(len(lanes)):
         for second in range(first + 1, len(lanes)):
             if abs(lanes[first] - lanes[second]) <= minimum_separation:
-                raise ValueError(
-                    "obstacle_cross_lanes do not satisfy the minimum separation."
-                )
+                raise ValueError("obstacle_cross_lanes do not satisfy the minimum separation.")
     return tuple(lanes)
 
 
@@ -106,6 +102,12 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
     """Continuous TurtleBot3 navigation with one Supervisor-controlled obstacle."""
 
     metadata = {"render_modes": []}
+    reset_translation_tolerance = 1e-6
+    reset_start_xy_tolerance = 0.02
+    reset_gps_root_xy_limit = 0.06
+    reset_yaw_tolerance = 0.05
+    reset_linear_speed_limit = 0.50
+    reset_angular_speed_limit = 5.0
 
     def __init__(
         self,
@@ -220,11 +222,26 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.current_scenario_seed: int | None = None
         self.current_route_axis = "unknown"
         self.current_reverse_route = False
+        self.current_start_position = np.zeros(2, dtype=np.float64)
+        self.current_start_yaw = 0.0
         self.last_contact_collision = False
         self.last_lidar_collision = False
-
+        self.sensor_sample_tick = 0
+        self.reset_attempt_count = 0
+        self.successful_reset_count = 0
+        self.reset_finite_check_count = 0
+        self.reset_readback_check_count = 0
+        self.maximum_reset_translation_error = 0.0
+        self.maximum_reset_start_xy_error = 0.0
+        self.maximum_reset_gps_root_xy_distance = 0.0
+        self.maximum_reset_yaw_error = 0.0
+        self.maximum_reset_linear_speed = 0.0
+        self.maximum_reset_angular_speed = 0.0
         if self.supervisor.step(self.basic_time_step) == -1:
             raise RuntimeError("Webots ended while initializing the patrol environment.")
+        self.sensor_sample_tick += 1
+        self._position()
+        self._roll_pitch_yaw()
 
     def reset(
         self,
@@ -235,6 +252,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         super().reset(seed=seed)
         options = options or {}
         self.current_scenario_seed = seed
+        self.reset_attempt_count += 1
         self._stop()
 
         route_axis = str(
@@ -245,9 +263,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         if route_axis == "horizontal":
             start_offset = float(options.get("start_y", self.np_random.uniform(-0.55, 0.55)))
             goal_offset = float(options.get("goal_y", self.np_random.uniform(-0.55, 0.55)))
-            start = np.array(
-                [-self.horizontal_route_half_length, start_offset], dtype=np.float64
-            )
+            start = np.array([-self.horizontal_route_half_length, start_offset], dtype=np.float64)
             self.goal_position = np.array(
                 [self.horizontal_route_half_length, goal_offset], dtype=np.float64
             )
@@ -255,9 +271,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         elif route_axis == "vertical":
             start_offset = float(options.get("start_x", self.np_random.uniform(-0.70, 0.70)))
             goal_offset = float(options.get("goal_x", self.np_random.uniform(-0.70, 0.70)))
-            start = np.array(
-                [start_offset, -self.vertical_route_half_length], dtype=np.float64
-            )
+            start = np.array([start_offset, -self.vertical_route_half_length], dtype=np.float64)
             self.goal_position = np.array(
                 [goal_offset, self.vertical_route_half_length], dtype=np.float64
             )
@@ -270,21 +284,19 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         start_yaw = float(options.get("start_yaw", self.np_random.uniform(-math.pi, math.pi)))
         self.current_route_axis = route_axis
         self.current_reverse_route = reverse_route
-        self.robot_translation.setSFVec3f([float(start[0]), float(start[1]), 0.0])
-        self.robot_rotation.setSFRotation([0.0, 0.0, 1.0, start_yaw])
+        self.current_start_position = start.copy()
+        self.current_start_yaw = start_yaw
+        self._restore_articulated_robot_pose(start, start_yaw)
         self.goal_translation.setSFVec3f(
             [float(self.goal_position[0]), float(self.goal_position[1]), 0.025]
         )
-        self.robot_node.resetPhysics()
 
         raw_cross_lanes = options.get("obstacle_cross_lanes")
         obstacle_cross_lanes = (
             validate_obstacle_cross_lanes(
                 raw_cross_lanes,
                 expected_count=len(self.obstacle_nodes),
-                minimum_separation=float(
-                    options.get("obstacle_lane_min_separation", 0.0)
-                ),
+                minimum_separation=float(options.get("obstacle_lane_min_separation", 0.0)),
             )
             if raw_cross_lanes is not None
             else None
@@ -294,11 +306,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             zip(self.obstacle_nodes, self.obstacle_translations, strict=True)
         ):
             self.obstacle_axes[index] = obstacle_axis
-            cross_lane = (
-                obstacle_cross_lanes[index]
-                if obstacle_cross_lanes is not None
-                else None
-            )
+            cross_lane = obstacle_cross_lanes[index] if obstacle_cross_lanes is not None else None
             x, y = _sample_obstacle_position(
                 self.np_random,
                 obstacle_axis=obstacle_axis,
@@ -306,15 +314,23 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             )
             translation.setSFVec3f([x, y, 0.36])
             node.resetPhysics()
-            self.obstacle_speeds[index] = float(
-                self.np_random.uniform(*self.obstacle_speed_range)
-            )
+            self.obstacle_speeds[index] = float(self.np_random.uniform(*self.obstacle_speed_range))
             self.obstacle_directions[index] = float(self.np_random.choice([-1.0, 1.0]))
 
-        self.supervisor.simulationResetPhysics()
+        # Each moved dynamic node is reset above. A global physics reset here is
+        # both redundant and unsafe for the articulated TurtleBot: repeated
+        # world-wide ODE resets after teleporting the robot have produced a
+        # fully non-finite robot transform/velocity on the next control step.
+        self.step_count = 0
+        self.physics_step_count = 0
+        self._simulation_ended = False
         for _ in range(2):
             if self.supervisor.step(self.basic_time_step) == -1:
                 raise RuntimeError("Webots ended while resetting the patrol environment.")
+            self.sensor_sample_tick += 1
+            self._finite_supervisor_robot_state()
+            self.reset_finite_check_count += 1
+        self._validate_reset_readback()
 
         self.previous_action = np.array([-1.0, 0.0], dtype=np.float32)
         self.last_policy_action = self.previous_action.copy()
@@ -323,12 +339,9 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.shield_intervention_sum = 0.0
         self.commanded_linear = 0.0
         self.commanded_angular = 0.0
-        self.step_count = 0
         self.path_length = 0.0
         self.minimum_clearance = math.inf
         self.current_clearance = math.inf
-        self.physics_step_count = 0
-        self._simulation_ended = False
         self.last_contact_collision = False
         self.last_lidar_collision = False
         self.previous_position = self._position()
@@ -345,12 +358,15 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             enabled=False,
         )
         observation = self._observation(scan)
+        self.successful_reset_count += 1
         return observation, self._info(False, False, False, {})
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         policy_action = np.asarray(action, dtype=np.float32)
         if policy_action.shape != (2,):
             raise ValueError("action must have shape (2,).")
+        if not np.isfinite(policy_action).all():
+            raise ValueError(f"action must contain finite values; got {policy_action.tolist()}.")
         policy_action = np.clip(policy_action, -1.0, 1.0)
         pre_action_scan = self._range_image()
         shield_result = self.safety_shield.filter_action(
@@ -366,9 +382,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.shield_intervention_sum += shield_result.intervention
 
         previous_action = self.previous_action.copy()
-        requested_linear, requested_angular = self.mapper.normalized_to_velocity(
-            shielded_action
-        )
+        requested_linear, requested_angular = self.mapper.normalized_to_velocity(shielded_action)
         requested_linear, requested_angular = self.rate_limiter.limit(
             requested_linear,
             requested_angular,
@@ -382,9 +396,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         # rather than the infeasible pre-saturation request.
         self.commanded_linear = 0.5 * self.mapper.wheel_radius * (left_speed + right_speed)
         self.commanded_angular = (
-            self.mapper.wheel_radius
-            * (right_speed - left_speed)
-            / self.mapper.axle_length
+            self.mapper.wheel_radius * (right_speed - left_speed) / self.mapper.axle_length
         )
         self.left_motor.setVelocity(left_speed)
         self.right_motor.setVelocity(right_speed)
@@ -396,6 +408,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             if self.supervisor.step(self.basic_time_step) == -1:
                 self._simulation_ended = True
                 break
+            self.sensor_sample_tick += 1
             self.physics_step_count += 1
             contact_collision = contact_collision or self._has_contact_collision()
             if contact_collision:
@@ -415,9 +428,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         finite_scan = scan[np.isfinite(scan)]
         lidar_minimum = float(finite_scan.min()) if finite_scan.size else math.inf
         contact_collision = bool(contact_collision or self._has_contact_collision())
-        lidar_collision = bool(
-            lidar_minimum <= float(self.lidar.getMinRange()) + 0.01
-        )
+        lidar_collision = bool(lidar_minimum <= float(self.lidar.getMinRange()) + 0.01)
         self.last_contact_collision = contact_collision
         self.last_lidar_collision = lidar_collision
         collision = bool(contact_collision or lidar_collision)
@@ -443,32 +454,37 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             timeout=truncated,
             config=self.reward_config,
         )
-        intervention_term = (
-            -self.safety_shield_intervention_penalty * shield_result.intervention
-        )
+        intervention_term = -self.safety_shield_intervention_penalty * shield_result.intervention
         reward_terms["shield_intervention"] = intervention_term
         reward += intervention_term
         proximity_ratio = max(
             0.0,
-            (self.proximity_speed_distance - clearance)
-            / self.proximity_speed_distance,
+            (self.proximity_speed_distance - clearance) / self.proximity_speed_distance,
         )
         speed_fraction = max(
             0.0,
             self.commanded_linear / self.mapper.max_linear_speed,
         )
-        proximity_speed_term = (
-            -self.proximity_speed_weight * proximity_ratio**2 * speed_fraction**2
-        )
+        proximity_speed_term = -self.proximity_speed_weight * proximity_ratio**2 * speed_fraction**2
         reward_terms["proximity_speed"] = proximity_speed_term
         reward += proximity_speed_term
+        if not math.isfinite(reward):
+            raise RuntimeError(
+                "Webots patrol reward became non-finite; "
+                f"progress={progress!r}, clearance={clearance!r}, "
+                f"distance={distance!r}, terms={reward_terms!r}."
+            )
         # The policy observes the previous target that was actually admitted by
         # the shield.  Measured command velocities remain separate observation
         # fields, while evaluation metrics use ``executed_action`` from info.
         self.previous_action = shielded_action.copy()
         observation = self._observation(scan)
-        return observation, reward, terminated, truncated, self._info(
-            success, collision, truncated, reward_terms
+        return (
+            observation,
+            reward,
+            terminated,
+            truncated,
+            self._info(success, collision, truncated, reward_terms),
         )
 
     def close(self) -> None:
@@ -484,9 +500,213 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.left_motor.setVelocity(0.0)
         self.right_motor.setVelocity(0.0)
 
+    def _restore_articulated_robot_pose(
+        self, start: np.ndarray, start_yaw: float
+    ) -> None:
+        """Restore every TurtleBot joint before applying the next episode pose."""
+
+        self.robot_node.loadState("__init__")
+        for motor in (self.left_motor, self.right_motor):
+            motor.setPosition(float("inf"))
+            motor.setVelocity(0.0)
+        self.robot_translation.setSFVec3f([float(start[0]), float(start[1]), 0.0])
+        self.robot_rotation.setSFRotation([0.0, 0.0, 1.0, float(start_yaw)])
+        self.robot_node.resetPhysics()
+        self.robot_node.setVelocity([0.0] * 6)
+
     def _position(self) -> np.ndarray:
-        values = self.gps.getValues()
-        return np.asarray(values[:2], dtype=np.float64)
+        values = np.asarray(self.gps.getValues(), dtype=np.float64).reshape(-1)
+        if values.size < 2:
+            raise RuntimeError(
+                f"Webots GPS returned {values.size} values; at least two are required."
+            )
+        position = values[:2]
+        if not np.isfinite(position).all():
+            self._raise_non_finite_pose_sensor("GPS position", position)
+        return position
+
+    def _roll_pitch_yaw(self) -> np.ndarray:
+        values = np.asarray(self.imu.getRollPitchYaw(), dtype=np.float64).reshape(-1)
+        if values.size < 3:
+            raise RuntimeError(
+                f"Webots IMU returned {values.size} values; roll, pitch, and yaw are required."
+            )
+        orientation = values[:3]
+        if not np.isfinite(orientation).all():
+            self._raise_non_finite_pose_sensor("IMU roll/pitch/yaw", orientation)
+        return orientation
+
+    def _raise_non_finite_pose_sensor(self, name: str, values: np.ndarray) -> None:
+        try:
+            state = self._finite_supervisor_robot_state()
+        except RuntimeError as state_error:
+            raise RuntimeError(
+                f"Webots {name} was non-finite at sensor tick {self.sensor_sample_tick}: "
+                f"{values.tolist()}; {state_error}"
+            ) from state_error
+        raise RuntimeError(
+            f"Webots {name} was non-finite at sensor tick {self.sensor_sample_tick}: "
+            f"{values.tolist()}; Supervisor robot state remained finite: {state}."
+        )
+
+    def _finite_supervisor_robot_state(self) -> dict[str, Any]:
+        """Return an auditable snapshot, failing if any physical-state field is invalid."""
+
+        translation = np.asarray(self.robot_translation.getSFVec3f(), dtype=np.float64)
+        rotation = np.asarray(self.robot_rotation.getSFRotation(), dtype=np.float64)
+        position = np.asarray(self.robot_node.getPosition(), dtype=np.float64)
+        velocity = np.asarray(self.robot_node.getVelocity(), dtype=np.float64)
+        expected_shapes = {
+            "translation": (translation, (3,)),
+            "rotation": (rotation, (4,)),
+            "position": (position, (3,)),
+            "velocity": (velocity, (6,)),
+        }
+        malformed = {
+            name: values.shape
+            for name, (values, expected_shape) in expected_shapes.items()
+            if values.shape != expected_shape
+        }
+        if malformed:
+            raise RuntimeError(
+                f"Supervisor robot-state snapshot had malformed fields: {malformed}."
+            )
+
+        contact_points = self._contact_points()
+        contact_heights = contact_points[:, 2]
+        state = {
+            "translation": translation.tolist(),
+            "rotation": rotation.tolist(),
+            "position": position.tolist(),
+            "velocity": velocity.tolist(),
+            "contact_count": int(contact_points.shape[0]),
+            "contact_points": contact_points.tolist(),
+            "elevated_contact_count": int(np.count_nonzero(contact_heights > 0.025)),
+            "env_step": self.step_count,
+            "physics_step": self.physics_step_count,
+            "sensor_tick": self.sensor_sample_tick,
+            "route_axis": self.current_route_axis,
+            "reverse_route": self.current_reverse_route,
+            "start_position": self.current_start_position.tolist(),
+            "start_yaw": self.current_start_yaw,
+            "goal_position": self.goal_position.tolist(),
+        }
+        non_finite_fields = [
+            name
+            for name, (field_values, _) in expected_shapes.items()
+            if not np.isfinite(field_values).all()
+        ]
+        if non_finite_fields:
+            raise RuntimeError(
+                "Supervisor robot physical state was non-finite in "
+                f"{non_finite_fields}: {state}."
+            )
+        return state
+
+    def _validate_reset_readback(self) -> None:
+        """Reject a finite but misplaced, moving, or colliding episode reset."""
+
+        state = self._finite_supervisor_robot_state()
+        translation = np.asarray(state["translation"], dtype=np.float64)
+        position = np.asarray(state["position"], dtype=np.float64)
+        velocity = np.asarray(state["velocity"], dtype=np.float64)
+        gps_position = self._position()
+        orientation = self._roll_pitch_yaw()
+        metrics = {
+            "translation_error": float(np.linalg.norm(translation - position)),
+            "start_xy_error": float(np.linalg.norm(position[:2] - self.current_start_position)),
+            # TurtleBot3 Burger mounts extension-slot sensors 0.03 m behind the
+            # root origin, so the GPS/root XY distance is expected to be non-zero.
+            "gps_root_xy_distance": float(np.linalg.norm(gps_position - position[:2])),
+            "yaw_error": abs(_wrap_angle(float(orientation[2]) - self.current_start_yaw)),
+            "linear_speed": float(np.linalg.norm(velocity[:3])),
+            "angular_speed": float(np.linalg.norm(velocity[3:])),
+        }
+        limits = {
+            "translation_error": self.reset_translation_tolerance,
+            "start_xy_error": self.reset_start_xy_tolerance,
+            "gps_root_xy_distance": self.reset_gps_root_xy_limit,
+            "yaw_error": self.reset_yaw_tolerance,
+            "linear_speed": self.reset_linear_speed_limit,
+            "angular_speed": self.reset_angular_speed_limit,
+        }
+        violations = {
+            name: {"actual": metrics[name], "limit": limit}
+            for name, limit in limits.items()
+            if metrics[name] > limit
+        }
+        if state["elevated_contact_count"]:
+            violations["elevated_contact_count"] = {
+                "actual": state["elevated_contact_count"],
+                "limit": 0,
+            }
+        if violations:
+            raise RuntimeError(
+                "Webots reset readback failed physical consistency checks: "
+                f"violations={violations}, state={state}, gps={gps_position.tolist()}, "
+                f"imu={orientation.tolist()}."
+            )
+        self.reset_readback_check_count += 1
+        self.maximum_reset_translation_error = max(
+            self.maximum_reset_translation_error, metrics["translation_error"]
+        )
+        self.maximum_reset_start_xy_error = max(
+            self.maximum_reset_start_xy_error, metrics["start_xy_error"]
+        )
+        self.maximum_reset_gps_root_xy_distance = max(
+            self.maximum_reset_gps_root_xy_distance, metrics["gps_root_xy_distance"]
+        )
+        self.maximum_reset_yaw_error = max(
+            self.maximum_reset_yaw_error, metrics["yaw_error"]
+        )
+        self.maximum_reset_linear_speed = max(
+            self.maximum_reset_linear_speed, metrics["linear_speed"]
+        )
+        self.maximum_reset_angular_speed = max(
+            self.maximum_reset_angular_speed, metrics["angular_speed"]
+        )
+
+    def runtime_diagnostics(self) -> dict[str, Any]:
+        """Collect failure-safe pose and episode context for controller artifacts."""
+
+        def sensor_values(read: Any) -> list[float] | str:
+            try:
+                return np.asarray(read(), dtype=np.float64).reshape(-1).tolist()
+            except Exception as error:  # pragma: no cover - only hardware/API failure
+                return f"unavailable: {type(error).__name__}: {error}"
+
+        try:
+            supervisor_state: dict[str, Any] | str = self._finite_supervisor_robot_state()
+        except RuntimeError as error:
+            supervisor_state = str(error)
+        return {
+            "sensor_tick": self.sensor_sample_tick,
+            "env_step": self.step_count,
+            "physics_step": self.physics_step_count,
+            "route_axis": self.current_route_axis,
+            "reverse_route": self.current_reverse_route,
+            "start_position": self.current_start_position.tolist(),
+            "start_yaw": self.current_start_yaw,
+            "goal_position": self.goal_position.tolist(),
+            "gps_raw": sensor_values(self.gps.getValues),
+            "imu_raw": sensor_values(self.imu.getRollPitchYaw),
+            "supervisor_state": supervisor_state,
+            "reset_health": self.reset_health_diagnostics(),
+        }
+
+    def reset_health_diagnostics(self) -> dict[str, int | float]:
+        return {
+            "attempts": self.reset_attempt_count,
+            "successful": self.successful_reset_count,
+            "finite_settle_checks": self.reset_finite_check_count,
+            "readback_checks": self.reset_readback_check_count,
+            "maximum_translation_error": self.maximum_reset_translation_error,
+            "maximum_start_xy_error": self.maximum_reset_start_xy_error,
+            "maximum_gps_root_xy_distance": self.maximum_reset_gps_root_xy_distance,
+            "maximum_yaw_error": self.maximum_reset_yaw_error,
+            "maximum_linear_speed": self.maximum_reset_linear_speed,
+            "maximum_angular_speed": self.maximum_reset_angular_speed,
+        }
 
     def _goal_distance(self) -> float:
         return float(np.linalg.norm(self.goal_position - self._position()))
@@ -496,7 +716,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         desired = math.atan2(
             self.goal_position[1] - position[1], self.goal_position[0] - position[0]
         )
-        yaw = float(self.imu.getRollPitchYaw()[2])
+        yaw = float(self._roll_pitch_yaw()[2])
         return _wrap_angle(desired - yaw)
 
     def _range_image(self) -> np.ndarray:
@@ -516,8 +736,26 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         )
 
     def _has_contact_collision(self) -> bool:
+        return bool(np.any(self._contact_points()[:, 2] > 0.025))
+
+    def _contact_points(self) -> np.ndarray:
         contacts = self.robot_node.getContactPoints(includeDescendants=True)
-        return any(float(contact.getPoint()[2]) > 0.025 for contact in contacts)
+        points: list[np.ndarray] = []
+        for index, contact in enumerate(contacts):
+            point = np.asarray(contact.getPoint(), dtype=np.float64)
+            if point.shape != (3,):
+                raise RuntimeError(
+                    f"Webots robot contact point {index} had shape {point.shape}, expected (3,)."
+                )
+            points.append(point)
+        result = np.vstack(points) if points else np.empty((0, 3), dtype=np.float64)
+        if not np.isfinite(result).all():
+            raise RuntimeError(
+                "Webots robot contact state became non-finite; "
+                f"points={result.tolist()}, sensor_tick={self.sensor_sample_tick}, "
+                f"env_step={self.step_count}, physics_step={self.physics_step_count}."
+            )
+        return result
 
     def _observation(self, scan: np.ndarray) -> np.ndarray:
         return self.observation_builder.build(
@@ -576,11 +814,12 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
                 shield_info["shield_active"] = False
                 shield_info["shield_intervention"] = 0.0
         denominator = max(self.step_count, 1)
+        distance_to_goal = self._goal_distance()
         return {
             "is_success": success,
             "collision": collision,
             "timeout": timeout,
-            "distance_to_goal": self._goal_distance(),
+            "distance_to_goal": distance_to_goal,
             "path_length": self.path_length,
             "clearance": self.current_clearance,
             "episode_min_clearance": self.minimum_clearance,
@@ -591,9 +830,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             "route_axis": self.current_route_axis,
             "reverse_route": self.current_reverse_route,
             "obstacle_speed_mean": (
-                float(self.obstacle_speeds.mean())
-                if self.obstacle_speeds.size
-                else 0.0
+                float(self.obstacle_speeds.mean()) if self.obstacle_speeds.size else 0.0
             ),
             "contact_collision": self.last_contact_collision,
             "lidar_collision": self.last_lidar_collision,

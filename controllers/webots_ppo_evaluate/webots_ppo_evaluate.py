@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import yaml
 from controller import Supervisor
 
 from indoor_patrol_rl.envs import WebotsPatrolEnv
@@ -576,6 +577,11 @@ def main() -> None:
     supervisor = Supervisor()
     exit_code = 1
     env = None
+    plan: EvaluationPlan | None = None
+    provenance: dict[str, Any] | None = None
+    output_directory: Path | None = None
+    episode_index: int | None = None
+    scenario_seed: int | None = None
     try:
         plan = _resolve_plan(repository_root)
         _configure_world_nodes(
@@ -706,6 +712,7 @@ def main() -> None:
                 )
             record = accumulator.finalize()
             records.append(record)
+            provenance["reset_health"] = env.reset_health_diagnostics()
             write_benchmark_outputs(
                 output_directory,
                 records,
@@ -718,6 +725,19 @@ def main() -> None:
                 flush=True,
             )
 
+        reset_health = env.reset_health_diagnostics()
+        expected_resets = len(plan.scenario_seeds)
+        if (
+            reset_health["attempts"] != expected_resets
+            or reset_health["successful"] != expected_resets
+            or reset_health["finite_settle_checks"] != 2 * expected_resets
+            or reset_health["readback_checks"] != expected_resets
+        ):
+            raise RuntimeError(
+                "Webots evaluation reset-health counters are inconsistent: "
+                f"expected_resets={expected_resets}, actual={reset_health}."
+            )
+        provenance["reset_health"] = reset_health
         summary = write_benchmark_outputs(
             output_directory,
             records,
@@ -744,8 +764,58 @@ def main() -> None:
             flush=True,
         )
         exit_code = 0
-    except Exception:
-        traceback.print_exc()
+    except Exception as error:
+        failure_traceback = traceback.format_exc()
+        print(failure_traceback, end="", flush=True)
+        try:
+            failure_directory = output_directory or (
+                repository_root / "artifacts/results/webots_evaluation_failures"
+            )
+            failure_directory.mkdir(parents=True, exist_ok=True)
+            runtime_diagnostics: object = None
+            if env is not None:
+                try:
+                    runtime_diagnostics = env.runtime_diagnostics()
+                except Exception as diagnostic_error:  # pragma: no cover - live API failure
+                    runtime_diagnostics = (
+                        f"unavailable: {type(diagnostic_error).__name__}: {diagnostic_error}"
+                    )
+            plan_evidence = None
+            if plan is not None:
+                plan_evidence = {
+                    "split": plan.split,
+                    "condition_id": plan.condition_id,
+                    "planner": plan.planner,
+                    "planner_label": plan.planner_label,
+                    "training_seed": plan.training_seed,
+                    "scenario_seed_start": (
+                        plan.scenario_seeds[0] if plan.scenario_seeds else None
+                    ),
+                    "scenario_count": len(plan.scenario_seeds),
+                }
+            failure_metadata = {
+                "status": "failed",
+                "plan": plan_evidence,
+                "episode_index": episode_index,
+                "scenario_seed": scenario_seed,
+                "exception": {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "traceback": failure_traceback,
+                },
+                "runtime_diagnostics": runtime_diagnostics,
+                "provenance": provenance,
+                "recorded_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            failure_path = failure_directory / f"failure_{time.time_ns()}.yaml"
+            temporary_path = failure_path.with_suffix(".yaml.tmp")
+            temporary_path.write_text(
+                yaml.safe_dump(failure_metadata, sort_keys=False), encoding="utf-8"
+            )
+            temporary_path.replace(failure_path)
+            print(f"WEBOTS_EVALUATION_FAILURE_METADATA path={failure_path}", flush=True)
+        except Exception:
+            traceback.print_exc()
     finally:
         if env is not None:
             env.close()
