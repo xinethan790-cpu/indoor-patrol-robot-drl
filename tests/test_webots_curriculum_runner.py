@@ -427,6 +427,25 @@ def test_repository_w1_recovery_v2_uses_fresh_diagnostics_before_validation() ->
     ]
 
 
+def test_repository_horizontal_recovery_is_training_only_and_split_safe() -> None:
+    config = load_webots_curriculum(
+        Path("configs/train/webots_w1_horizontal_recovery_v1.yaml")
+    )
+
+    assert config.model_variant == "w1_horizontal_recovery_v1"
+    assert len(config.stages) == 1
+    stage = config.stages[0]
+    assert stage.stage_id == "H1"
+    assert stage.training_steps == 81_920
+    assert stage.evaluation_split == "diagnostic"
+    assert (stage.gate.seed_start, stage.gate.episodes) == (20_200, 20)
+    assert stage.controller_env["WEBOTS_HORIZONTAL_ROUTE_PROBABILITY"] == "0.75"
+    assert stage.controller_env["WEBOTS_SAFETY_SHIELD"] == "0"
+    evaluation_env = evaluation_controller_env(stage.controller_env)
+    assert "WEBOTS_HORIZONTAL_ROUTE_PROBABILITY" not in evaluation_env
+    assert evaluation_env["WEBOTS_SAFETY_SHIELD"] == "0"
+
+
 def test_recovery_stage_constraints_reject_unsafe_resume_and_seed_windows() -> None:
     with pytest.raises(ValueError, match="first stage"):
         make_config(make_stage(resume_from_previous_stage=True))

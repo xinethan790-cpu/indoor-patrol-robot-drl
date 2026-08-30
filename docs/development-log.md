@@ -210,3 +210,14 @@ shield 显著有效，但碰撞仍主要集中在水平交叉路线，且默认�
 场景分别运行 shield-off 与 tuned-side-shield；后者只将侧向 stop/slowdown 调为
 `0.20/0.50 m`，并把侧向最低速度比例设为 `0`。所有阈值会写入 evaluation provenance；
 正式 G0～G3 继续固定 shield 关闭，validation 与 held-out test 均不参与该诊断。
+
+该配对实验的最终结果仍为两组各 `13/20` success、`7/20` collision。tuned shield
+出现 2 个 `collision→success`，同时也出现 2 个 `success→collision`，净改善为 0；平均
+最小间距从 `0.149 m` 增至 `0.178 m`，但平均成功用时增加约 `0.48 s`。因此否决这组
+阈值，不把“救回的两个回合”单独包装为提升。
+
+后续改为直接处理多轮诊断中重复出现的训练分布缺口。预声明配置
+`webots_w1_horizontal_recovery_v1.yaml` 固定从 recovery-v1 E1 模型迁移，在训练中将水平
+路线采样概率从 `0.50` 提高至 `0.75`，并训练 `81,920` steps；evaluator 不继承该采样键，
+仍按既有 seed 语义在全新 diagnostic `20200～20219` 上评测。门禁保持 success ≥ 0.70、
+collision ≤ 0.30，不启用 shield，也不访问 validation/test。

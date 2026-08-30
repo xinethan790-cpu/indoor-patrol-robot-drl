@@ -1,0 +1,46 @@
+# Diagnostic-only recovery targeting the repeatedly observed horizontal-route gap.
+# H1 oversamples horizontal routes during training; evaluation keeps the established
+# deterministic 50/50 route semantics and uses a fresh diagnostic window.
+schema_version: 1
+transfer_model: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+policy_transfer_model: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+policy_transfer_model_sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+model_variant: w1_horizontal_recovery_v1
+port_base: 13200
+validation:
+  split: validation
+  seed_start: 5000
+  episodes: 20
+  min_success_rate: 0.75
+  max_collision_rate: 0.15
+stages:
+  - id: H1
+    name: horizontal_medium_short_recovery
+    obstacle_count: 1
+    training_steps: 81920
+    evaluation_split: diagnostic
+    validation:
+      seed_start: 20200
+      episodes: 20
+      min_success_rate: 0.70
+      max_collision_rate: 0.30
+    controller_env:
+      WEBOTS_RUN_ID: w1h_h1_horizontal_medium_short
+      WEBOTS_SAFETY_SHIELD: "0"
+      WEBOTS_HORIZONTAL_ROUTE_PROBABILITY: "0.75"
+      WEBOTS_OBSTACLE_SPEED_MIN: "0.15"
+      WEBOTS_OBSTACLE_SPEED_MAX: "0.30"
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_REWARD_SAFETY_DISTANCE: "0.35"
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: "0.60"
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: "0.40"
+      WEBOTS_REWARD_SAFETY_WEIGHT: "-0.60"
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: "-0.005"
+      WEBOTS_PPO_N_STEPS: "2048"
+      WEBOTS_PPO_BATCH_SIZE: "128"
+      WEBOTS_PPO_N_EPOCHS: "5"
+      WEBOTS_PPO_LEARNING_RATE: "0.00003"
+      WEBOTS_PPO_ENT_COEF: "0.003"
+      WEBOTS_PPO_GAMMA: "0.995"
+      WEBOTS_PPO_TARGET_KL: "0.02"
