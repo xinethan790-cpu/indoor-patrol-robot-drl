@@ -42,6 +42,8 @@ def make_stage(
     controller_env: dict[str, str] | None = None,
     preferred_resume_model: Path | None = None,
     world: str = "webots_ppo_train.wbt",
+    evaluation_split: str = "validation",
+    resume_from_previous_stage: bool = False,
 ) -> WebotsStage:
     return WebotsStage(
         stage_id=stage_id,
@@ -57,6 +59,8 @@ def make_stage(
         controller_env=controller_env,
         preferred_resume_model=preferred_resume_model,
         world=world,
+        evaluation_split=evaluation_split,
+        resume_from_previous_stage=resume_from_previous_stage,
     )
 
 
@@ -64,6 +68,7 @@ def make_config(
     *stages: WebotsStage,
     variant: str | None = None,
     policy_transfer_model: Path | None = None,
+    policy_transfer_model_sha256: str | None = None,
 ) -> WebotsCurriculumConfig:
     return WebotsCurriculumConfig(
         transfer_model=Path("artifacts/models/transfer.zip"),
@@ -71,6 +76,7 @@ def make_config(
         stages=stages,
         model_variant=variant,
         policy_transfer_model=policy_transfer_model,
+        policy_transfer_model_sha256=policy_transfer_model_sha256,
     )
 
 
@@ -86,6 +92,8 @@ def save_training_result(
     speed_range: tuple[float, float] | None = None,
     route_half_lengths: tuple[float, float] | None = None,
     run_id: str | None = None,
+    source_model: Path | None = None,
+    source_model_sha256: str | None = None,
 ) -> Path:
     model_directory = repository_root / "artifacts/models/webots" / f"seed_{seed}"
     if variant:
@@ -112,6 +120,9 @@ def save_training_result(
         }
     if run_id is not None:
         metadata["monitor_log"] = str(model_directory / f"training_{run_id}.monitor.csv")
+    if source_model is not None:
+        metadata["source_model"] = str(source_model)
+        metadata["source_model_sha256"] = source_model_sha256
     (model_directory / f"run_metadata_step{steps:09d}.yaml").write_text(
         yaml.safe_dump(metadata), encoding="utf-8"
     )
@@ -154,9 +165,10 @@ def save_validation_result(
         "completion_time_s_mean": 1.0,
         "path_length_ratio_mean": 1.0,
     }
+    split = environment["WEBOTS_EVAL_SPLIT"]
     summary = {
         "schema_version": "1.0",
-        "split": "validation",
+        "split": split,
         "episode_count": episodes,
         "planners": [planner],
         "conditions": [condition],
@@ -168,7 +180,7 @@ def save_validation_result(
             "model_sha256": model_sha256,
             "model_variant": environment.get("WEBOTS_MODEL_VARIANT"),
             "training_seed": seed,
-            "split": "validation",
+            "split": split,
             "condition_id": condition,
             "scenario_seed_start": seed_start,
             "scenario_seed_count": episodes,
@@ -176,6 +188,115 @@ def save_validation_result(
         },
     }
     (output / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+
+def prepare_recovery_resume_fixture(
+    tmp_path: Path,
+) -> tuple[
+    WebotsCurriculumConfig,
+    WebotsStage,
+    WebotsCurriculumRunner,
+    list[dict[str, str]],
+    Any,
+]:
+    base_model = tmp_path / "artifacts/models/base.zip"
+    base_model.parent.mkdir(parents=True)
+    base_model.write_bytes(b"base")
+    e1 = make_stage("E1", obstacles=0, steps=10)
+    e2 = make_stage(
+        "E2",
+        obstacles=1,
+        steps=10,
+        resume_from_previous_stage=True,
+    )
+    config = make_config(
+        e1,
+        e2,
+        variant="recovery",
+        policy_transfer_model=Path("artifacts/models/base.zip"),
+        policy_transfer_model_sha256=hashlib.sha256(b"base").hexdigest(),
+    )
+    training_environments: list[dict[str, str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        if command[-1].endswith("webots_ppo_train.wbt"):
+            training_environments.append(environment)
+            obstacles = int(environment["WEBOTS_OBSTACLE_COUNT"])
+            if "WEBOTS_POLICY_TRANSFER_MODEL" in environment:
+                source_model = (
+                    tmp_path / environment["WEBOTS_POLICY_TRANSFER_MODEL"]
+                ).resolve()
+                starting_steps = 0
+            else:
+                source_model = (tmp_path / environment["WEBOTS_RESUME_MODEL"]).resolve()
+                starting_steps = 15 if "_15_steps.zip" in source_model.name else 10
+            save_training_result(
+                tmp_path,
+                seed=11,
+                obstacles=obstacles,
+                steps=10 if obstacles == 0 else 20,
+                variant="recovery",
+                starting_steps=starting_steps,
+                additional_steps=10,
+                source_model=source_model,
+                source_model_sha256=hashlib.sha256(source_model.read_bytes()).hexdigest(),
+            )
+        else:
+            save_validation_result(
+                tmp_path,
+                environment=environment,
+                success_rate=1.0,
+                collision_rate=0.0,
+            )
+        return subprocess.CompletedProcess(command, 0)
+
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+    assert runner.run(start_stage=0, stop_after_stage=0) == 0
+    return config, e2, runner, training_environments, fake_run
+
+
+def add_partial_recovery_checkpoint(
+    tmp_path: Path,
+    runner: WebotsCurriculumRunner,
+    stage: WebotsStage,
+) -> Path:
+    previous = runner.manifest["stages"][0]
+    previous_model = previous["training"]["model"]
+    previous_steps = previous["training"]["final_model_steps"]
+    previous_sha256 = previous["validation"]["model_sha256"]
+    record = runner._stage_record(stage)
+    record["stage_start_steps"] = 10
+    record["status"] = "training_failed"
+    record["training_attempts"].append(
+        {
+            "started_at": "2001-01-01T00:00:00+00:00",
+            "status": "failed",
+            "environment": {"WEBOTS_RESUME_MODEL": previous_model},
+            "resume_source": {
+                "kind": "previous_stage_endpoint",
+                "model": previous_model,
+                "steps": previous_steps,
+                "sha256": previous_sha256,
+            },
+        }
+    )
+    runner._write_manifest()
+    checkpoint = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/recovery/checkpoints"
+        / "ppo_webots_s11_recovery_15_steps.zip"
+    )
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"partial")
+    return checkpoint
 
 
 def test_repository_webots_curriculum_has_required_w0_w2_schedule() -> None:
@@ -195,6 +316,9 @@ def test_repository_v2_curriculum_records_variant_scenarios_and_gates() -> None:
     assert config.model_variant == "curriculum_v2"
     assert config.policy_transfer_model == Path(
         "artifacts/models/webots/seed_11/ppo_webots_s11_step000050176.zip"
+    )
+    assert config.policy_transfer_model_sha256 == (
+        "91bc5dffe05566cbfcbf1fb2cab4588cdc54115c779f377e7aeea8428c4c2441"
     )
     assert [stage.stage_id for stage in config.stages] == ["R1", "R2", "R3"]
     assert [stage.training_steps for stage in config.stages] == [50_000, 75_000, 100_000]
@@ -219,12 +343,149 @@ def test_repository_v2_curriculum_records_variant_scenarios_and_gates() -> None:
     assert config.stages[2].preferred_resume_model is None
 
 
+def test_repository_w1_recovery_config_is_predeclared_and_split_safe() -> None:
+    config = load_webots_curriculum(
+        Path("configs/train/webots_w1_recovery_v1.yaml")
+    )
+
+    assert config.model_variant == "w1_recovery_v1"
+    assert config.policy_transfer_model == Path(
+        "artifacts/models/webots/seed_11/ppo_webots_s11_step000200192.zip"
+    )
+    assert config.policy_transfer_model_sha256 == (
+        "84e0ebb459e0ef800b1e891f5d549237e246c04be33a3bed24f4811b18993cc8"
+    )
+    assert [stage.stage_id for stage in config.stages] == ["E1", "E2", "F1"]
+    assert [stage.training_steps for stage in config.stages] == [40_960, 61_440, 102_400]
+    assert [stage.evaluation_split for stage in config.stages] == [
+        "diagnostic",
+        "diagnostic",
+        "validation",
+    ]
+    assert [stage.resume_from_previous_stage for stage in config.stages] == [
+        False,
+        True,
+        True,
+    ]
+    assert [(stage.gate.seed_start, stage.gate.episodes) for stage in config.stages] == [
+        (20_000, 20),
+        (20_020, 20),
+        (5_000, 20),
+    ]
+    assert all(
+        "WEBOTS_PPO_RESET_LINEAR_HEAD" not in stage.controller_env
+        and "WEBOTS_PPO_INITIAL_ACTION_STD" not in stage.controller_env
+        for stage in config.stages
+    )
+
+
+def test_recovery_stage_constraints_reject_unsafe_resume_and_seed_windows() -> None:
+    with pytest.raises(ValueError, match="first stage"):
+        make_config(make_stage(resume_from_previous_stage=True))
+    with pytest.raises(ValueError, match="cannot be combined"):
+        make_stage(
+            "E2",
+            resume_from_previous_stage=True,
+            preferred_resume_model=Path("selected_10_steps.zip"),
+        )
+    with pytest.raises(ValueError, match="must not overlap"):
+        make_stage(
+            "E1",
+            evaluation_split="diagnostic",
+        )
+
+
+@pytest.mark.parametrize(
+    ("evaluation_split", "seed_start", "episodes", "should_fail"),
+    [
+        ("validation", 9_980, 20, False),
+        ("validation", 10_000, 1, True),
+        ("validation", 10_019, 1, True),
+        ("validation", 10_020, 1, False),
+        ("diagnostic", 4_980, 20, False),
+        ("diagnostic", 4_999, 2, True),
+        ("diagnostic", 5_020, 1, False),
+        ("diagnostic", 10_000, 1, True),
+    ],
+)
+def test_non_test_gate_seed_window_boundaries(
+    evaluation_split: str,
+    seed_start: int,
+    episodes: int,
+    should_fail: bool,
+) -> None:
+    gate = ValidationGate(seed_start, episodes, 0.5, 0.5)
+    if should_fail:
+        with pytest.raises(ValueError, match="must not overlap"):
+            replace(
+                make_stage(),
+                gate=gate,
+                evaluation_split=evaluation_split,
+            )
+    else:
+        stage = replace(
+            make_stage(),
+            gate=gate,
+            evaluation_split=evaluation_split,
+        )
+        assert stage.gate == gate
+
+
+@pytest.mark.parametrize(
+    ("evaluation_split", "seed_start_override"),
+    [("validation", 10_000), ("diagnostic", 5_000), ("diagnostic", 10_000)],
+)
+def test_gate_seed_override_cannot_enter_reserved_windows(
+    tmp_path: Path,
+    evaluation_split: str,
+    seed_start_override: int,
+) -> None:
+    stage = make_stage()
+    if evaluation_split == "diagnostic":
+        stage = replace(
+            stage,
+            evaluation_split="diagnostic",
+            gate=replace(stage.gate, seed_start=20_000),
+        )
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=lambda *_args, **_kwargs: pytest.fail("started Webots"),
+        dry_run=True,
+        seed_start_override=seed_start_override,
+    )
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        runner.run(start_stage=0, stop_after_stage=0)
+
+
+def test_policy_transfer_model_and_sha256_are_strictly_paired() -> None:
+    with pytest.raises(ValueError, match="configured together"):
+        make_config(make_stage(), policy_transfer_model=Path("base.zip"))
+    with pytest.raises(ValueError, match="configured together"):
+        make_config(make_stage(), policy_transfer_model_sha256="0" * 64)
+    with pytest.raises(ValueError, match="64 hexadecimal"):
+        make_config(
+            make_stage(),
+            policy_transfer_model=Path("base.zip"),
+            policy_transfer_model_sha256="not-a-sha",
+        )
+
+
 @pytest.mark.parametrize(
     ("controller_env", "message"),
     [
         ({"PATH": "/tmp"}, "only uppercase WEBOTS"),
         ({"WEBOTS_CONFIRM_TEST": "1"}, "never set WEBOTS_CONFIRM_TEST"),
-        ({"WEBOTS_EVAL_SPLIT": "test"}, "may only be validation"),
+        ({"WEBOTS_EVAL_SPLIT": "validation"}, "evaluation_split field"),
+        ({"WEBOTS_EVAL_SPLIT": "diagnostic"}, "evaluation_split field"),
+        ({"WEBOTS_EVAL_SPLIT": "test"}, "evaluation_split field"),
+        ({"WEBOTS_POLICY_TRANSFER_MODEL": "base.zip"}, "structured curriculum"),
+        ({"WEBOTS_RESUME_MODEL": "resume.zip"}, "structured curriculum"),
+        ({"WEBOTS_TRANSFER_MODEL": "base.zip"}, "structured curriculum"),
     ],
 )
 def test_controller_env_rejects_unsafe_or_non_webots_values(
@@ -491,9 +752,14 @@ def test_identical_semantic_config_can_resume_with_normalized_paths_and_json(
             "WEBOTS_REWARD_SAFETY_WEIGHT": "-0.60",
         }
     )
+    base_model = tmp_path / "artifacts/models/base.zip"
+    base_model.parent.mkdir(parents=True)
+    base_model.write_bytes(b"base")
+    base_sha256 = hashlib.sha256(base_model.read_bytes()).hexdigest()
     config = WebotsCurriculumConfig(
         transfer_model=Path("artifacts/models/transfer.zip"),
         policy_transfer_model=Path("artifacts/models/base.zip"),
+        policy_transfer_model_sha256=base_sha256,
         model_variant="curriculum_v2",
         port_base=12490,
         stages=(stage,),
@@ -582,7 +848,11 @@ def test_resume_rejects_changed_semantic_config(
     if changed_field == "transfer_model":
         changed_config = replace(config, transfer_model=Path("models/other.zip"))
     elif changed_field == "policy_transfer_model":
-        changed_config = replace(config, policy_transfer_model=Path("models/base.zip"))
+        changed_config = replace(
+            config,
+            policy_transfer_model=Path("models/base.zip"),
+            policy_transfer_model_sha256="0" * 64,
+        )
     elif changed_field == "model_variant":
         changed_config = replace(config, model_variant="curriculum_v2")
     elif changed_field == "port_base":
@@ -813,6 +1083,223 @@ def test_dry_run_plans_all_stages_without_starting_subprocesses(tmp_path: Path) 
     )
 
 
+def test_dry_run_records_diagnostic_split_and_exact_previous_stage_resume(
+    tmp_path: Path,
+) -> None:
+    base_model = tmp_path / "artifacts/models/base.zip"
+    base_model.parent.mkdir(parents=True)
+    base_model.write_bytes(b"base")
+    base_sha256 = hashlib.sha256(base_model.read_bytes()).hexdigest()
+    e1 = replace(
+        make_stage("E1", obstacles=1),
+        evaluation_split="diagnostic",
+        gate=ValidationGate(20_000, 4, 0.70, 0.30),
+    )
+    e2 = make_stage(
+        "E2",
+        obstacles=1,
+        resume_from_previous_stage=True,
+    )
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(
+            e1,
+            e2,
+            variant="recovery",
+            policy_transfer_model=Path("artifacts/models/base.zip"),
+            policy_transfer_model_sha256=base_sha256,
+        ),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=lambda *_args, **_kwargs: pytest.fail("dry-run started Webots"),
+        dry_run=True,
+    )
+
+    assert runner.run(start_stage=0, stop_after_stage=1) == 0
+    manifest = yaml.safe_load((tmp_path / "manifest.yaml").read_text(encoding="utf-8"))
+    e1_record, e2_record = manifest["stages"]
+    assert manifest["automatic_split"] == "diagnostic_and_validation"
+    assert e1_record["validation"]["environment"]["WEBOTS_EVAL_SPLIT"] == (
+        "diagnostic"
+    )
+    assert e1_record["validation"]["environment"]["WEBOTS_EVAL_RUN_NAME"].startswith(
+        "webots_diagnostic_e1_"
+    )
+    assert e2_record["training_attempts"][0]["resume_source"]["kind"] == (
+        "previous_stage_endpoint"
+    )
+    assert e2_record["resume_from_previous_stage"] is True
+    assert manifest["curriculum_config"]["stages"][0]["evaluation_split"] == (
+        "diagnostic"
+    )
+    assert manifest["curriculum_config"]["stages"][1][
+        "resume_from_previous_stage"
+    ] is True
+
+
+def test_passed_previous_gate_allows_current_stage_partial_checkpoint_priority(
+    tmp_path: Path,
+) -> None:
+    config, e2, first_runner, environments, fake_run = (
+        prepare_recovery_resume_fixture(tmp_path)
+    )
+    partial = add_partial_recovery_checkpoint(tmp_path, first_runner, e2)
+    environments.clear()
+    resumed = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+
+    assert resumed.run(start_stage=1, stop_after_stage=1) == 0
+    assert Path(environments[0]["WEBOTS_RESUME_MODEL"]).as_posix() == (
+        partial.relative_to(tmp_path).as_posix()
+    )
+    assert environments[0]["WEBOTS_TRAIN_STEPS"] == "5"
+    manifest = yaml.safe_load(
+        (tmp_path / "manifest.yaml").read_text(encoding="utf-8")
+    )
+    attempt = manifest["stages"][1]["training_attempts"][-1]
+    assert attempt["resume_source"]["kind"] == "current_stage_checkpoint"
+    assert attempt["resume_source"]["steps"] == 15
+
+    environments.clear()
+    verified = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+    assert verified.run(start_stage=1, stop_after_stage=1) == 0
+    assert environments == []
+
+
+def test_new_stage_manifest_does_not_attach_residual_partial_or_completed(
+    tmp_path: Path,
+) -> None:
+    config, e2, first_runner, environments, fake_run = (
+        prepare_recovery_resume_fixture(tmp_path)
+    )
+    previous = first_runner.manifest["stages"][0]
+    previous_path = (tmp_path / previous["training"]["model"]).resolve()
+    checkpoint = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/recovery/checkpoints"
+        / "ppo_webots_s11_recovery_15_steps.zip"
+    )
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"residual-partial")
+    save_training_result(
+        tmp_path,
+        seed=11,
+        obstacles=1,
+        steps=20,
+        variant="recovery",
+        starting_steps=10,
+        additional_steps=10,
+        source_model=previous_path,
+        source_model_sha256=previous["validation"]["model_sha256"],
+    )
+    environments.clear()
+    resumed = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+
+    assert resumed.run(start_stage=1, stop_after_stage=1) == 0
+    assert environments[0]["WEBOTS_RESUME_MODEL"] == previous["training"]["model"]
+    assert environments[0]["WEBOTS_TRAIN_STEPS"] == "10"
+
+
+@pytest.mark.parametrize("lineage_error", ["starting_steps", "source_path", "source_sha"])
+def test_completed_recovery_artifact_requires_exact_previous_lineage(
+    tmp_path: Path,
+    lineage_error: str,
+) -> None:
+    config, e2, first_runner, environments, fake_run = (
+        prepare_recovery_resume_fixture(tmp_path)
+    )
+    add_partial_recovery_checkpoint(tmp_path, first_runner, e2)
+    previous = first_runner.manifest["stages"][0]
+    source_path = (tmp_path / previous["training"]["model"]).resolve()
+    source_sha256 = previous["validation"]["model_sha256"]
+    starting_steps = 10
+    if lineage_error == "starting_steps":
+        starting_steps = 9
+    elif lineage_error == "source_path":
+        source_path = tmp_path / "wrong-source.zip"
+        source_path.write_bytes(b"wrong")
+        source_sha256 = hashlib.sha256(b"wrong").hexdigest()
+    else:
+        source_sha256 = "0" * 64
+    save_training_result(
+        tmp_path,
+        seed=11,
+        obstacles=1,
+        steps=20,
+        variant="recovery",
+        starting_steps=starting_steps,
+        additional_steps=10,
+        source_model=source_path,
+        source_model_sha256=source_sha256,
+    )
+    environments.clear()
+    resumed = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+
+    with pytest.raises(ValueError, match="completed artifact"):
+        resumed.run(start_stage=1, stop_after_stage=1)
+    assert environments == []
+
+
+@pytest.mark.parametrize("gate_state", ["missing", "failed"])
+def test_partial_checkpoint_cannot_bypass_previous_stage_gate(
+    tmp_path: Path,
+    gate_state: str,
+) -> None:
+    config, e2, first_runner, environments, fake_run = (
+        prepare_recovery_resume_fixture(tmp_path)
+    )
+    add_partial_recovery_checkpoint(tmp_path, first_runner, e2)
+    previous_record = first_runner.manifest["stages"][0]
+    if gate_state == "missing":
+        previous_record.pop("validation")
+    else:
+        previous_record["status"] = "gate_failed"
+        previous_record["validation"]["status"] = "gate_failed"
+        previous_record["validation"]["passed"] = False
+    first_runner._write_manifest()
+    environments.clear()
+    resumed = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+
+    with pytest.raises(ValueError, match="validation must be a mapping|has not completed"):
+        resumed.run(start_stage=1, stop_after_stage=1)
+    assert environments == []
+
+
 def test_snapshot_discovery_is_recursive_but_isolated_by_variant(tmp_path: Path) -> None:
     selected_checkpoint = (
         tmp_path
@@ -846,6 +1333,31 @@ def test_snapshot_discovery_is_recursive_but_isolated_by_variant(tmp_path: Path)
     assert other_checkpoint not in {snapshot.path for snapshot in legacy}
 
 
+def test_snapshot_discovery_parses_source_model_lineage(tmp_path: Path) -> None:
+    source = tmp_path / "artifacts/models/source.zip"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"source")
+    source_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
+    model = save_training_result(
+        tmp_path,
+        seed=11,
+        obstacles=1,
+        steps=20,
+        variant="recovery",
+        starting_steps=10,
+        additional_steps=10,
+        source_model=source,
+        source_model_sha256=source_sha256.upper(),
+    )
+
+    snapshot = next(
+        item for item in discover_model_snapshots(tmp_path, 11, "recovery")
+        if item.path == model
+    )
+    assert snapshot.source_model == source
+    assert snapshot.source_model_sha256 == source_sha256
+
+
 def test_variant_runner_uses_policy_transfer_then_same_variant_resume(tmp_path: Path) -> None:
     common = {
         "WEBOTS_OBSTACLE_SPEED_MIN": "0.05",
@@ -862,6 +1374,9 @@ def test_variant_runner_uses_policy_transfer_then_same_variant_resume(tmp_path: 
     )
     preferred_r2.parent.mkdir(parents=True)
     preferred_r2.write_bytes(b"selected")
+    base_model = tmp_path / "artifacts/models/webots/seed_11/base.zip"
+    base_model.write_bytes(b"base")
+    base_sha256 = hashlib.sha256(base_model.read_bytes()).hexdigest()
     config = make_config(
         make_stage("R1", obstacles=1, steps=50, controller_env=common),
         make_stage(
@@ -877,6 +1392,7 @@ def test_variant_runner_uses_policy_transfer_then_same_variant_resume(tmp_path: 
         ),
         variant="curriculum_v2",
         policy_transfer_model=Path("artifacts/models/webots/seed_11/base.zip"),
+        policy_transfer_model_sha256=base_sha256,
     )
     runner = WebotsCurriculumRunner(
         repository_root=tmp_path,
@@ -984,11 +1500,14 @@ def test_preferred_resume_ignores_endpoint_then_uses_new_stage_checkpoint(
 
 
 def test_variant_later_stage_requires_validation_selected_resume(tmp_path: Path) -> None:
+    base_model = tmp_path / "base.zip"
+    base_model.write_bytes(b"base")
     config = make_config(
         make_stage("R1", steps=10),
         make_stage("R2", steps=10),
         variant="curriculum_v2",
         policy_transfer_model=Path("base.zip"),
+        policy_transfer_model_sha256=hashlib.sha256(b"base").hexdigest(),
     )
     runner = WebotsCurriculumRunner(
         repository_root=tmp_path,
@@ -1014,32 +1533,6 @@ def test_cli_preferred_resume_override_updates_only_selected_stage() -> None:
         "models/selected_80_steps.zip"
     )
     assert config.stages[1].preferred_resume_model is None
-
-
-def test_first_stage_may_supply_policy_transfer_in_controller_env(tmp_path: Path) -> None:
-    stage = make_stage(
-        "R1",
-        controller_env={
-            "WEBOTS_POLICY_TRANSFER_MODEL": "artifacts/models/selected_policy.zip"
-        },
-    )
-    runner = WebotsCurriculumRunner(
-        repository_root=tmp_path,
-        config=make_config(stage, variant="curriculum_v2"),
-        webots_executable=tmp_path / "webots",
-        seed=11,
-        manifest_path=tmp_path / "manifest.yaml",
-        process_runner=lambda *_args, **_kwargs: pytest.fail("dry-run started Webots"),
-        dry_run=True,
-    )
-
-    assert runner.run(start_stage=0, stop_after_stage=0) == 0
-    manifest = yaml.safe_load((tmp_path / "manifest.yaml").read_text(encoding="utf-8"))
-    environment = manifest["stages"][0]["training_attempts"][0]["environment"]
-    assert environment["WEBOTS_POLICY_TRANSFER_MODEL"] == (
-        "artifacts/models/selected_policy.zip"
-    )
-    assert "WEBOTS_TRANSFER_MODEL" not in environment
 
 
 def test_stage_completion_matches_scenario_not_just_obstacle_count(tmp_path: Path) -> None:

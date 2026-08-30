@@ -7,6 +7,7 @@
 schema_version: 1
 transfer_model: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
 policy_transfer_model: artifacts/models/webots/seed_11/ppo_webots_s11_step000050176.zip
+policy_transfer_model_sha256: 91bc5dffe05566cbfcbf1fb2cab4588cdc54115c779f377e7aeea8428c4c2441
 model_variant: curriculum_v2
 port_base: 12920
 validation:

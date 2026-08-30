@@ -1,0 +1,100 @@
+# Predeclared W1 recovery curriculum. E1/E2 are diagnostic-only; F1 is the
+# single formal validation gate. This manifest must never be treated as W0/W1/W2 evidence.
+schema_version: 1
+transfer_model: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+policy_transfer_model: artifacts/models/webots/seed_11/ppo_webots_s11_step000200192.zip
+policy_transfer_model_sha256: 84e0ebb459e0ef800b1e891f5d549237e246c04be33a3bed24f4811b18993cc8
+model_variant: w1_recovery_v1
+port_base: 13020
+validation:
+  split: validation
+  seed_start: 5000
+  episodes: 20
+  min_success_rate: 0.75
+  max_collision_rate: 0.15
+stages:
+  - id: E1
+    name: medium_short_route_recovery
+    obstacle_count: 1
+    training_steps: 40960
+    evaluation_split: diagnostic
+    validation:
+      seed_start: 20000
+      episodes: 20
+      min_success_rate: 0.70
+      max_collision_rate: 0.30
+    controller_env:
+      WEBOTS_RUN_ID: w1r_e1_medium_short
+      WEBOTS_OBSTACLE_SPEED_MIN: "0.15"
+      WEBOTS_OBSTACLE_SPEED_MAX: "0.30"
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_REWARD_SAFETY_DISTANCE: "0.35"
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: "0.60"
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: "0.40"
+      WEBOTS_REWARD_SAFETY_WEIGHT: "-0.60"
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: "-0.005"
+      WEBOTS_PPO_N_STEPS: "2048"
+      WEBOTS_PPO_BATCH_SIZE: "128"
+      WEBOTS_PPO_N_EPOCHS: "5"
+      WEBOTS_PPO_LEARNING_RATE: "0.00005"
+      WEBOTS_PPO_ENT_COEF: "0.005"
+      WEBOTS_PPO_GAMMA: "0.995"
+      WEBOTS_PPO_TARGET_KL: "0.02"
+  - id: E2
+    name: full_speed_route_bridge
+    obstacle_count: 1
+    training_steps: 61440
+    evaluation_split: diagnostic
+    resume_from_previous_stage: true
+    validation:
+      seed_start: 20020
+      episodes: 20
+      min_success_rate: 0.75
+      max_collision_rate: 0.20
+    controller_env:
+      WEBOTS_RUN_ID: w1r_e2_full_speed_bridge
+      WEBOTS_OBSTACLE_SPEED_MIN: "0.18"
+      WEBOTS_OBSTACLE_SPEED_MAX: "0.42"
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: "1.35"
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_REWARD_SAFETY_DISTANCE: "0.30"
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: "0.60"
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: "0.20"
+      WEBOTS_REWARD_SAFETY_WEIGHT: "-0.40"
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: "-0.01"
+      WEBOTS_PPO_N_STEPS: "2048"
+      WEBOTS_PPO_BATCH_SIZE: "128"
+      WEBOTS_PPO_N_EPOCHS: "5"
+      WEBOTS_PPO_LEARNING_RATE: "0.00005"
+      WEBOTS_PPO_ENT_COEF: "0.005"
+      WEBOTS_PPO_GAMMA: "0.995"
+      WEBOTS_PPO_TARGET_KL: "0.02"
+  - id: F1
+    name: exact_w1_recovery_gate
+    obstacle_count: 1
+    training_steps: 102400
+    resume_from_previous_stage: true
+    validation:
+      seed_start: 5000
+      episodes: 20
+      min_success_rate: 0.75
+      max_collision_rate: 0.15
+    controller_env:
+      WEBOTS_RUN_ID: w1r_f1_exact
+      WEBOTS_OBSTACLE_SPEED_MIN: "0.20"
+      WEBOTS_OBSTACLE_SPEED_MAX: "0.42"
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: "1.55"
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_REWARD_SAFETY_DISTANCE: "0.20"
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: "0.60"
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: "0.0"
+      WEBOTS_REWARD_SAFETY_WEIGHT: "-0.20"
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: "-0.02"
+      WEBOTS_PPO_N_STEPS: "2048"
+      WEBOTS_PPO_BATCH_SIZE: "128"
+      WEBOTS_PPO_N_EPOCHS: "5"
+      WEBOTS_PPO_LEARNING_RATE: "0.00005"
+      WEBOTS_PPO_ENT_COEF: "0.005"
+      WEBOTS_PPO_GAMMA: "0.995"
+      WEBOTS_PPO_TARGET_KL: "0.02"

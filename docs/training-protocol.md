@@ -179,6 +179,60 @@ W0 首次运行通过 `policy.state_dict` 迁移策略参数，并创建新的 W
 
 seed 22 和 33 使用相同、已锁定的 stage 2 热启动权重，把命令中的 `WEBOTS_TRAIN_SEED` 和输出 seed 路径对应替换。三次 Webots 微调尚未全部完成前，不报告“三种子均值±标准差”。
 
+### 训练失败诊断（不占用 validation/test）
+
+课程门禁失败后，优先从该训练段的 Monitor CSV 生成离线分层报告。它不会启动仿真，也不会读取其他 seed：
+
+```bash
+python scripts/analyze_webots_training.py \
+  artifacts/logs/webots/seed_11/training_o1_TIMESTAMP.monitor.csv \
+  --speed-min 0.20 --speed-max 0.42 --speed-bins 3 --window-size 100 \
+  --output artifacts/results/diagnostic_w1_training_seed11.json
+```
+
+报告绑定源 CSV 的 SHA-256，并汇总首/末窗口、路线方向、往返方向、障碍速度分桶和
+contact/LiDAR 碰撞来源。若离线证据不足，再使用 `diagnostic` split 与独立场景 seeds：
+
+```bash
+WEBOTS_MODEL_SEED=11 \
+WEBOTS_EVAL_MODEL=artifacts/models/webots/seed_11/ppo_webots_latest.zip \
+WEBOTS_EVAL_SPLIT=diagnostic \
+WEBOTS_EVAL_SEED_START=20000 \
+WEBOTS_EVAL_EPISODES=20 \
+WEBOTS_EVAL_CONDITION=D1 \
+WEBOTS_EVAL_RUN_NAME=webots_diagnostic_d1_seed11 \
+WEBOTS_OBSTACLE_COUNT=1 \
+/Applications/Webots.app/Contents/MacOS/webots \
+  --batch --mode=fast --no-rendering --stdout --stderr \
+  worlds/webots_ppo_evaluate.wbt
+```
+
+`diagnostic` 默认使用 `20000～20019`，并拒绝任何与 validation `5000～5019` 或
+held-out test `10000～10019` 重叠的自定义窗口。输出 `summary.json` 与 provenance 均明确
+写入 `split: diagnostic`；此类结果只能用于排错，不能充当 checkpoint 的正式门禁证据。
+
+### W1 失败后的预声明恢复课程
+
+seed 11 的首次 W1 正式门禁失败后，使用
+`configs/train/webots_w1_recovery_v1.yaml` 执行一次预先冻结的 E1→E2→F1 恢复课程：
+
+```bash
+python scripts/run_webots_curriculum.py \
+  --config configs/train/webots_w1_recovery_v1.yaml \
+  --webots "PATH_TO_WEBOTS_EXECUTABLE" \
+  --seed 11 \
+  --start-stage E1 \
+  --stop-after-stage F1 \
+  --manifest artifacts/results/webots_w1_recovery_r1_COMMIT_seed11/run_manifest.yaml
+```
+
+E1、E2 分别只使用互不重叠的 diagnostic seeds `20000～20019` 与 `20020～20039`；
+只有 F1 访问一次 validation seeds `5000～5019` 并执行固定的成功率 0.75 / 碰撞率
+0.15 门禁。每个后续阶段只能从同一次运行中、已通过前一门禁且重新验证过路径和 SHA-256
+的精确 endpoint 继续训练。恢复配置同时绑定首次失败 W1 模型的 SHA-256；源模型、配置或
+语义指纹变化时必须新建运行，不得续接原 manifest。该恢复 manifest 只证明 W1 恢复过程，
+不能替代完整 W0→W1→W2 三种子正式证据。
+
 ## 8. Webots 验证、final lock 与一次性最终测试
 
 每个训练阶段后可以使用验证 seeds 检查退化：

@@ -27,6 +27,8 @@ _CONTROLLER_ENV_PATTERN = re.compile(r"WEBOTS_[A-Z0-9_]+")
 _RUN_MANIFEST_SCHEMA_VERSION = 2
 _DEFAULT_TRAINING_WORLD = "webots_ppo_train.wbt"
 _EVALUATION_WORLD = "webots_ppo_evaluate.wbt"
+_NON_TEST_EVALUATION_SPLITS = frozenset({"validation", "diagnostic"})
+_RESERVED_DIAGNOSTIC_SEED_WINDOWS = ((5_000, 5_020), (10_000, 10_020))
 _EVALUATION_SHARED_ENV = frozenset(
     {
         "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH",
@@ -57,6 +59,23 @@ class ValidationGate:
             raise ValueError("max_collision_rate must be between zero and one.")
 
 
+def _validate_non_test_gate(gate: ValidationGate, evaluation_split: str) -> None:
+    seed_stop = gate.seed_start + gate.episodes
+    reserved_windows = [_RESERVED_DIAGNOSTIC_SEED_WINDOWS[1]]
+    if evaluation_split == "diagnostic":
+        reserved_windows.insert(0, _RESERVED_DIAGNOSTIC_SEED_WINDOWS[0])
+    for reserved_start, reserved_stop in reserved_windows:
+        if gate.seed_start < reserved_stop and reserved_start < seed_stop:
+            label = (
+                "formal validation 5000..5019"
+                if reserved_start == 5_000
+                else "held-out test 10000..10019"
+            )
+            raise ValueError(
+                f"{evaluation_split.capitalize()} gate seeds must not overlap {label}."
+            )
+
+
 @dataclass(frozen=True)
 class WebotsStage:
     """One simulator training segment followed by a validation gate."""
@@ -69,6 +88,8 @@ class WebotsStage:
     controller_env: Mapping[str, str] | None = None
     preferred_resume_model: Path | None = None
     world: str = _DEFAULT_TRAINING_WORLD
+    evaluation_split: str = "validation"
+    resume_from_previous_stage: bool = False
 
     def __post_init__(self) -> None:
         if not self.stage_id or not self.name:
@@ -82,6 +103,20 @@ class WebotsStage:
             raise ValueError("Webots obstacle_count must be between zero and three.")
         if self.training_steps <= 0:
             raise ValueError("Webots training_steps must be positive.")
+        if not isinstance(self.evaluation_split, str):
+            raise ValueError("evaluation_split must be validation or diagnostic.")
+        evaluation_split = self.evaluation_split.strip().casefold()
+        if evaluation_split not in _NON_TEST_EVALUATION_SPLITS:
+            raise ValueError("evaluation_split must be validation or diagnostic.")
+        object.__setattr__(self, "evaluation_split", evaluation_split)
+        if not isinstance(self.resume_from_previous_stage, bool):
+            raise ValueError("resume_from_previous_stage must be a boolean.")
+        if self.resume_from_previous_stage and self.preferred_resume_model is not None:
+            raise ValueError(
+                "resume_from_previous_stage cannot be combined with "
+                "preferred_resume_model."
+            )
+        _validate_non_test_gate(self.gate, evaluation_split)
         if self.controller_env is not None and not isinstance(self.controller_env, Mapping):
             raise ValueError("controller_env must be a mapping.")
         if not isinstance(self.world, str) or not self.world:
@@ -109,6 +144,7 @@ class WebotsCurriculumConfig:
     stages: tuple[WebotsStage, ...]
     model_variant: str | None = None
     policy_transfer_model: Path | None = None
+    policy_transfer_model_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if not 1024 <= self.port_base <= 65500:
@@ -119,6 +155,23 @@ class WebotsCurriculumConfig:
         if len(stage_ids) != len(set(stage_ids)):
             raise ValueError("Webots curriculum stage ids must be unique.")
         _validate_model_variant(self.model_variant)
+        if self.stages[0].resume_from_previous_stage:
+            raise ValueError("The first stage cannot resume_from_previous_stage.")
+        has_policy_transfer = self.policy_transfer_model is not None
+        has_policy_transfer_sha256 = self.policy_transfer_model_sha256 is not None
+        if has_policy_transfer != has_policy_transfer_sha256:
+            raise ValueError(
+                "policy_transfer_model and policy_transfer_model_sha256 must be "
+                "configured together."
+            )
+        if self.policy_transfer_model_sha256 is not None:
+            if _SHA256_PATTERN.fullmatch(self.policy_transfer_model_sha256) is None:
+                raise ValueError("policy_transfer_model_sha256 must be 64 hexadecimal digits.")
+            object.__setattr__(
+                self,
+                "policy_transfer_model_sha256",
+                self.policy_transfer_model_sha256.casefold(),
+            )
         for stage in self.stages:
             stage_variant = stage.controller_env.get("WEBOTS_MODEL_VARIANT")
             if stage_variant is not None and stage_variant != self.model_variant:
@@ -139,6 +192,8 @@ class ModelSnapshot:
     model_variant: str | None = None
     starting_steps: int | None = None
     additional_steps_requested: int | None = None
+    source_model: Path | None = None
+    source_model_sha256: str | None = None
     obstacle_speed_range: tuple[float, float] | None = None
     route_half_lengths: tuple[float, float] | None = None
     monitor_log: str | None = None
@@ -210,9 +265,21 @@ def normalize_controller_env(raw: Mapping[str, Any]) -> dict[str, str]:
             )
         if name == "WEBOTS_CONFIRM_TEST":
             raise ValueError("controller_env must never set WEBOTS_CONFIRM_TEST.")
+        if name in {
+            "WEBOTS_POLICY_TRANSFER_MODEL",
+            "WEBOTS_RESUME_MODEL",
+            "WEBOTS_TRANSFER_MODEL",
+        }:
+            raise ValueError(
+                f"controller_env must not set {name}; use structured curriculum "
+                "model-source fields."
+            )
         value = _environment_value(raw_value, name)
-        if name == "WEBOTS_EVAL_SPLIT" and value.casefold() != "validation":
-            raise ValueError("controller_env WEBOTS_EVAL_SPLIT may only be validation.")
+        if name == "WEBOTS_EVAL_SPLIT":
+            raise ValueError(
+                "controller_env must not set WEBOTS_EVAL_SPLIT; use the stage "
+                "evaluation_split field."
+            )
         normalized[name] = value
     return normalized
 
@@ -248,7 +315,7 @@ def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
     if not isinstance(raw_stages, list):
         raise ValueError("Webots curriculum stages must be a list.")
     stages = []
-    for raw_stage_value in raw_stages:
+    for stage_index, raw_stage_value in enumerate(raw_stages):
         raw_stage = _mapping(raw_stage_value, "stage")
         raw_gate_value = raw_stage.get("validation")
         if raw_gate_value is None:
@@ -269,6 +336,14 @@ def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
         controller_env = normalize_controller_env(
             _mapping(controller_env_value, "stage.controller_env")
         )
+        resume_from_previous_stage = raw_stage.get(
+            "resume_from_previous_stage", False
+        )
+        if not isinstance(resume_from_previous_stage, bool):
+            raise ValueError("resume_from_previous_stage must be a boolean.")
+        evaluation_split = raw_stage.get("evaluation_split", "validation")
+        if not isinstance(evaluation_split, str):
+            raise ValueError("evaluation_split must be validation or diagnostic.")
         stages.append(
             WebotsStage(
                 stage_id=str(raw_stage["id"]),
@@ -283,13 +358,18 @@ def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
                     else None
                 ),
                 world=raw_stage.get("world", _DEFAULT_TRAINING_WORLD),
+                evaluation_split=evaluation_split,
+                resume_from_previous_stage=resume_from_previous_stage,
             )
         )
+        if stage_index == 0 and resume_from_previous_stage:
+            raise ValueError("The first stage cannot resume_from_previous_stage.")
     model_variant_value = raw.get("model_variant")
     if model_variant_value is not None and not isinstance(model_variant_value, str):
         raise ValueError("model_variant must be a string when provided.")
     model_variant = model_variant_value
     policy_transfer_value = raw.get("policy_transfer_model")
+    policy_transfer_sha256_value = raw.get("policy_transfer_model_sha256")
     return WebotsCurriculumConfig(
         transfer_model=Path(str(raw["transfer_model"])),
         port_base=int(raw.get("port_base", 12490)),
@@ -297,6 +377,11 @@ def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
         model_variant=model_variant,
         policy_transfer_model=(
             Path(str(policy_transfer_value)) if policy_transfer_value else None
+        ),
+        policy_transfer_model_sha256=(
+            str(policy_transfer_sha256_value)
+            if policy_transfer_sha256_value is not None
+            else None
         ),
     )
 
@@ -483,6 +568,16 @@ def discover_model_snapshots(
                 additional_steps_requested=(
                     int(raw["additional_steps_requested"])
                     if raw.get("additional_steps_requested") is not None
+                    else None
+                ),
+                source_model=(
+                    _path_from_metadata(raw["source_model"], repository_root)
+                    if raw.get("source_model")
+                    else None
+                ),
+                source_model_sha256=(
+                    str(raw["source_model_sha256"]).casefold()
+                    if raw.get("source_model_sha256")
                     else None
                 ),
                 obstacle_speed_range=_metadata_float_pair(raw, "obstacle_speed_range"),
@@ -682,18 +777,23 @@ def load_validation_metrics(
     expected_planner: str | None = None,
     expected_seed_start: int | None = None,
     expected_episodes: int | None = None,
+    expected_split: str = "validation",
 ) -> dict[str, float | int]:
-    """Read validation metrics and, when requested, enforce full evaluation provenance.
+    """Read non-test gate metrics and optionally enforce full evaluation provenance.
 
     The optional strict contract keeps the standalone parser backward compatible while
     allowing the curriculum runner to reject a fresh-looking summary produced by the
     wrong model, seed, condition, variant, or scenario seed range.
     """
 
+    if expected_split not in _NON_TEST_EVALUATION_SPLITS:
+        raise ValueError("expected_split must be validation or diagnostic.")
     with summary_path.open(encoding="utf-8") as stream:
         raw = _mapping(json.load(stream), "Webots validation summary")
-    if raw.get("split") != "validation":
-        raise ValueError("Refusing to gate on a non-validation Webots result.")
+    if raw.get("split") != expected_split:
+        raise ValueError(
+            f"Refusing to gate on a non-{expected_split} Webots result."
+        )
     planners = raw.get("by_planner")
     if not isinstance(planners, list) or len(planners) != 1:
         raise ValueError("Webots validation summary must contain exactly one planner.")
@@ -785,8 +885,10 @@ def load_validation_metrics(
         raise ValueError("Validation summary training_seed does not match the curriculum seed.")
     if provenance.get("model_variant") != expected_model_variant:
         raise ValueError("Validation summary model_variant does not match the curriculum.")
-    if provenance.get("split") != "validation":
-        raise ValueError("Validation provenance split must be validation.")
+    if provenance.get("split") != expected_split:
+        raise ValueError(
+            f"Evaluation provenance split must be {expected_split}."
+        )
     if provenance.get("condition_id") != expected_condition:
         raise ValueError("Validation summary condition does not match the curriculum stage.")
 
@@ -881,26 +983,35 @@ class WebotsCurriculumRunner:
 
         stages = []
         for stage in self.config.stages:
-            stages.append(
-                {
-                    "id": stage.stage_id,
-                    "name": stage.name,
-                    "world": stage.world,
-                    "obstacle_count": stage.obstacle_count,
-                    "training_steps": stage.training_steps,
-                    "gate": {
-                        "seed_start": stage.gate.seed_start,
-                        "episodes": stage.gate.episodes,
-                        "min_success_rate": stage.gate.min_success_rate,
-                        "max_collision_rate": stage.gate.max_collision_rate,
-                    },
-                    "controller_env": dict(sorted(stage.controller_env.items())),
-                    "preferred_resume_model": _semantic_relative_path(
-                        stage.preferred_resume_model, self.repository_root
-                    ),
-                }
-            )
-        return {
+            stage_config: dict[str, Any] = {
+                "id": stage.stage_id,
+                "name": stage.name,
+                "world": stage.world,
+                "obstacle_count": stage.obstacle_count,
+                "training_steps": stage.training_steps,
+                "gate": {
+                    "seed_start": stage.gate.seed_start,
+                    "episodes": stage.gate.episodes,
+                    "min_success_rate": stage.gate.min_success_rate,
+                    "max_collision_rate": stage.gate.max_collision_rate,
+                },
+                "controller_env": dict(sorted(stage.controller_env.items())),
+                "preferred_resume_model": _semantic_relative_path(
+                    stage.preferred_resume_model, self.repository_root
+                ),
+            }
+            if stage.evaluation_split != "validation":
+                stage_config["evaluation_split"] = stage.evaluation_split
+            if stage.resume_from_previous_stage:
+                stage_config["resume_from_previous_stage"] = True
+            stages.append(stage_config)
+        configured_splits = {stage.evaluation_split for stage in self.config.stages}
+        automatic_split = (
+            next(iter(configured_splits))
+            if len(configured_splits) == 1
+            else "diagnostic_and_validation"
+        )
+        semantic_config: dict[str, Any] = {
             "semantic_schema_version": 1,
             "seed": self.seed,
             "transfer_model": _semantic_relative_path(
@@ -911,7 +1022,7 @@ class WebotsCurriculumRunner:
             ),
             "model_variant": self.config.model_variant,
             "port_base": self.config.port_base,
-            "automatic_split": "validation",
+            "automatic_split": automatic_split,
             "evaluation_world": _EVALUATION_WORLD,
             "gate_overrides": {
                 "seed_start": self.seed_start_override,
@@ -921,6 +1032,11 @@ class WebotsCurriculumRunner:
             },
             "stages": stages,
         }
+        if self.config.policy_transfer_model_sha256 is not None:
+            semantic_config["policy_transfer_model_sha256"] = (
+                self.config.policy_transfer_model_sha256
+            )
+        return semantic_config
 
     def _load_or_create_manifest(self) -> dict[str, Any]:
         if self.manifest_path.is_file():
@@ -963,6 +1079,7 @@ class WebotsCurriculumRunner:
             if manifest.get("model_variant") != self.config.model_variant:
                 raise ValueError("Existing manifest model_variant does not match the config.")
             return manifest
+        automatic_split = self.curriculum_config["automatic_split"]
         return {
             "schema_version": _RUN_MANIFEST_SCHEMA_VERSION,
             "seed": self.seed,
@@ -973,7 +1090,7 @@ class WebotsCurriculumRunner:
             "updated_at": utc_now(),
             "status": "planned" if self.dry_run else "running",
             "webots_executable": str(self.webots_executable),
-            "automatic_split": "validation",
+            "automatic_split": automatic_split,
             "test_split_was_run": False,
             "stages": [],
         }
@@ -1064,6 +1181,11 @@ class WebotsCurriculumRunner:
         records = self.manifest["stages"]
         for record in records:
             if record.get("id") == stage.stage_id:
+                record.setdefault("evaluation_split", stage.evaluation_split)
+                record.setdefault(
+                    "resume_from_previous_stage",
+                    stage.resume_from_previous_stage,
+                )
                 return record
         record = {
             "id": stage.stage_id,
@@ -1077,6 +1199,8 @@ class WebotsCurriculumRunner:
                 if stage.preferred_resume_model is not None
                 else None
             ),
+            "evaluation_split": stage.evaluation_split,
+            "resume_from_previous_stage": stage.resume_from_previous_stage,
             "status": "pending",
             "training_attempts": [],
         }
@@ -1084,7 +1208,7 @@ class WebotsCurriculumRunner:
         return record
 
     def _gate_for(self, stage: WebotsStage) -> ValidationGate:
-        return ValidationGate(
+        gate = ValidationGate(
             seed_start=(
                 self.seed_start_override
                 if self.seed_start_override is not None
@@ -1106,6 +1230,8 @@ class WebotsCurriculumRunner:
                 else stage.gate.max_collision_rate
             ),
         )
+        _validate_non_test_gate(gate, stage.evaluation_split)
+        return gate
 
     def _webots_command(self, port: int, world: str) -> list[str]:
         return [
@@ -1149,13 +1275,231 @@ class WebotsCurriculumRunner:
             if _CHECKPOINT_STEP_PATTERN.search(model.path.name) is not None
             else "final_step"
         )
+        result_prefix = (
+            "webots_diagnostic"
+            if stage.evaluation_split == "diagnostic"
+            else "webots_validation"
+        )
         return validate_evaluation_run_name(
-            f"webots_validation_{stage.stage_id.casefold()}_{kind}{model.steps}_"
+            f"{result_prefix}_{stage.stage_id.casefold()}_{kind}{model.steps}_"
             f"seed{self.seed}"
         )
 
     def _expected_result_directory(self, run_name: str) -> Path:
         return self.repository_root / "artifacts/results" / run_name
+
+    def _verified_policy_transfer_path(self) -> Path | None:
+        configured = self.config.policy_transfer_model
+        expected_sha256 = self.config.policy_transfer_model_sha256
+        if configured is None:
+            return None
+        if expected_sha256 is None:  # Protected by WebotsCurriculumConfig.
+            raise ValueError("Configured policy transfer model lacks its SHA-256.")
+        path = configured if configured.is_absolute() else self.repository_root / configured
+        path = path.resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"Policy transfer model does not exist: {path}")
+        actual_sha256 = _sha256_file(path)
+        if actual_sha256 != expected_sha256:
+            raise ValueError(
+                "Policy transfer model SHA-256 does not match "
+                "policy_transfer_model_sha256."
+            )
+        return path
+
+    def _attempt_binds_source(
+        self,
+        record: Mapping[str, Any],
+        *,
+        expected_path: Path,
+        expected_steps: int | None,
+        expected_sha256: str,
+        expected_kind: str,
+    ) -> bool:
+        expected_resolved = expected_path.resolve()
+        for attempt in record.get("training_attempts", []):
+            if not isinstance(attempt, dict):
+                continue
+            source = attempt.get("resume_source")
+            if not isinstance(source, dict) or source.get("kind") != expected_kind:
+                continue
+            environment = attempt.get("environment")
+            if not isinstance(environment, dict):
+                continue
+            expected_environment_key = (
+                "WEBOTS_POLICY_TRANSFER_MODEL"
+                if expected_kind == "policy_transfer_model"
+                else "WEBOTS_RESUME_MODEL"
+            )
+            configured_source_keys = {
+                name
+                for name in (
+                    "WEBOTS_POLICY_TRANSFER_MODEL",
+                    "WEBOTS_RESUME_MODEL",
+                    "WEBOTS_TRANSFER_MODEL",
+                )
+                if name in environment
+            }
+            if configured_source_keys != {expected_environment_key}:
+                continue
+            raw_path = source.get("model")
+            if not isinstance(raw_path, str) or not raw_path:
+                continue
+            candidate = Path(raw_path)
+            candidate = (
+                candidate.resolve()
+                if candidate.is_absolute()
+                else (self.repository_root / candidate).resolve()
+            )
+            raw_environment_path = environment.get(expected_environment_key)
+            if not isinstance(raw_environment_path, str) or not raw_environment_path:
+                continue
+            environment_path = Path(raw_environment_path)
+            environment_path = (
+                environment_path.resolve()
+                if environment_path.is_absolute()
+                else (self.repository_root / environment_path).resolve()
+            )
+            if (
+                candidate == expected_resolved
+                and environment_path == expected_resolved
+                and source.get("steps") == expected_steps
+                and source.get("sha256") == expected_sha256
+            ):
+                return True
+        return False
+
+    def _validate_completed_snapshot_source(
+        self,
+        snapshot: ModelSnapshot,
+        *,
+        expected_path: Path,
+        expected_steps: int,
+        expected_sha256: str,
+        label: str,
+    ) -> None:
+        if not snapshot.is_completed_run or snapshot.metadata_path is None:
+            raise ValueError(f"{label} lacks completed run metadata.")
+        if snapshot.starting_steps != expected_steps:
+            raise ValueError(f"{label} starting steps do not match its lineage source.")
+        if (
+            snapshot.source_model is None
+            or snapshot.source_model.resolve() != expected_path.resolve()
+        ):
+            raise ValueError(f"{label} source model path does not match its lineage source.")
+        if (
+            snapshot.source_model_sha256 is None
+            or _SHA256_PATTERN.fullmatch(snapshot.source_model_sha256) is None
+            or snapshot.source_model_sha256 != expected_sha256
+        ):
+            raise ValueError(f"{label} source model SHA-256 does not match its lineage source.")
+        if not expected_path.is_file() or _sha256_file(expected_path) != expected_sha256:
+            raise ValueError(f"{label} lineage source bytes no longer match their SHA-256.")
+
+    def _validate_completed_stage_lineage(
+        self,
+        snapshot: ModelSnapshot,
+        *,
+        stage: WebotsStage,
+        record: Mapping[str, Any],
+        snapshots: Sequence[ModelSnapshot],
+        stage_start_steps: int,
+        required_source: tuple[Path, int | None, str, str],
+        required_completed_start: int,
+    ) -> None:
+        """Validate a completed artifact back to its structured stage root source."""
+
+        root_path, root_steps, root_sha256, root_kind = required_source
+        if not self._attempt_binds_source(
+            record,
+            expected_path=root_path,
+            expected_steps=root_steps,
+            expected_sha256=root_sha256,
+            expected_kind=root_kind,
+        ):
+            raise ValueError(
+                f"Stage {stage.stage_id} manifest does not bind its structured "
+                "lineage source."
+            )
+        if (
+            snapshot.source_model is not None
+            and snapshot.source_model.resolve() == root_path.resolve()
+        ):
+            self._validate_completed_snapshot_source(
+                snapshot,
+                expected_path=root_path,
+                expected_steps=required_completed_start,
+                expected_sha256=root_sha256,
+                label=f"Stage {stage.stage_id} completed artifact",
+            )
+            return
+
+        direct_source = snapshot.source_model
+        direct_source_sha256 = snapshot.source_model_sha256
+        direct_source_steps = snapshot.starting_steps
+        if (
+            direct_source is None
+            or direct_source_steps is None
+            or direct_source_sha256 is None
+            or _SHA256_PATTERN.fullmatch(direct_source_sha256) is None
+        ):
+            raise ValueError(
+                f"Stage {stage.stage_id} completed artifact lacks a valid direct "
+                "source."
+            )
+        direct_source = direct_source.resolve()
+        direct_snapshot = next(
+            (
+                item
+                for item in snapshots
+                if item.path.resolve() == direct_source
+                and item.steps == direct_source_steps
+            ),
+            None,
+        )
+        target_steps = stage_start_steps + stage.training_steps
+        if (
+            direct_snapshot is None
+            or _CHECKPOINT_STEP_PATTERN.search(direct_snapshot.path.name) is None
+            or not stage_start_steps < direct_snapshot.steps < target_steps
+        ):
+            raise ValueError(
+                f"Stage {stage.stage_id} completed artifact direct source is not an "
+                "in-stage checkpoint."
+            )
+        generated = self._stage_generated_snapshots(
+            stage,
+            record,
+            snapshots,
+            stage_start_steps,
+            required_source=required_source,
+        )
+        if not any(
+            item.path.resolve() == direct_source and item.steps == direct_source_steps
+            for item in generated
+        ):
+            raise ValueError(
+                f"Stage {stage.stage_id} completed artifact direct source was not "
+                "generated by its authorized lineage."
+            )
+        if not self._attempt_binds_source(
+            record,
+            expected_path=direct_source,
+            expected_steps=direct_source_steps,
+            expected_sha256=direct_source_sha256,
+            expected_kind="current_stage_checkpoint",
+        ):
+            raise ValueError(
+                f"Stage {stage.stage_id} manifest does not bind its completed "
+                "artifact to the current-stage checkpoint."
+            )
+        self._validate_completed_snapshot_source(
+            snapshot,
+            expected_path=direct_source,
+            expected_steps=direct_source_steps,
+            expected_sha256=direct_source_sha256,
+            label=f"Stage {stage.stage_id} completed artifact",
+        )
 
     def _preferred_resume_path(self, stage: WebotsStage) -> Path | None:
         if stage.preferred_resume_model is None:
@@ -1209,6 +1553,101 @@ class WebotsCurriculumRunner:
             modified_at_ns=path.stat().st_mtime_ns,
         )
 
+    def _validated_stage_endpoint(
+        self,
+        stage: WebotsStage,
+        record: Mapping[str, Any] | None,
+        snapshots: Sequence[ModelSnapshot],
+    ) -> ModelSnapshot:
+        """Revalidate one passed gate and return its exact immutable endpoint."""
+
+        if record is None or record.get("status") != "completed":
+            raise ValueError(
+                f"Stage {stage.stage_id} has not completed its gate; refusing "
+                "cross-stage resume."
+            )
+        validation = _mapping(
+            record.get("validation"), f"stage {stage.stage_id} validation"
+        )
+        if validation.get("status") != "passed" or validation.get("passed") is not True:
+            raise ValueError(
+                f"Stage {stage.stage_id} gate has not passed; refusing "
+                "cross-stage resume."
+            )
+        training = _mapping(record.get("training"), f"stage {stage.stage_id} training")
+        training_model = training.get("model")
+        validation_model = validation.get("model")
+        if (
+            not isinstance(training_model, str)
+            or not training_model
+            or validation_model != training_model
+        ):
+            raise ValueError(
+                f"Stage {stage.stage_id} validation is not bound to its exact "
+                "training endpoint."
+            )
+        model_path = (self.repository_root / training_model).resolve()
+        try:
+            model_path.relative_to(self.repository_root.resolve())
+        except ValueError as error:
+            raise ValueError(
+                f"Stage {stage.stage_id} endpoint escapes the repository."
+            ) from error
+        final_steps = int(training.get("final_model_steps", -1))
+        snapshot = next(
+            (
+                item
+                for item in snapshots
+                if item.path.resolve() == model_path and item.steps == final_steps
+            ),
+            None,
+        )
+        if snapshot is None:
+            raise ValueError(
+                f"Stage {stage.stage_id} exact validated endpoint is not a "
+                "discoverable model snapshot."
+            )
+        expected_sha256 = validation.get("model_sha256")
+        if (
+            not isinstance(expected_sha256, str)
+            or _SHA256_PATTERN.fullmatch(expected_sha256) is None
+            or not model_path.is_file()
+            or _sha256_file(model_path) != expected_sha256.casefold()
+        ):
+            raise ValueError(
+                f"Stage {stage.stage_id} validated endpoint SHA-256 no longer matches."
+            )
+        summary_value = validation.get("summary")
+        if not isinstance(summary_value, str) or not summary_value:
+            raise ValueError(f"Stage {stage.stage_id} gate lacks its summary path.")
+        summary_path = (self.repository_root / summary_value).resolve()
+        try:
+            summary_path.relative_to(self.repository_root.resolve())
+        except ValueError as error:
+            raise ValueError(
+                f"Stage {stage.stage_id} summary escapes the repository."
+            ) from error
+        gate = self._gate_for(stage)
+        planner_label = f"ppo_{stage.stage_id.casefold()}_step{snapshot.steps}"
+        metrics = load_validation_metrics(
+            summary_path,
+            repository_root=self.repository_root,
+            expected_model_path=model_path,
+            expected_model_sha256=expected_sha256.casefold(),
+            expected_training_seed=self.seed,
+            expected_model_variant=self.config.model_variant,
+            expected_condition=stage.stage_id,
+            expected_planner=planner_label,
+            expected_seed_start=gate.seed_start,
+            expected_episodes=gate.episodes,
+            expected_split=stage.evaluation_split,
+        )
+        if not gate_passed(metrics, gate):
+            raise ValueError(
+                f"Stage {stage.stage_id} summary no longer passes its configured gate."
+            )
+        return snapshot
+
     def _configured_stage_start_steps(
         self,
         stage: WebotsStage,
@@ -1233,24 +1672,48 @@ class WebotsCurriculumRunner:
         record: Mapping[str, Any],
         snapshots: Sequence[ModelSnapshot],
         stage_start_steps: int,
+        *,
+        required_source: tuple[Path, int | None, str, str] | None = None,
     ) -> tuple[ModelSnapshot, ...]:
-        generated = {
-            (snapshot.path, snapshot.steps): snapshot
-            for snapshot in snapshots
-            if snapshot.steps > stage_start_steps
-            and snapshot_matches_stage(snapshot, stage)
-        }
+        generated: dict[tuple[Path, int], ModelSnapshot] = {}
+        if required_source is None:
+            generated = {
+                (snapshot.path, snapshot.steps): snapshot
+                for snapshot in snapshots
+                if snapshot.steps > stage_start_steps
+                and snapshot_matches_stage(snapshot, stage)
+            }
+        else:
+            path, steps, sha256, kind = required_source
+            if not self._attempt_binds_source(
+                record,
+                expected_path=path,
+                expected_steps=steps,
+                expected_sha256=sha256,
+                expected_kind=kind,
+            ):
+                return ()
         attempt_starts = [
             timestamp
             for attempt in record.get("training_attempts", [])
             if attempt.get("status") != "planned"
+            if required_source is None
+            or self._attempt_binds_source(
+                {"training_attempts": [attempt]},
+                expected_path=required_source[0],
+                expected_steps=required_source[1],
+                expected_sha256=required_source[2],
+                expected_kind=required_source[3],
+            )
             if (timestamp := _timestamp_ns(attempt.get("started_at"))) is not None
         ]
         if attempt_starts:
             first_attempt = min(attempt_starts)
+            target_steps = stage_start_steps + stage.training_steps
             for snapshot in snapshots:
                 if (
-                    snapshot.steps > stage_start_steps
+                    stage_start_steps < snapshot.steps < target_steps
+                    and _CHECKPOINT_STEP_PATTERN.search(snapshot.path.name) is not None
                     and snapshot.modified_at_ns is not None
                     and snapshot.modified_at_ns >= first_attempt
                 ):
@@ -1264,16 +1727,77 @@ class WebotsCurriculumRunner:
         *,
         baseline_steps: int,
         snapshots: Sequence[ModelSnapshot],
+        previous_stage_endpoint: ModelSnapshot | None = None,
+        previous_stage: WebotsStage | None = None,
+        previous_stage_record: Mapping[str, Any] | None = None,
     ) -> ModelSnapshot | None:
+        required_source: tuple[Path, int | None, str, str] | None = None
+        required_completed_start: int | None = None
+        if stage.resume_from_previous_stage:
+            if previous_stage is None:
+                raise ValueError(f"Stage {stage.stage_id} requires a previous stage.")
+            if not self.dry_run or previous_stage_endpoint is None:
+                previous_stage_endpoint = self._validated_stage_endpoint(
+                    previous_stage, previous_stage_record, snapshots
+                )
+            if previous_stage_endpoint.path.is_file():
+                previous_sha256 = _sha256_file(previous_stage_endpoint.path)
+                required_source = (
+                    previous_stage_endpoint.path,
+                    previous_stage_endpoint.steps,
+                    previous_sha256,
+                    "previous_stage_endpoint",
+                )
+                required_completed_start = previous_stage_endpoint.steps
+        elif previous_stage is None and self.config.policy_transfer_model is not None:
+            policy_transfer_path = self._verified_policy_transfer_path()
+            assert policy_transfer_path is not None
+            assert self.config.policy_transfer_model_sha256 is not None
+            required_source = (
+                policy_transfer_path,
+                model_steps_from_path(policy_transfer_path),
+                self.config.policy_transfer_model_sha256,
+                "policy_transfer_model",
+            )
+            required_completed_start = 0
         stage_start_steps = self._configured_stage_start_steps(
             stage, record, baseline_steps
         )
+        if (
+            stage.resume_from_previous_stage
+            and previous_stage_endpoint is not None
+            and stage_start_steps != previous_stage_endpoint.steps
+        ):
+            raise ValueError(
+                f"Stage {stage.stage_id} previous endpoint steps do not match its "
+                "recorded baseline."
+            )
         target_steps = stage_start_steps + stage.training_steps
         completed = select_stage_completed_snapshot(
             snapshots,
             stage=stage,
             target_steps=target_steps,
         )
+        if completed is not None and required_source is not None:
+            if not self._attempt_binds_source(
+                record,
+                expected_path=required_source[0],
+                expected_steps=required_source[1],
+                expected_sha256=required_source[2],
+                expected_kind=required_source[3],
+            ):
+                completed = None
+            else:
+                assert required_completed_start is not None
+                self._validate_completed_stage_lineage(
+                    completed,
+                    stage=stage,
+                    record=record,
+                    snapshots=snapshots,
+                    stage_start_steps=stage_start_steps,
+                    required_source=required_source,
+                    required_completed_start=required_completed_start,
+                )
         if completed is not None:
             record["training"] = {
                 "status": "reused_completed_metadata",
@@ -1294,19 +1818,47 @@ class WebotsCurriculumRunner:
             record["stage_start_steps"] = record["training"]["baseline_steps"]
             return completed
 
-        preferred = self._preferred_resume_snapshot(stage, snapshots)
         generated = self._stage_generated_snapshots(
-            stage, record, snapshots, stage_start_steps
+            stage,
+            record,
+            snapshots,
+            stage_start_steps,
+            required_source=required_source,
         )
         resumable = max(generated, key=lambda item: item.steps, default=None)
-        if resumable is None:
+        resume_source_kind = "current_stage_checkpoint" if resumable is not None else None
+        preferred: ModelSnapshot | None = None
+        if resumable is None and stage.preferred_resume_model is not None:
+            preferred = self._preferred_resume_snapshot(stage, snapshots)
             resumable = preferred
-        if resumable is None and self.config.model_variant is None:
+            resume_source_kind = "preferred_resume_model"
+        if resumable is None and stage.resume_from_previous_stage:
+            if previous_stage_endpoint is None:
+                raise ValueError(
+                    f"Stage {stage.stage_id} lacks a validated previous endpoint."
+                )
+            if record.get("stage_start_steps") is None:
+                stage_start_steps = previous_stage_endpoint.steps
+                target_steps = stage_start_steps + stage.training_steps
+            if previous_stage_endpoint.steps != stage_start_steps:
+                raise ValueError(
+                    f"Stage {stage.stage_id} previous endpoint steps do not match its "
+                    "recorded baseline."
+                )
+            resumable = previous_stage_endpoint
+            resume_source_kind = "previous_stage_endpoint"
+        if (
+            resumable is None
+            and not stage.resume_from_previous_stage
+            and self.config.model_variant is None
+        ):
             resumable = max(
                 (snapshot for snapshot in snapshots if snapshot.steps >= stage_start_steps),
                 key=lambda item: item.steps,
                 default=None,
             )
+            if resumable is not None:
+                resume_source_kind = "legacy_checkpoint"
         if (
             resumable is None
             and self.config.model_variant is not None
@@ -1326,9 +1878,11 @@ class WebotsCurriculumRunner:
                 stage_start_steps,
                 model_variant=self.config.model_variant,
             )
+            resume_source_kind = "planned_previous_endpoint"
         if (
             resumable is not None
             and preferred is None
+            and not stage.resume_from_previous_stage
             and record.get("stage_start_steps") is None
             and resumable.starting_steps is not None
         ):
@@ -1350,20 +1904,41 @@ class WebotsCurriculumRunner:
         )
         if self.config.model_variant:
             overrides["WEBOTS_MODEL_VARIANT"] = self.config.model_variant
+        source_record: dict[str, Any] | None = None
         if resumable is not None:
             overrides.pop("WEBOTS_POLICY_TRANSFER_MODEL", None)
             overrides.pop("WEBOTS_TRANSFER_MODEL", None)
             overrides["WEBOTS_RESUME_MODEL"] = relative_artifact_path(
                 resumable.path, self.repository_root
             )
+            source_record = {
+                "kind": resume_source_kind,
+                "model": relative_artifact_path(
+                    resumable.path, self.repository_root
+                ),
+                "steps": resumable.steps,
+                "sha256": (
+                    _sha256_file(resumable.path) if resumable.path.is_file() else None
+                ),
+            }
         else:
             overrides.pop("WEBOTS_RESUME_MODEL", None)
             if self.config.policy_transfer_model is not None:
+                policy_transfer_path = self._verified_policy_transfer_path()
+                assert policy_transfer_path is not None
                 overrides["WEBOTS_POLICY_TRANSFER_MODEL"] = relative_artifact_path(
-                    self.repository_root / self.config.policy_transfer_model,
+                    policy_transfer_path,
                     self.repository_root,
                 )
                 overrides.pop("WEBOTS_TRANSFER_MODEL", None)
+                source_record = {
+                    "kind": "policy_transfer_model",
+                    "model": relative_artifact_path(
+                        policy_transfer_path, self.repository_root
+                    ),
+                    "steps": model_steps_from_path(policy_transfer_path),
+                    "sha256": self.config.policy_transfer_model_sha256,
+                }
             elif "WEBOTS_POLICY_TRANSFER_MODEL" not in overrides:
                 overrides["WEBOTS_TRANSFER_MODEL"] = relative_artifact_path(
                     self.repository_root / self.config.transfer_model,
@@ -1377,6 +1952,7 @@ class WebotsCurriculumRunner:
             "baseline_steps": stage_start_steps,
             "progressed_steps_before_attempt": progressed_steps,
             "additional_steps_requested": remaining_steps,
+            "resume_source": source_record,
         }
         record["stage_start_steps"] = stage_start_steps
         record["training_attempts"].append(attempt)
@@ -1416,10 +1992,34 @@ class WebotsCurriculumRunner:
             self.manifest["status"] = "failed"
             self._write_manifest()
             return None
+        if (
+            required_source is not None
+            and source_record is not None
+            and source_record.get("sha256") is not None
+        ):
+            source_path_value = source_record["model"]
+            source_path = Path(str(source_path_value))
+            source_path = (
+                source_path.resolve()
+                if source_path.is_absolute()
+                else (self.repository_root / source_path).resolve()
+            )
+            source_start_steps = (
+                0
+                if source_record["kind"] == "policy_transfer_model"
+                else int(source_record["steps"])
+            )
+            self._validate_completed_snapshot_source(
+                completed,
+                expected_path=source_path,
+                expected_steps=source_start_steps,
+                expected_sha256=str(source_record["sha256"]),
+                label=f"Stage {stage.stage_id} completed artifact",
+            )
         attempt["status"] = "completed"
         record["training"] = {
             "status": "completed",
-            "baseline_steps": baseline_steps,
+            "baseline_steps": stage_start_steps,
             "target_model_steps": target_steps,
             "final_model_steps": completed.steps,
             "model": relative_artifact_path(completed.path, self.repository_root),
@@ -1449,7 +2049,7 @@ class WebotsCurriculumRunner:
                 ),
                 "WEBOTS_EVAL_EPISODES": str(gate.episodes),
                 "WEBOTS_EVAL_SEED_START": str(gate.seed_start),
-                "WEBOTS_EVAL_SPLIT": "validation",
+                "WEBOTS_EVAL_SPLIT": stage.evaluation_split,
                 "WEBOTS_EVAL_CONDITION": stage.stage_id,
                 "WEBOTS_EVAL_PLANNER_LABEL": planner_label,
                 "WEBOTS_EVAL_RUN_NAME": run_name,
@@ -1459,6 +2059,7 @@ class WebotsCurriculumRunner:
         if self.config.model_variant:
             overrides["WEBOTS_MODEL_VARIANT"] = self.config.model_variant
         validation = {
+            "split": stage.evaluation_split,
             "started_at": utc_now(),
             "command": command,
             "environment": overrides,
@@ -1515,6 +2116,7 @@ class WebotsCurriculumRunner:
                 expected_planner=planner_label,
                 expected_seed_start=gate.seed_start,
                 expected_episodes=gate.episodes,
+                expected_split=stage.evaluation_split,
             )
         except (OSError, ValueError, json.JSONDecodeError) as error:
             validation["status"] = "summary_invalid"
@@ -1547,6 +2149,7 @@ class WebotsCurriculumRunner:
             self.repository_root, self.seed, self.config.model_variant
         )
         baseline_steps = 0
+        previous_stage_endpoint: ModelSnapshot | None = None
         for index, stage in enumerate(self.config.stages):
             existing_record = next(
                 (
@@ -1572,6 +2175,7 @@ class WebotsCurriculumRunner:
                         f"prerequisite {stage.stage_id} has no completed metadata."
                     )
                 baseline_steps = target_steps if completed is None else completed.steps
+                previous_stage_endpoint = None
                 continue
             if index > stop_after_stage:
                 break
@@ -1580,19 +2184,93 @@ class WebotsCurriculumRunner:
             if record.get("status") == "completed" and record.get("validation", {}).get(
                 "passed"
             ):
-                baseline_steps = int(record["training"]["final_model_steps"])
+                completed_endpoint = self._validated_stage_endpoint(
+                    stage, record, snapshots
+                )
+                if stage.resume_from_previous_stage:
+                    previous_stage = self.config.stages[index - 1]
+                    previous_record = next(
+                        (
+                            item
+                            for item in self.manifest["stages"]
+                            if item.get("id") == previous_stage.stage_id
+                        ),
+                        None,
+                    )
+                    lineage_source = self._validated_stage_endpoint(
+                        previous_stage, previous_record, snapshots
+                    )
+                    lineage_sha256 = _sha256_file(lineage_source.path)
+                    if stage_start_steps != lineage_source.steps:
+                        raise ValueError(
+                            f"Stage {stage.stage_id} previous endpoint steps do not "
+                            "match its recorded baseline."
+                        )
+                    self._validate_completed_stage_lineage(
+                        completed_endpoint,
+                        stage=stage,
+                        record=record,
+                        snapshots=snapshots,
+                        stage_start_steps=stage_start_steps,
+                        required_source=(
+                            lineage_source.path,
+                            lineage_source.steps,
+                            lineage_sha256,
+                            "previous_stage_endpoint",
+                        ),
+                        required_completed_start=lineage_source.steps,
+                    )
+                elif index == 0 and self.config.policy_transfer_model is not None:
+                    lineage_path = self._verified_policy_transfer_path()
+                    assert lineage_path is not None
+                    assert self.config.policy_transfer_model_sha256 is not None
+                    lineage_sha256 = self.config.policy_transfer_model_sha256
+                    self._validate_completed_stage_lineage(
+                        completed_endpoint,
+                        stage=stage,
+                        record=record,
+                        snapshots=snapshots,
+                        stage_start_steps=stage_start_steps,
+                        required_source=(
+                            lineage_path,
+                            model_steps_from_path(lineage_path),
+                            lineage_sha256,
+                            "policy_transfer_model",
+                        ),
+                        required_completed_start=0,
+                    )
+                baseline_steps = completed_endpoint.steps
+                previous_stage_endpoint = None
                 continue
+            previous_stage = self.config.stages[index - 1] if index > 0 else None
+            previous_record = (
+                next(
+                    (
+                        item
+                        for item in self.manifest["stages"]
+                        if previous_stage is not None
+                        and item.get("id") == previous_stage.stage_id
+                    ),
+                    None,
+                )
+                if stage.resume_from_previous_stage
+                else None
+            )
             model = self._run_training(
                 stage,
                 record,
                 baseline_steps=baseline_steps,
                 snapshots=snapshots,
+                previous_stage_endpoint=previous_stage_endpoint,
+                previous_stage=previous_stage,
+                previous_stage_record=previous_record,
             )
             if model is None:
                 return 2
             if not self._run_validation(stage, record, model):
                 return 3
             baseline_steps = model.steps
+            previous_stage_endpoint = model
             snapshots = discover_model_snapshots(
                 self.repository_root, self.seed, self.config.model_variant
             )

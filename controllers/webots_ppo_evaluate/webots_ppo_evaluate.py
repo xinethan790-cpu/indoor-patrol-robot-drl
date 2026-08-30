@@ -16,7 +16,12 @@ import yaml
 from controller import Supervisor
 
 from indoor_patrol_rl.envs import WebotsPatrolEnv
-from indoor_patrol_rl.evaluation import EpisodeAccumulator, write_benchmark_outputs
+from indoor_patrol_rl.evaluation import (
+    FORMAL_TEST_SEEDS,
+    FORMAL_VALIDATION_SEEDS,
+    EpisodeAccumulator,
+    write_benchmark_outputs,
+)
 from indoor_patrol_rl.evaluation.webots_formal_config import (
     DYNAMIC_OBSTACLE_DEFS,
     DYNAMIC_OBSTACLE_RADII,
@@ -36,6 +41,7 @@ from indoor_patrol_rl.training.webots_curriculum import validate_evaluation_run_
 
 MODEL_VARIANT_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
 PLANNERS = {"reactive", "dwa", "ppo"}
+DEFAULT_DIAGNOSTIC_SEED_START = 20_000
 
 
 @dataclass(frozen=True)
@@ -309,7 +315,13 @@ def _resolve_formal_plan(repository_root: Path) -> EvaluationPlan:
     )
 
 
-def _resolve_validation_plan() -> EvaluationPlan:
+def _resolve_nonformal_plan(
+    *,
+    split: str,
+    default_seed_start: int,
+) -> EvaluationPlan:
+    if split not in {"validation", "diagnostic"}:
+        raise ValueError("Non-formal Webots split must be validation or diagnostic.")
     planner = os.environ.get("WEBOTS_EVAL_PLANNER", "ppo").strip().lower()
     if planner not in PLANNERS:
         raise ValueError("WEBOTS_EVAL_PLANNER must be reactive, dwa, or ppo.")
@@ -322,13 +334,31 @@ def _resolve_validation_plan() -> EvaluationPlan:
         if raw_training_seed is not None:
             raise ValueError("Baseline evaluation must not set WEBOTS_MODEL_SEED.")
         training_seed = None
-    seed_start = _environment_int("WEBOTS_EVAL_SEED_START", 5000)
+    seed_start = _environment_int("WEBOTS_EVAL_SEED_START", default_seed_start)
     episode_count = _environment_int("WEBOTS_EVAL_EPISODES", 20)
     obstacle_count = _environment_int("WEBOTS_OBSTACLE_COUNT", 1)
     if seed_start < 0:
         raise ValueError("WEBOTS_EVAL_SEED_START must be non-negative.")
     if episode_count <= 0:
         raise ValueError("WEBOTS_EVAL_EPISODES must be positive.")
+    scenario_seeds = tuple(range(seed_start, seed_start + episode_count))
+    overlapping_test_seeds = sorted(set(FORMAL_TEST_SEEDS).intersection(scenario_seeds))
+    if overlapping_test_seeds:
+        raise ValueError(
+            "Non-formal scenario seeds must not overlap held-out test "
+            "10000..10019; overlapping seeds: "
+            f"{overlapping_test_seeds}."
+        )
+    if split == "diagnostic":
+        overlapping_validation_seeds = sorted(
+            set(FORMAL_VALIDATION_SEEDS).intersection(scenario_seeds)
+        )
+        if overlapping_validation_seeds:
+            raise ValueError(
+                "Diagnostic scenario seeds must not overlap formal validation "
+                "5000..5019; overlapping seeds: "
+                f"{overlapping_validation_seeds}."
+            )
     if not 0 <= obstacle_count <= len(DYNAMIC_OBSTACLE_DEFS):
         raise ValueError(
             f"WEBOTS_OBSTACLE_COUNT must be between 0 and {len(DYNAMIC_OBSTACLE_DEFS)}."
@@ -352,12 +382,12 @@ def _resolve_validation_plan() -> EvaluationPlan:
     if not planner_label or any(character in planner_label for character in "\r\n"):
         raise ValueError("WEBOTS_EVAL_PLANNER_LABEL must be a non-empty single-line value.")
     return EvaluationPlan(
-        split="validation",
+        split=split,
         condition_id=condition_id,
         planner=planner,
         planner_label=planner_label,
         training_seed=training_seed,
-        scenario_seeds=tuple(range(seed_start, seed_start + episode_count)),
+        scenario_seeds=scenario_seeds,
         obstacle_count=obstacle_count,
         obstacle_cross_lanes=None,
         obstacle_speed_range=obstacle_speed_range,
@@ -374,13 +404,26 @@ def _resolve_validation_plan() -> EvaluationPlan:
     )
 
 
+def _resolve_validation_plan() -> EvaluationPlan:
+    return _resolve_nonformal_plan(split="validation", default_seed_start=5_000)
+
+
+def _resolve_diagnostic_plan() -> EvaluationPlan:
+    return _resolve_nonformal_plan(
+        split="diagnostic",
+        default_seed_start=DEFAULT_DIAGNOSTIC_SEED_START,
+    )
+
+
 def _resolve_plan(repository_root: Path) -> EvaluationPlan:
     split = os.environ.get("WEBOTS_EVAL_SPLIT", "validation").strip().lower()
     if split == "test":
         return _resolve_formal_plan(repository_root)
-    if split != "validation":
-        raise ValueError("WEBOTS_EVAL_SPLIT must be validation or test.")
-    return _resolve_validation_plan()
+    if split == "validation":
+        return _resolve_validation_plan()
+    if split == "diagnostic":
+        return _resolve_diagnostic_plan()
+    raise ValueError("WEBOTS_EVAL_SPLIT must be diagnostic, validation, or test.")
 
 
 def _model_and_variant(

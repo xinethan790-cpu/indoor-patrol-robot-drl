@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 import types
@@ -169,3 +170,131 @@ def test_curriculum_validation_label_contract_is_unchanged(
     assert plan.planner_label == "ppo_w0_step10"
     assert plan.training_seed == 11
     assert plan.scenario_seeds == tuple(range(5000, 5020))
+
+
+@pytest.mark.parametrize(
+    ("seed_start", "episode_count"),
+    [(9_999, 2), (10_000, 1), (10_019, 1)],
+)
+def test_validation_plan_rejects_any_held_out_test_seed_overlap(
+    monkeypatch: pytest.MonkeyPatch,
+    seed_start: int,
+    episode_count: int,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    monkeypatch.setenv("WEBOTS_EVAL_SPLIT", "validation")
+    monkeypatch.setenv("WEBOTS_EVAL_SEED_START", str(seed_start))
+    monkeypatch.setenv("WEBOTS_EVAL_EPISODES", str(episode_count))
+
+    with pytest.raises(ValueError, match="must not overlap held-out test"):
+        EVALUATOR._resolve_plan(REPOSITORY_ROOT)
+
+
+@pytest.mark.parametrize("seed_start", [9_999, 10_020])
+def test_validation_plan_allows_windows_adjacent_to_held_out_test(
+    monkeypatch: pytest.MonkeyPatch,
+    seed_start: int,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    monkeypatch.setenv("WEBOTS_EVAL_SPLIT", "validation")
+    monkeypatch.setenv("WEBOTS_EVAL_SEED_START", str(seed_start))
+    monkeypatch.setenv("WEBOTS_EVAL_EPISODES", "1")
+
+    assert EVALUATOR._resolve_plan(REPOSITORY_ROOT).scenario_seeds == (seed_start,)
+
+
+def test_diagnostic_plan_defaults_to_unreserved_seed_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    monkeypatch.setenv("WEBOTS_EVAL_SPLIT", "diagnostic")
+
+    plan = EVALUATOR._resolve_plan(REPOSITORY_ROOT)
+
+    reserved = set(EVALUATOR.FORMAL_VALIDATION_SEEDS) | set(
+        EVALUATOR.FORMAL_TEST_SEEDS
+    )
+    assert plan.split == "diagnostic"
+    assert plan.scenario_seeds == tuple(range(20_000, 20_020))
+    assert reserved.isdisjoint(plan.scenario_seeds)
+
+
+@pytest.mark.parametrize(
+    ("seed_start", "episode_count"),
+    [
+        (4_999, 2),
+        (10_019, 2),
+    ],
+)
+def test_diagnostic_plan_rejects_any_reserved_seed_overlap(
+    monkeypatch: pytest.MonkeyPatch,
+    seed_start: int,
+    episode_count: int,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    monkeypatch.setenv("WEBOTS_EVAL_SPLIT", "diagnostic")
+    monkeypatch.setenv("WEBOTS_EVAL_SEED_START", str(seed_start))
+    monkeypatch.setenv("WEBOTS_EVAL_EPISODES", str(episode_count))
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        EVALUATOR._resolve_plan(REPOSITORY_ROOT)
+
+
+def test_diagnostic_outputs_keep_diagnostic_split_and_custom_safe_range(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    values = {
+        "WEBOTS_EVAL_SPLIT": "diagnostic",
+        "WEBOTS_EVAL_PLANNER": "reactive",
+        "WEBOTS_EVAL_SEED_START": "7000",
+        "WEBOTS_EVAL_EPISODES": "3",
+        "WEBOTS_EVAL_CONDITION": "D0",
+        "WEBOTS_OBSTACLE_COUNT": "0",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    plan = EVALUATOR._resolve_plan(REPOSITORY_ROOT)
+    provenance = EVALUATOR._provenance(
+        REPOSITORY_ROOT,
+        plan,
+        model_path=None,
+        model_variant=None,
+    )
+    accumulator = EVALUATOR.EpisodeAccumulator(
+        episode_id="diagnostic-D0-7000-reactive",
+        split=plan.split,
+        condition_id=plan.condition_id,
+        scenario_seed=plan.scenario_seeds[0],
+        planner=plan.planner_label,
+        reference_path_length=1.0,
+    )
+    accumulator.update(
+        reward=1.0,
+        info={
+            "is_success": True,
+            "collision": False,
+            "timeout": False,
+            "clearance": 0.5,
+            "path_length": 1.0,
+            "step_count": 1,
+            "elapsed_sim_time": 0.128,
+            "executed_action": [0.0, 0.0],
+        },
+        inference_latency_s=0.001,
+    )
+
+    output_directory = tmp_path / "diagnostic_results"
+    EVALUATOR.write_benchmark_outputs(
+        output_directory,
+        [accumulator.finalize()],
+        provenance=provenance,
+    )
+    summary = json.loads(
+        (output_directory / "summary.json").read_text(encoding="utf-8")
+    )
+
+    assert plan.scenario_seeds == (7000, 7001, 7002)
+    assert summary["split"] == "diagnostic"
+    assert summary["evaluation_provenance"]["split"] == "diagnostic"

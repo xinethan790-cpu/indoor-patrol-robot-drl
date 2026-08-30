@@ -136,3 +136,34 @@ maximum reset linear/angular speed: 0.075327 m/s / 1.237338 rad/s
 ```
 
 随后只在 validation seeds `5000、5001` 上完成 2 回合集成检查，结果为 2/2 success，且 `summary.json` 已包含相同的 reset-health provenance。该 2 回合运行只验证评测链路，不用于 checkpoint 选择，也不是正式实验结果。完整 Python 测试为 `248 passed`；`10000～10019` held-out test 仍未访问。
+
+## 2026-08-30：首次 Webots 正式课程门禁结果
+
+在 commit `4b85afef33da83410da7cc9f0d7f77ce9b0a9932` 上启动 seed 11 的预声明
+`W0 → W1 → W2` 课程。W0 实际训练到 `50,176` steps，随后在 validation seeds
+`5000～5019` 上取得 `20/20` success、`0/20` collision，正式通过门禁。W1 从该模型
+继续训练到累计 `200,192` steps；训练和验证的 reset health 均全部通过，策略参数、优化器
+与 TensorBoard 标量没有 NaN/Inf。
+
+W1 固定验证结果为：
+
+```text
+success:   8/20 = 0.40
+collision: 12/20 = 0.60
+timeout:   0/20 = 0.00
+gate: success >= 0.75 and collision <= 0.15  -> failed
+```
+
+runner 因门禁失败以预定状态停止，W2 没有启动，`test_split_was_run=false`。W1 最终模型
+SHA-256 为 `84e0ebb459e0ef800b1e891f5d549237e246c04be33a3bed24f4811b18993cc8`；
+manifest、训练 metadata、模型、validation summary 与 episodes CSV 已完成一致性审计。
+
+对 1,673 个 W1 训练回合的离线诊断显示，总体成功率为 `45.91%`，最后 100 回合为
+`61%`，但没有稳定泛化到 validation。水平长路线成功率为 `34.80%`，垂直路线为
+`56.56%`；从低、中、高三个等宽障碍速度区间，成功率依次为 `56.92%、43.50%、
+36.88%`。905 次 collision 中有 754 次（`83.31%`）是 LiDAR 阈值单独触发，表明
+主要短板是中高速横穿障碍下的提前让行，而不是物理 reset、数值稳定性或 timeout。
+
+该失败结果按原样保留，不通过放宽碰撞阈值修饰。下一轮只使用独立 diagnostic seeds
+验证渐进速度课程、提前减速奖励和完整路线恢复；新配置冻结后才重新运行 validation，
+最终 `10000～10019` held-out test 继续封存。

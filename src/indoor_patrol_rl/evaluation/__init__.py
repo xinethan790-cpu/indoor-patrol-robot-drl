@@ -58,6 +58,11 @@ from indoor_patrol_rl.evaluation.patrol import (
     select_patrol_model,
     write_patrol_outputs,
 )
+from indoor_patrol_rl.evaluation.training_diagnostics import (
+    TrainingEpisode,
+    read_training_monitor,
+    training_diagnostic_report,
+)
 
 __all__ = [
     "BenchmarkCondition",
@@ -78,6 +83,7 @@ __all__ = [
     "PatrolTrajectorySample",
     "SeedSet",
     "SplitSpec",
+    "TrainingEpisode",
     "begin_test_attempt",
     "build_checkpoint_selection",
     "build_formal_source_bundle",
@@ -95,11 +101,13 @@ __all__ = [
     "protected_test_ledger_path",
     "parse_result_identity",
     "require_test_confirmation",
+    "read_training_monitor",
     "resolve_candidate_model",
     "run_kinematic_benchmark",
     "portable_model_path",
     "select_patrol_model",
     "summarize_records",
+    "training_diagnostic_report",
     "source_bundle_sha256",
     "validate_model_manifest",
     "write_benchmark_outputs",
