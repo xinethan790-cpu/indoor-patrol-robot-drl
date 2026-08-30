@@ -110,3 +110,29 @@ PPO:      success 0.7625, collision 0.2375, timeout 0.0000
 ```
 
 stage 2 模型 SHA-256 为 `152060175d9f0db8e59e0a31d8e158e19395ff16636e6add6e9d2e6fe7372f8c`。这次结果覆盖的是运动学验证后端，只用于选择 Webots 初始化权重；即使 PPO 在该验证集上的总体指标最好，也不能据此宣称已经取得正式 Webots 或真机优势。
+
+## 2026-08-30：Webots 回合重置稳定性修复
+
+### 根因与修复
+
+首次 W0 长训练在多次回合重置后出现非有限观测。消融诊断确认，异常并非 PPO 更新或单独的 GPS 丢包：出错时 TurtleBot 的根节点位置、速度和接触状态已同时变为 `NaN`。旧逻辑只搬移根节点并清除惯性，没有恢复两个轮毂 `HingeJoint` 和脚轮 `BallJoint` 的完整内部状态，反复 teleport 后最终使物理约束失效。
+
+修复后的每次 reset 会先用 `loadState("__init__")` 恢复 TurtleBot 及全部后代关节，再重新设置轮电机速度模式、根节点位姿和节点级物理状态。全局 `simulationResetPhysics()` 已移除。两次 settle step 均检查 Supervisor 状态，最终还会核对起点 XY、GPS/根节点偏差、IMU yaw、线速度、角速度和初始碰撞；GPS、IMU、动作、奖励或最终观测出现非有限值时一律失败，不使用 Supervisor 真值或旧传感器值替代策略输入。
+
+训练与评测现在都会记录 reset health；失败时会额外保存异常、原始传感器值、Supervisor 状态、回合位置和 traceback。评测产物中的 reset health 属于运行完整性证据，不是策略可见输入。
+
+### 修复后诊断结果
+
+使用 seed 11、W0、正式默认 PPO 参数运行 6,144 steps：
+
+```text
+episodes: 50/50 success, 0 collision, 0 timeout
+PPO updates: 110, all policy/optimizer/TensorBoard values finite
+reset: 51 attempts, 51 successful, 102 finite settle checks, 51 readback checks
+maximum start XY error: 0.000026 m
+maximum GPS/root XY distance: 0.036032 m
+maximum yaw error: 0.000003 rad
+maximum reset linear/angular speed: 0.075327 m/s / 1.237338 rad/s
+```
+
+随后只在 validation seeds `5000、5001` 上完成 2 回合集成检查，结果为 2/2 success，且 `summary.json` 已包含相同的 reset-health provenance。该 2 回合运行只验证评测链路，不用于 checkpoint 选择，也不是正式实验结果。完整 Python 测试为 `248 passed`；`10000～10019` held-out test 仍未访问。

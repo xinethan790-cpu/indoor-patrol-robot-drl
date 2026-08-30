@@ -34,6 +34,54 @@ def test_observation_builder_handles_invalid_lidar_and_has_79_values() -> None:
     assert builder.space.contains(observation)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("goal_distance", float("nan")),
+        ("goal_bearing", float("inf")),
+        ("linear_speed", float("-inf")),
+        ("max_linear_speed", float("nan")),
+        ("angular_speed", float("nan")),
+        ("max_angular_speed", float("inf")),
+    ],
+)
+def test_observation_builder_rejects_named_non_finite_scalar_fields(
+    field: str, value: float
+) -> None:
+    builder = ObservationBuilder(lidar_beams=36, lidar_max_range=3.5)
+    arguments: dict[str, object] = {
+        "raw_lidar": np.full(360, 2.0),
+        "goal_distance": 1.0,
+        "goal_bearing": 0.25,
+        "linear_speed": 0.1,
+        "max_linear_speed": 0.35,
+        "angular_speed": -0.2,
+        "max_angular_speed": 1.5,
+        "previous_action": np.zeros(2, dtype=np.float32),
+    }
+    arguments[field] = value
+
+    with pytest.raises(ValueError, match=field):
+        builder.build(**arguments)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("invalid_value", [float("nan"), float("inf"), float("-inf")])
+def test_observation_builder_rejects_non_finite_previous_action(invalid_value: float) -> None:
+    builder = ObservationBuilder(lidar_beams=36, lidar_max_range=3.5)
+
+    with pytest.raises(ValueError, match="previous_action.*finite"):
+        builder.build(
+            raw_lidar=np.full(360, 2.0),
+            goal_distance=1.0,
+            goal_bearing=0.25,
+            linear_speed=0.1,
+            max_linear_speed=0.35,
+            angular_speed=-0.2,
+            max_angular_speed=1.5,
+            previous_action=np.array([0.0, invalid_value], dtype=np.float32),
+        )
+
+
 def test_differential_drive_mapping_is_symmetric_for_straight_motion() -> None:
     mapper = DifferentialDriveMapper(0.35, 1.5, 0.033, 0.16, 6.67)
     left, right = mapper.normalized_to_wheels(np.array([0.0, 0.0], dtype=np.float32))
