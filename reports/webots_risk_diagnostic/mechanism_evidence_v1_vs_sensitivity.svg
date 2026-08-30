@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1020" height="650" viewBox="0 0 1020 650" role="img">
+  <title>Formal v1 and LiDAR-origin sensitivity mechanism evidence</title>
+  <desc>Formal v1 has 19 classifiable physical and 28 ambiguous LiDAR-only cases, and remains indeterminate. The nonformal sensitivity has 43 physical and 4 ambiguous LiDAR-only cases. Response-insufficient counts are 22 and 46 respectively.</desc>
+  <rect width="1020" height="650" fill="#f8fafc"/>
+  <text x="50.0" y="48.0" font-family="Arial, sans-serif" font-size="27" font-weight="700" text-anchor="start" fill="#172033">Mechanism evidence: formal v1 vs LiDAR-origin sensitivity</text>
+  <text x="50.0" y="79.0" font-family="Arial, sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="#526078">The sensitivity audit is post-hoc and nonformal; it does not replace v1.</text>
+  <line x1="260.0" y1="125" x2="260.0" y2="565" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="260.0" y="590.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">0</text>
+  <line x1="398.0" y1="125" x2="398.0" y2="565" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="398.0" y="590.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">10</text>
+  <line x1="536.0" y1="125" x2="536.0" y2="565" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="536.0" y="590.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">20</text>
+  <line x1="674.0" y1="125" x2="674.0" y2="565" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="674.0" y="590.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">30</text>
+  <line x1="812.0" y1="125" x2="812.0" y2="565" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="812.0" y="590.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">40</text>
+  <line x1="950.0" y1="125" x2="950.0" y2="565" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="950.0" y="590.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">50</text>
+  <text x="50.0" y="132.0" font-family="Arial, sans-serif" font-size="18" font-weight="700" text-anchor="start" fill="#172033">LiDAR-only geometry (n=47)</text>
+  <text x="242.0" y="183.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end" fill="#172033">Formal v1</text>
+  <rect x="260.0" y="158.0" width="262.2" height="34" rx="4" fill="#2a6fbb"/>
+  <rect x="522.2" y="158.0" width="386.4" height="34" rx="4" fill="#d89b2b"/>
+  <text x="391.1" y="181.0" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff">19</text>
+  <text x="715.4" y="181.0" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#172033">28</text>
+  <text x="242.0" y="247.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end" fill="#172033">Post-hoc sensitivity</text>
+  <rect x="260.0" y="222.0" width="593.4" height="34" rx="4" fill="#2a6fbb"/>
+  <rect x="853.4" y="222.0" width="55.2" height="34" rx="4" fill="#d89b2b"/>
+  <text x="556.7" y="245.0" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff">43</text>
+  <text x="881.0" y="245.0" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#172033">4</text>
+  <text x="50.0" y="330.0" font-family="Arial, sans-serif" font-size="18" font-weight="700" text-anchor="start" fill="#172033">Reaction-evaluable physical candidates</text>
+  <text x="242.0" y="381.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end" fill="#172033">Formal v1</text>
+  <rect x="260.0" y="356.0" width="303.6" height="34" rx="4" fill="#c94b55"/>
+  <text x="411.8" y="379.0" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff">22</text>
+  <text x="575.6" y="379.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#526078">timely=0</text>
+  <text x="242.0" y="445.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="end" fill="#172033">Post-hoc sensitivity</text>
+  <rect x="260.0" y="420.0" width="634.8" height="34" rx="4" fill="#c94b55"/>
+  <text x="577.4" y="443.0" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#ffffff">46</text>
+  <text x="906.8" y="443.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#526078">timely=0</text>
+  <rect x="120.0" y="605" width="16" height="16" rx="3" fill="#2a6fbb"/>
+  <text x="143.0" y="620.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#172033">physical dynamic</text>
+  <rect x="325.0" y="605" width="16" height="16" rx="3" fill="#d89b2b"/>
+  <text x="348.0" y="620.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#172033">ambiguous</text>
+  <rect x="530.0" y="605" width="16" height="16" rx="3" fill="#c94b55"/>
+  <text x="553.0" y="620.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#172033">response insufficient</text>
+  <rect x="735.0" y="605" width="16" height="16" rx="3" fill="#167d64"/>
+  <text x="758.0" y="620.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#172033">timely response</text>
+</svg>

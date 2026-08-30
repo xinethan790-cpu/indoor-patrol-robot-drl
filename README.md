@@ -21,9 +21,12 @@
 - [x] 完成 seed 11 的 811,008-step 运动学课程训练和阶段模型选择
 - [x] 完成 Reactive、DWA、PPO 的 240 回合运动学统一验证基准
 - [x] 实现三训练 seed、验证证据锁、一次性测试 ledger 和 400 回合汇总的正式实验协议
+- [x] 完成 recovery-v1 的 120 回合 Webots 风险诊断与可审计图文报告
 - [ ] 完成 Webots 三 seed 正式训练、统一批量评测、泛化和奖励消融
 
 轻量二维环境不是最终实验平台。它用于快速验证状态、动作、奖励、随机种子、训练和测试代码，并为 Webots 提供策略热启动。当前验证集选择的是 stage 2（557,056 steps），不是训练最久的 stage 3；完整选择依据见[当前实验进展](reports/current-progress.md)。正式论文效果结论仍以 Webots 批量实验为准。
+
+最新的[Webots 动态避障风险诊断公开版](reports/webots_risk_diagnostic/diagnostic_report.md)提供按路线方向结果、机制证据对比和固定 seed 20500 风险时间线。该批次只使用 `diagnostic` seeds；正式 v1 机制结论为 `indeterminate`。LiDAR 原点敏感性是 post-hoc、nonformal 审计，不替代 v1，也没有访问 validation 或 held-out test 数据。
 
 正式 Webots 实验的**执行协议已经实现，但正式结果尚未产生**。固定流程为：分别用 `11、22、33` 三个训练 seed 训练和验证 PPO；在 clean Git revision 上将三个模型的训练期 sidecar、训练元数据、W0～W2 课程 manifest、验证选择 manifest 和逐回合验证 CSV 与正式配置、world、evaluator、controller 及完整 source bundle 一起绑定到不可覆盖的 FinalLock v2；先执行不消耗测试机会的 `--dry-run`；最后才对 `10000～10019` held-out seeds 运行一次 `G0～G3 ×（Reactive、DWA、PPO-seed11、PPO-seed22、PPO-seed33）= 20` 个 Webots 调用、共 400 回合。当前仓库没有可引用为论文结论的这 400 回合正式 Webots 输出，详见[训练复现协议](docs/training-protocol.md)和[当前实验进展](reports/current-progress.md)。
 

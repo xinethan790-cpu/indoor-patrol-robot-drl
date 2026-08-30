@@ -1,0 +1,2211 @@
+[
+  {
+    "episode_id": "diagnostic-DR1-20494-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20494,
+    "route_axis": "horizontal",
+    "terminal_step": 17,
+    "measured_lidar_range_m": 0.12449575960636139,
+    "lidar_bearing_rad": 0.13962634015954656,
+    "root_xy": [
+      -0.7799807217215571,
+      0.22166200190670912
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.8104530353571364,
+      0.22576879493432894
+    ],
+    "observed_origin_offset_m": 0.03074780719460855,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.03047421515654683,
+    "gps_best_absolute_residual_m": 0.0016122455165004101,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09402154444981456,
+        "absolute_residual_m": 0.03047421515654683,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12288351408986098,
+        "absolute_residual_m": 0.0016122455165004101,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20496-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20496,
+    "route_axis": "vertical",
+    "terminal_step": 59,
+    "measured_lidar_range_m": 0.12015487998723984,
+    "lidar_bearing_rad": -0.2967059728390353,
+    "root_xy": [
+      -0.2017088247398039,
+      0.1466391295976408
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.20097845366190487,
+      0.11590776993898586
+    ],
+    "observed_origin_offset_m": 0.030740037546838427,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.02727683337447187,
+    "gps_best_absolute_residual_m": 0.006746035545936474,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09287804661276797,
+        "absolute_residual_m": 0.02727683337447187,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1269009155331763,
+        "absolute_residual_m": 0.006746035545936474,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20497-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20497,
+    "route_axis": "vertical",
+    "terminal_step": 72,
+    "measured_lidar_range_m": 0.12030936032533646,
+    "lidar_bearing_rad": 1.8500490071139897,
+    "root_xy": [
+      -0.21098117343419925,
+      0.16662359046519176
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.21542180713230522,
+      0.13623631995836277
+    ],
+    "observed_origin_offset_m": 0.030710021759939428,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.023060641292693057,
+    "gps_best_absolute_residual_m": 0.0033623520764219095,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1433700016180295,
+        "absolute_residual_m": 0.023060641292693057,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12367171240175837,
+        "absolute_residual_m": 0.0033623520764219095,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20500-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20500,
+    "route_axis": "horizontal",
+    "terminal_step": 61,
+    "measured_lidar_range_m": 0.12588265538215637,
+    "lidar_bearing_rad": -0.12217304763960257,
+    "root_xy": [
+      -0.10345640120501651,
+      0.07848590328966776
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.07273139109550575,
+      0.07933966739393337
+    ],
+    "observed_origin_offset_m": 0.0307368697068402,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.017966048787668137,
+    "gps_best_absolute_residual_m": 0.011708450744669224,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10791660659448823,
+        "absolute_residual_m": 0.017966048787668137,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1375911061268256,
+        "absolute_residual_m": 0.011708450744669224,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20503-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20503,
+    "route_axis": "vertical",
+    "terminal_step": 106,
+    "measured_lidar_range_m": 0.12251684069633484,
+    "lidar_bearing_rad": -2.3387411976724017,
+    "root_xy": [
+      -0.023755507301023146,
+      -0.9008223898605551
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.012217511494679686,
+      -0.8723689746753166
+    ],
+    "observed_origin_offset_m": 0.03070378124809318,
+    "root_circle_intersection_candidate_count": 0,
+    "gps_circle_intersection_candidate_count": 0,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": null,
+    "root_best_absolute_residual_m": null,
+    "gps_best_absolute_residual_m": null,
+    "post_hoc_sensitivity_classification": "unresolved_under_both_origins",
+    "post_hoc_sensitivity_mechanism_classification": "ambiguous",
+    "post_hoc_sensitivity_mechanism_reason": "lidar_ray_not_uniquely_attributed_under_gps_proxy",
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": false,
+    "v1_deceleration_reaction_evaluable": false,
+    "v1_deceleration_reaction_indeterminate_reason": "risk_onset_not_detected",
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": null,
+        "absolute_residual_m": null,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": null,
+        "absolute_residual_m": null,
+        "within_tolerance": false
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20507-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20507,
+    "route_axis": "horizontal",
+    "terminal_step": 38,
+    "measured_lidar_range_m": 0.12020284682512283,
+    "lidar_bearing_rad": -0.3141592653589793,
+    "root_xy": [
+      0.36887268132466094,
+      -0.274025934173414
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.3951323214643178,
+      -0.28996341508745266
+    ],
+    "observed_origin_offset_m": 0.030717617064961688,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.02030598600334607,
+    "gps_best_absolute_residual_m": 0.008921603655530269,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09989686082177676,
+        "absolute_residual_m": 0.02030598600334607,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1291244504806531,
+        "absolute_residual_m": 0.008921603655530269,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20512-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20512,
+    "route_axis": "vertical",
+    "terminal_step": 89,
+    "measured_lidar_range_m": 0.12208761274814606,
+    "lidar_bearing_rad": 1.3613568165555767,
+    "root_xy": [
+      0.018789080064213017,
+      0.5602163056972226
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.04203149178506762,
+      0.5401500106482572
+    ],
+    "observed_origin_offset_m": 0.03070612153291022,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.010731291237035534,
+    "gps_best_absolute_residual_m": 0.004015059273211635,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.11135632151111052,
+        "absolute_residual_m": 0.010731291237035534,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1261026720213577,
+        "absolute_residual_m": 0.004015059273211635,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20519-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20519,
+    "route_axis": "horizontal",
+    "terminal_step": 80,
+    "measured_lidar_range_m": 0.12367600947618484,
+    "lidar_bearing_rad": 1.448623279155294,
+    "root_xy": [
+      -0.5028242532397939,
+      -0.08282056576337338
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.4722403357448936,
+      -0.0799735689187407
+    ],
+    "observed_origin_offset_m": 0.030716142341905728,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.0035165099037329506,
+    "gps_best_absolute_residual_m": 0.00505330807032503,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1271925193799178,
+        "absolute_residual_m": 0.0035165099037329506,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12872931754650987,
+        "absolute_residual_m": 0.00505330807032503,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20523-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20523,
+    "route_axis": "horizontal",
+    "terminal_step": 47,
+    "measured_lidar_range_m": 0.12399279326200485,
+    "lidar_bearing_rad": 1.8151424220741026,
+    "root_xy": [
+      -0.08520072982864554,
+      -0.5095602271209311
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.11498635533231226,
+      -0.5170366121211982
+    ],
+    "observed_origin_offset_m": 0.030709604675360127,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.023543167569827245,
+    "gps_best_absolute_residual_m": 0.010410217453266701,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "ambiguous",
+    "post_hoc_sensitivity_mechanism_reason": "geometry_falls_inside_proxy_tolerance_band",
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": false,
+    "v1_deceleration_reaction_evaluable": false,
+    "v1_deceleration_reaction_indeterminate_reason": "insufficient_post_onset_response_window",
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1475359608318321,
+        "absolute_residual_m": 0.023543167569827245,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13440301071527155,
+        "absolute_residual_m": 0.010410217453266701,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20525-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20525,
+    "route_axis": "horizontal",
+    "terminal_step": 53,
+    "measured_lidar_range_m": 0.12312468141317368,
+    "lidar_bearing_rad": 0.2617993877991496,
+    "root_xy": [
+      0.03019894208776445,
+      0.33053170301061885
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.00020047759465946502,
+      0.32596179435101025
+    ],
+    "observed_origin_offset_m": 0.030740995139801643,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.028359177615782938,
+    "gps_best_absolute_residual_m": 0.0015470830487290532,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09476550379739074,
+        "absolute_residual_m": 0.028359177615782938,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12467176446190273,
+        "absolute_residual_m": 0.0015470830487290532,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20529-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20529,
+    "route_axis": "horizontal",
+    "terminal_step": 44,
+    "measured_lidar_range_m": 0.12739993631839752,
+    "lidar_bearing_rad": 2.0245819323134224,
+    "root_xy": [
+      -0.11699126387106648,
+      0.2380601751054805
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.14735848347399072,
+      0.2426318641801511
+    ],
+    "observed_origin_offset_m": 0.030709418219948235,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.017143932949910484,
+    "gps_best_absolute_residual_m": 0.01577708604630118,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.144543869268308,
+        "absolute_residual_m": 0.017143932949910484,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1431770223646987,
+        "absolute_residual_m": 0.01577708604630118,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20530-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20530,
+    "route_axis": "horizontal",
+    "terminal_step": 64,
+    "measured_lidar_range_m": 0.12450415641069412,
+    "lidar_bearing_rad": 1.2740903539558603,
+    "root_xy": [
+      0.14341055690045323,
+      0.4202772433193447
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.17277424915647838,
+      0.4113252088949336
+    ],
+    "observed_origin_offset_m": 0.030697969692512102,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.01652512201646067,
+    "gps_best_absolute_residual_m": 0.0007401452144288889,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10797903439423345,
+        "absolute_residual_m": 0.01652512201646067,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.125244301625123,
+        "absolute_residual_m": 0.0007401452144288889,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20532-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20532,
+    "route_axis": "horizontal",
+    "terminal_step": 65,
+    "measured_lidar_range_m": 0.1264062374830246,
+    "lidar_bearing_rad": 1.221730476396031,
+    "root_xy": [
+      0.33217221211959985,
+      -0.4363321771855125
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.3017303713624354,
+      -0.44038724311208
+    ],
+    "observed_origin_offset_m": 0.030710734741346828,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.019728575585010205,
+    "gps_best_absolute_residual_m": 0.0026685292264228555,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10667766189801439,
+        "absolute_residual_m": 0.019728575585010205,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12907476670944745,
+        "absolute_residual_m": 0.0026685292264228555,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20533-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20533,
+    "route_axis": "horizontal",
+    "terminal_step": 72,
+    "measured_lidar_range_m": 0.12917286157608032,
+    "lidar_bearing_rad": 2.8623399732707,
+    "root_xy": [
+      -0.12786611408402576,
+      -0.3339740275976545
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.1580741948893208,
+      -0.32841429253214327
+    ],
+    "observed_origin_offset_m": 0.03071544888061886,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.026334638903667495,
+    "gps_best_absolute_residual_m": 0.0026497653648215325,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.15550750047974782,
+        "absolute_residual_m": 0.026334638903667495,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13182262694090185,
+        "absolute_residual_m": 0.0026497653648215325,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20535-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20535,
+    "route_axis": "vertical",
+    "terminal_step": 30,
+    "measured_lidar_range_m": 0.127962127327919,
+    "lidar_bearing_rad": -0.3839724354387535,
+    "root_xy": [
+      0.3187531917840232,
+      -0.5572177479913658
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.32407724439507263,
+      -0.587465508515892
+    ],
+    "observed_origin_offset_m": 0.030712742517631095,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.02361918628494583,
+    "gps_best_absolute_residual_m": 0.00200754527490396,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10434294104297318,
+        "absolute_residual_m": 0.02361918628494583,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12996967260282297,
+        "absolute_residual_m": 0.00200754527490396,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20536-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20536,
+    "route_axis": "vertical",
+    "terminal_step": 86,
+    "measured_lidar_range_m": 0.12355104833841324,
+    "lidar_bearing_rad": -1.7453292519943293,
+    "root_xy": [
+      -0.046827666073045913,
+      -0.10390101301485838
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.05652633651559519,
+      -0.07475258630632889
+    ],
+    "observed_origin_offset_m": 0.03071961894190249,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.0161824760844948,
+    "gps_best_absolute_residual_m": 0.0004571001945009312,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10736857225391844,
+        "absolute_residual_m": 0.0161824760844948,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12309394814391231,
+        "absolute_residual_m": 0.0004571001945009312,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20540-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20540,
+    "route_axis": "vertical",
+    "terminal_step": 44,
+    "measured_lidar_range_m": 0.12263951450586319,
+    "lidar_bearing_rad": -1.8500490071139888,
+    "root_xy": [
+      0.6604594566457267,
+      -0.3251378459694704
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.6651882013167502,
+      -0.35548974553264423
+    ],
+    "observed_origin_offset_m": 0.030718053865059977,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.0067521517960338895,
+    "gps_best_absolute_residual_m": 0.0014090446313172744,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1158873627098293,
+        "absolute_residual_m": 0.0067521517960338895,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12404855913718046,
+        "absolute_residual_m": 0.0014090446313172744,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20545-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20545,
+    "route_axis": "horizontal",
+    "terminal_step": 27,
+    "measured_lidar_range_m": 0.1211329996585846,
+    "lidar_bearing_rad": 0.08726646259971638,
+    "root_xy": [
+      -0.5777792666997041,
+      0.0006297718242203806
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.6079411279447313,
+      0.0064148503132442185
+    ],
+    "observed_origin_offset_m": 0.030711642855575778,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.0313459668725819,
+    "gps_best_absolute_residual_m": 0.0006390811111995909,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.0897870327860027,
+        "absolute_residual_m": 0.0313459668725819,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12177208076978419,
+        "absolute_residual_m": 0.0006390811111995909,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20547-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20547,
+    "route_axis": "vertical",
+    "terminal_step": 54,
+    "measured_lidar_range_m": 0.120278500020504,
+    "lidar_bearing_rad": 1.3089969389957474,
+    "root_xy": [
+      0.2352940260534447,
+      0.08359619736938931
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.2286965921719905,
+      0.053603053356453156
+    ],
+    "observed_origin_offset_m": 0.03071017456155024,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.014716521072984406,
+    "gps_best_absolute_residual_m": 0.007012463729625801,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1349950210934884,
+        "absolute_residual_m": 0.014716521072984406,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1272909637501298,
+        "absolute_residual_m": 0.007012463729625801,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20548-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20548,
+    "route_axis": "horizontal",
+    "terminal_step": 69,
+    "measured_lidar_range_m": 0.12676486372947693,
+    "lidar_bearing_rad": 1.1519173063162578,
+    "root_xy": [
+      0.24879351854166698,
+      -0.04203958890747699
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.21915711281115302,
+      -0.05009836385421394
+    ],
+    "observed_origin_offset_m": 0.030712544640029354,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.0063835442654437136,
+    "gps_best_absolute_residual_m": 0.006963798298078389,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12038131946403322,
+        "absolute_residual_m": 0.0063835442654437136,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13372866202755532,
+        "absolute_residual_m": 0.006963798298078389,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20551-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20551,
+    "route_axis": "vertical",
+    "terminal_step": 47,
+    "measured_lidar_range_m": 0.12296617776155472,
+    "lidar_bearing_rad": -1.3264502315156896,
+    "root_xy": [
+      0.17887831852107364,
+      -0.297575885374752
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.18649558589408277,
+      -0.3273482289945294
+    ],
+    "observed_origin_offset_m": 0.030731339164540347,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.010074875840366732,
+    "gps_best_absolute_residual_m": 0.0035609272027347094,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.11289130192118799,
+        "absolute_residual_m": 0.010074875840366732,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12652710496428943,
+        "absolute_residual_m": 0.0035609272027347094,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20553-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20553,
+    "route_axis": "horizontal",
+    "terminal_step": 69,
+    "measured_lidar_range_m": 0.1221233606338501,
+    "lidar_bearing_rad": -0.10471975511966036,
+    "root_xy": [
+      0.024733650131039987,
+      0.29664313440364515
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.05539045301584917,
+      0.2947742523295342
+    ],
+    "observed_origin_offset_m": 0.030713714905966322,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.02525198319492722,
+    "gps_best_absolute_residual_m": 0.004463624605789918,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09687137743892288,
+        "absolute_residual_m": 0.02525198319492722,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12658698523964002,
+        "absolute_residual_m": 0.004463624605789918,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20557-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20557,
+    "route_axis": "horizontal",
+    "terminal_step": 56,
+    "measured_lidar_range_m": 0.12207695096731186,
+    "lidar_bearing_rad": -0.034906585039886195,
+    "root_xy": [
+      -0.5645499753248931,
+      0.12634231026098197
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.5951753497866835,
+      0.12850142994871572
+    ],
+    "observed_origin_offset_m": 0.030701390176193017,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.02309930646209704,
+    "gps_best_absolute_residual_m": 0.0071333569972344135,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09897764450521482,
+        "absolute_residual_m": 0.02309930646209704,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12921030796454627,
+        "absolute_residual_m": 0.0071333569972344135,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20558-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20558,
+    "route_axis": "horizontal",
+    "terminal_step": 18,
+    "measured_lidar_range_m": 0.12120063602924347,
+    "lidar_bearing_rad": -0.034906585039886195,
+    "root_xy": [
+      -0.7207163553334873,
+      0.1298102529381487
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.7513552301108258,
+      0.13170510882877387
+    ],
+    "observed_origin_offset_m": 0.030697412374134515,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.018694512723610557,
+    "gps_best_absolute_residual_m": 0.012007051748740005,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10250612330563291,
+        "absolute_residual_m": 0.018694512723610557,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13320768777798347,
+        "absolute_residual_m": 0.012007051748740005,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20560-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20560,
+    "route_axis": "horizontal",
+    "terminal_step": 60,
+    "measured_lidar_range_m": 0.12449710816144943,
+    "lidar_bearing_rad": -1.239183768915975,
+    "root_xy": [
+      -0.07522686417585471,
+      0.4662099782951469
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.04457175255409512,
+      0.46781628712654577
+    ],
+    "observed_origin_offset_m": 0.03069716756647704,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.028412164940610857,
+    "gps_best_absolute_residual_m": 0.0015772602840394556,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09608494322083858,
+        "absolute_residual_m": 0.028412164940610857,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1260743684454889,
+        "absolute_residual_m": 0.0015772602840394556,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20566-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20566,
+    "route_axis": "horizontal",
+    "terminal_step": 45,
+    "measured_lidar_range_m": 0.12239925563335419,
+    "lidar_bearing_rad": 0.06981317007977328,
+    "root_xy": [
+      0.3145459448708089,
+      -0.18785053489526146
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.33945580545408693,
+      -0.2058204047684664
+    ],
+    "observed_origin_offset_m": 0.03071510015510721,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.034687416463538484,
+    "gps_best_absolute_residual_m": 0.002473189310424312,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.0877118391698157,
+        "absolute_residual_m": 0.034687416463538484,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.11992606632292988,
+        "absolute_residual_m": 0.002473189310424312,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20570-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20570,
+    "route_axis": "horizontal",
+    "terminal_step": 44,
+    "measured_lidar_range_m": 0.12958116829395294,
+    "lidar_bearing_rad": 0.08726646259971638,
+    "root_xy": [
+      0.5189598446824771,
+      -0.451751562038664
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.5448684162373638,
+      -0.4682094990514827
+    ],
+    "observed_origin_offset_m": 0.030693937035391698,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.027463726182196224,
+    "gps_best_absolute_residual_m": 0.0030206821560445907,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10211744211175672,
+        "absolute_residual_m": 0.027463726182196224,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13260185044999753,
+        "absolute_residual_m": 0.0030206821560445907,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20571-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20571,
+    "route_axis": "vertical",
+    "terminal_step": 49,
+    "measured_lidar_range_m": 0.12536101043224335,
+    "lidar_bearing_rad": 0.2094395102393194,
+    "root_xy": [
+      0.0977343102286084,
+      -0.010498698682584767
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.09758772627269989,
+      0.02022035058309046
+    ],
+    "observed_origin_offset_m": 0.030719398995473712,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.026182946990540745,
+    "gps_best_absolute_residual_m": 0.0008079819963631163,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.0991780634417026,
+        "absolute_residual_m": 0.026182946990540745,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12616899242860646,
+        "absolute_residual_m": 0.0008079819963631163,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20572-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20572,
+    "route_axis": "vertical",
+    "terminal_step": 29,
+    "measured_lidar_range_m": 0.12805591523647308,
+    "lidar_bearing_rad": -0.4014257279586957,
+    "root_xy": [
+      -0.10117980891246622,
+      0.6146931610303639
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.08951707946807028,
+      0.6430951886702948
+    ],
+    "observed_origin_offset_m": 0.030703329333357014,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.022244330963940684,
+    "gps_best_absolute_residual_m": 0.005205804911143835,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1058115842725324,
+        "absolute_residual_m": 0.022244330963940684,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13326172014761692,
+        "absolute_residual_m": 0.005205804911143835,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20573-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20573,
+    "route_axis": "vertical",
+    "terminal_step": 77,
+    "measured_lidar_range_m": 0.12135186046361923,
+    "lidar_bearing_rad": 1.7627825445142733,
+    "root_xy": [
+      -0.15768780629057366,
+      -0.275110711843317
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.1511456949752771,
+      -0.245104975386457
+    ],
+    "observed_origin_offset_m": 0.030710640514002095,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.008848897301048958,
+    "gps_best_absolute_residual_m": 0.004906774325900837,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1302007577646682,
+        "absolute_residual_m": 0.008848897301048958,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12625863478952007,
+        "absolute_residual_m": 0.004906774325900837,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20579-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20579,
+    "route_axis": "vertical",
+    "terminal_step": 42,
+    "measured_lidar_range_m": 0.12277769297361374,
+    "lidar_bearing_rad": -0.10471975511966036,
+    "root_xy": [
+      -0.05194929156082907,
+      -0.6021652019740897
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.06792325111986913,
+      -0.6283967130392406
+    ],
+    "observed_origin_offset_m": 0.030712530940236425,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.025447514699360713,
+    "gps_best_absolute_residual_m": 0.0034156895549892208,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09733017827425303,
+        "absolute_residual_m": 0.025447514699360713,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12619338252860296,
+        "absolute_residual_m": 0.0034156895549892208,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20583-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20583,
+    "route_axis": "horizontal",
+    "terminal_step": 34,
+    "measured_lidar_range_m": 0.12814252078533173,
+    "lidar_bearing_rad": 0.36651914291880905,
+    "root_xy": [
+      -0.44739545306258305,
+      0.07259101444146593
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.4779089350728602,
+      0.0763433433386136
+    ],
+    "observed_origin_offset_m": 0.03074333353011473,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.027215619006168368,
+    "gps_best_absolute_residual_m": 0.003020456896901197,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10092690177916336,
+        "absolute_residual_m": 0.027215619006168368,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13116297768223292,
+        "absolute_residual_m": 0.003020456896901197,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20584-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20584,
+    "route_axis": "horizontal",
+    "terminal_step": 55,
+    "measured_lidar_range_m": 0.12084130942821503,
+    "lidar_bearing_rad": 0.12217304763960302,
+    "root_xy": [
+      0.10929132687784587,
+      0.15961000151036706
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.07952770159463059,
+      0.16719710563389628
+    ],
+    "observed_origin_offset_m": 0.030715428354182634,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.02926100377134072,
+    "gps_best_absolute_residual_m": 0.0004194168378656993,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.0915803056568743,
+        "absolute_residual_m": 0.02926100377134072,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12126072626608073,
+        "absolute_residual_m": 0.0004194168378656993,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20585-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20585,
+    "route_axis": "horizontal",
+    "terminal_step": 29,
+    "measured_lidar_range_m": 0.12558777630329132,
+    "lidar_bearing_rad": -1.1693705988362009,
+    "root_xy": [
+      0.5236834159936372,
+      0.3678528435556486
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.5540532610642663,
+      0.3632120369977224
+    ],
+    "observed_origin_offset_m": 0.03072237906025682,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.00043126674937477016,
+    "gps_best_absolute_residual_m": 0.007429100940461342,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1260190430526661,
+        "absolute_residual_m": 0.00043126674937477016,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13301687724375266,
+        "absolute_residual_m": 0.007429100940461342,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20586-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20586,
+    "route_axis": "horizontal",
+    "terminal_step": 58,
+    "measured_lidar_range_m": 0.12189255654811859,
+    "lidar_bearing_rad": 1.8675022996339328,
+    "root_xy": [
+      -0.30708725683559013,
+      0.4728188519712696
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.33688444504910725,
+      0.480259807876108
+    ],
+    "observed_origin_offset_m": 0.030712216628070225,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.013571172227379136,
+    "gps_best_absolute_residual_m": 0.005195397366341253,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13546372877549773,
+        "absolute_residual_m": 0.013571172227379136,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12708795391445984,
+        "absolute_residual_m": 0.005195397366341253,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20589-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20589,
+    "route_axis": "vertical",
+    "terminal_step": 68,
+    "measured_lidar_range_m": 0.12958678603172302,
+    "lidar_bearing_rad": 2.0245819323134224,
+    "root_xy": [
+      0.25061855686496753,
+      0.10320796647218403
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.23468502882082712,
+      0.0769511594919033
+    ],
+    "observed_origin_offset_m": 0.030713144233912745,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.016434014433832106,
+    "gps_best_absolute_residual_m": 0.009572102159605411,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.14602080046555513,
+        "absolute_residual_m": 0.016434014433832106,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13915888819132843,
+        "absolute_residual_m": 0.009572102159605411,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20592-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20592,
+    "route_axis": "horizontal",
+    "terminal_step": 51,
+    "measured_lidar_range_m": 0.1299840658903122,
+    "lidar_bearing_rad": -0.13962634015954656,
+    "root_xy": [
+      -0.0215524070014704,
+      0.3096479833929102
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.00908166666616321,
+      0.30758286502478654
+    ],
+    "observed_origin_offset_m": 0.030703602123339935,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.02564878851588301,
+    "gps_best_absolute_residual_m": 0.004621654540204689,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10433527737442919,
+        "absolute_residual_m": 0.02564878851588301,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13460572043051688,
+        "absolute_residual_m": 0.004621654540204689,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20594-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20594,
+    "route_axis": "horizontal",
+    "terminal_step": 42,
+    "measured_lidar_range_m": 0.12000130116939545,
+    "lidar_bearing_rad": -0.13962634015954656,
+    "root_xy": [
+      -0.18627205370990613,
+      -0.17204961585516312
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.21684104156143091,
+      -0.16912658866666339
+    ],
+    "observed_origin_offset_m": 0.030708420770390956,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.025076952646249706,
+    "gps_best_absolute_residual_m": 0.00439172050459552,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09492434852314574,
+        "absolute_residual_m": 0.025076952646249706,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12439302167399097,
+        "absolute_residual_m": 0.00439172050459552,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20595-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20595,
+    "route_axis": "horizontal",
+    "terminal_step": 74,
+    "measured_lidar_range_m": 0.1288651078939438,
+    "lidar_bearing_rad": -1.8849555921538759,
+    "root_xy": [
+      0.3005287633163651,
+      -0.003405469785107154
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.2762849583807284,
+      -0.022256801460994798
+    ],
+    "observed_origin_offset_m": 0.03071049956792506,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.015789401784826823,
+    "gps_best_absolute_residual_m": 0.008574442938913851,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1446545096787706,
+        "absolute_residual_m": 0.015789401784826823,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13743955083285764,
+        "absolute_residual_m": 0.008574442938913851,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20598-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20598,
+    "route_axis": "horizontal",
+    "terminal_step": 81,
+    "measured_lidar_range_m": 0.12863653898239136,
+    "lidar_bearing_rad": -1.6231562043547267,
+    "root_xy": [
+      0.16408108450494827,
+      -0.1936280628581536
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.13583331261366463,
+      -0.20563259348250792
+    ],
+    "observed_origin_offset_m": 0.030692757652792536,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": null,
+    "root_best_absolute_residual_m": 0.052562685842360624,
+    "gps_best_absolute_residual_m": 0.0372195600300943,
+    "post_hoc_sensitivity_classification": "unresolved_under_both_origins",
+    "post_hoc_sensitivity_mechanism_classification": "ambiguous",
+    "post_hoc_sensitivity_mechanism_reason": "lidar_ray_not_uniquely_attributed_under_gps_proxy",
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": false,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": true,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.18119922482475198,
+        "absolute_residual_m": 0.052562685842360624,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.16585609901248566,
+        "absolute_residual_m": 0.0372195600300943,
+        "within_tolerance": false
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20599-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20599,
+    "route_axis": "horizontal",
+    "terminal_step": 52,
+    "measured_lidar_range_m": 0.12091286480426788,
+    "lidar_bearing_rad": -1.6929693744344991,
+    "root_xy": [
+      -0.09215900907336132,
+      0.05544324903743288
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.12261889749209269,
+      0.05143121609088762
+    ],
+    "observed_origin_offset_m": 0.03072297529286072,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.05354440095944918,
+    "gps_best_absolute_residual_m": 0.014752850399212147,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.17445726576371706,
+        "absolute_residual_m": 0.05354440095944918,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13566571520348003,
+        "absolute_residual_m": 0.014752850399212147,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20600-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20600,
+    "route_axis": "vertical",
+    "terminal_step": 39,
+    "measured_lidar_range_m": 0.12050306051969528,
+    "lidar_bearing_rad": -0.22689280275926293,
+    "root_xy": [
+      0.04602352607677377,
+      0.7162197610328971
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.0452810284252385,
+      0.7469426968684834
+    ],
+    "observed_origin_offset_m": 0.030731906695161085,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.025351264068052798,
+    "gps_best_absolute_residual_m": 0.0075967250489331895,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.09515179645164248,
+        "absolute_residual_m": 0.025351264068052798,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12809978556862847,
+        "absolute_residual_m": 0.0075967250489331895,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20601-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20601,
+    "route_axis": "horizontal",
+    "terminal_step": 25,
+    "measured_lidar_range_m": 0.12297462671995163,
+    "lidar_bearing_rad": -1.7802358370342164,
+    "root_xy": [
+      0.5730976289036165,
+      0.5127858805177228
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.599302436457197,
+      0.5288077389620857
+    ],
+    "observed_origin_offset_m": 0.030714685199939706,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.019726824194850362,
+    "gps_best_absolute_residual_m": 0.003527381857654971,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.142701450914802,
+        "absolute_residual_m": 0.019726824194850362,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1265020085776066,
+        "absolute_residual_m": 0.003527381857654971,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20604-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20604,
+    "route_axis": "vertical",
+    "terminal_step": 41,
+    "measured_lidar_range_m": 0.12559540569782257,
+    "lidar_bearing_rad": 1.448623279155294,
+    "root_xy": [
+      -0.03686649095783543,
+      -0.26774155141152445
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.031231150273514623,
+      -0.29792354023868417
+    ],
+    "observed_origin_offset_m": 0.030703574941546394,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.021493277667639532,
+    "gps_best_absolute_residual_m": 0.0017496742290918632,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10410212803018304,
+        "absolute_residual_m": 0.021493277667639532,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.12734507992691443,
+        "absolute_residual_m": 0.0017496742290918632,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20607-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20607,
+    "route_axis": "horizontal",
+    "terminal_step": 44,
+    "measured_lidar_range_m": 0.12064510583877563,
+    "lidar_bearing_rad": -0.7679448708775052,
+    "root_xy": [
+      0.1043745341958062,
+      0.148334557513692
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      0.1349737237599278,
+      0.14559244057871143
+    ],
+    "observed_origin_offset_m": 0.030721809960777963,
+    "root_circle_intersection_candidate_count": 0,
+    "gps_circle_intersection_candidate_count": 0,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": null,
+    "root_best_absolute_residual_m": null,
+    "gps_best_absolute_residual_m": null,
+    "post_hoc_sensitivity_classification": "unresolved_under_both_origins",
+    "post_hoc_sensitivity_mechanism_classification": "ambiguous",
+    "post_hoc_sensitivity_mechanism_reason": "lidar_ray_not_uniquely_attributed_under_gps_proxy",
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": false,
+    "v1_deceleration_reaction_evaluable": false,
+    "v1_deceleration_reaction_indeterminate_reason": "risk_onset_not_detected",
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": null,
+        "absolute_residual_m": null,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": null,
+        "absolute_residual_m": null,
+        "within_tolerance": false
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20608-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20608,
+    "route_axis": "horizontal",
+    "terminal_step": 58,
+    "measured_lidar_range_m": 0.12482717633247375,
+    "lidar_bearing_rad": 0.24434609527920603,
+    "root_xy": [
+      -0.008480306325488421,
+      0.2055619529650865
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.03851652635453884,
+      0.19918620374979898
+    ],
+    "observed_origin_offset_m": 0.03070545052087282,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": null,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.02237233176750561,
+    "gps_best_absolute_residual_m": 0.003519730414676653,
+    "post_hoc_sensitivity_classification": "resolved_by_gps_lidar_origin_proxy",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "ambiguous",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.10245484456496814,
+        "absolute_residual_m": 0.02237233176750561,
+        "within_tolerance": false
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.1283469067471504,
+        "absolute_residual_m": 0.003519730414676653,
+        "within_tolerance": true
+      }
+    ]
+  },
+  {
+    "episode_id": "diagnostic-DR1-20611-ppo_recovery_v1_risk_trace",
+    "scenario_seed": 20611,
+    "route_axis": "vertical",
+    "terminal_step": 46,
+    "measured_lidar_range_m": 0.12687231600284576,
+    "lidar_bearing_rad": 0.45378560551852587,
+    "root_xy": [
+      -0.06480008190101434,
+      -0.1531101242241532
+    ],
+    "gps_lidar_origin_proxy_xy": [
+      -0.06756368385050096,
+      -0.18368718541160678
+    ],
+    "observed_origin_offset_m": 0.030701696477499183,
+    "root_circle_intersection_candidate_count": 1,
+    "gps_circle_intersection_candidate_count": 1,
+    "root_unique_attributed_obstacle_index": 0,
+    "gps_unique_attributed_obstacle_index": 0,
+    "root_best_absolute_residual_m": 0.016737272897575983,
+    "gps_best_absolute_residual_m": 0.004923888151342176,
+    "post_hoc_sensitivity_classification": "attribution_retained",
+    "post_hoc_sensitivity_mechanism_classification": "physical_imminent_dynamic",
+    "post_hoc_sensitivity_mechanism_reason": null,
+    "v1_mechanism_classification_unchanged": "physical_imminent_dynamic",
+    "included_in_corrected_physical_candidate_set": true,
+    "v1_deceleration_reaction_evaluable": true,
+    "v1_deceleration_reaction_indeterminate_reason": null,
+    "v1_timely_deceleration_response": false,
+    "root_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.11013504310526978,
+        "absolute_residual_m": 0.016737272897575983,
+        "within_tolerance": true
+      }
+    ],
+    "gps_proxy_intersections": [
+      {
+        "obstacle_index": 0,
+        "expected_range_m": 0.13179620415418794,
+        "absolute_residual_m": 0.004923888151342176,
+        "within_tolerance": true
+      }
+    ]
+  }
+]

@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "audit_type": "one_time_webots_risk_trajectory_finalization",
+  "status": "sealed_without_webots_rerun",
+  "generated_at_utc": "2026-08-30T12:49:19+00:00",
+  "original_collection_revision": "3ca553dfd35ca2f2c66728e7046abbfc588c62c9",
+  "intermediate_review_revision": "65940692be2b78b8b32d2f5fc9059b5efb30b1ff",
+  "current_finalizer_revision": "85470c8b60338db20dfb571b3b5d85acf9298d7d",
+  "original_revision_is_ancestor": true,
+  "tracked_worktree_clean": true,
+  "nonignored_untracked_files": [],
+  "original_guard_failure": {
+    "stage": "post_collection_clean_tree_guard",
+    "reason": "Git HEAD or tracked worktree changed during collection.",
+    "webots_subprocess_exit_code": 0,
+    "standard_report_was_written": false,
+    "runtime_changes": [
+      {
+        "path": "scripts/analyze_webots_risk_trajectory.py",
+        "classification": "offline_analysis_only",
+        "added_lines": 15,
+        "removed_lines": 0,
+        "intermediate_blob_sha256": "f9f1c448461d91fad34417417374e17c141d9772e52c67dcbc8afff635ae1297"
+      },
+      {
+        "path": "tests/test_analyze_webots_risk_trajectory.py",
+        "classification": "offline_analysis_only",
+        "added_lines": 5,
+        "removed_lines": 0,
+        "intermediate_blob_sha256": "039414a3f792557c28874c0b73cd48fcd8cd8d3fbac2c6b9449df6936042ea8a"
+      }
+    ],
+    "runtime_change_total_added_lines": 20,
+    "runtime_change_total_removed_lines": 0
+  },
+  "allowed_original_to_finalizer_diff": {
+    "paths": [
+      "scripts/analyze_webots_risk_trajectory.py",
+      "scripts/finalize_webots_risk_trajectory.py",
+      "tests/test_analyze_webots_risk_trajectory.py",
+      "tests/test_finalize_webots_risk_trajectory.py"
+    ],
+    "numstat": {
+      "scripts/analyze_webots_risk_trajectory.py": {
+        "added_lines": 15,
+        "removed_lines": 0
+      },
+      "scripts/finalize_webots_risk_trajectory.py": {
+        "added_lines": 910,
+        "removed_lines": 0
+      },
+      "tests/test_analyze_webots_risk_trajectory.py": {
+        "added_lines": 5,
+        "removed_lines": 0
+      },
+      "tests/test_finalize_webots_risk_trajectory.py": {
+        "added_lines": 510,
+        "removed_lines": 0
+      }
+    }
+  },
+  "reviewed_commit_chain": {
+    "original": {
+      "revision": "3ca553dfd35ca2f2c66728e7046abbfc588c62c9"
+    },
+    "intermediate": {
+      "revision": "65940692be2b78b8b32d2f5fc9059b5efb30b1ff",
+      "parent": "3ca553dfd35ca2f2c66728e7046abbfc588c62c9",
+      "changed_file_sha256": {
+        "scripts/analyze_webots_risk_trajectory.py": "f9f1c448461d91fad34417417374e17c141d9772e52c67dcbc8afff635ae1297",
+        "tests/test_analyze_webots_risk_trajectory.py": "039414a3f792557c28874c0b73cd48fcd8cd8d3fbac2c6b9449df6936042ea8a"
+      }
+    },
+    "finalizer": {
+      "revision": "85470c8b60338db20dfb571b3b5d85acf9298d7d",
+      "parent": "65940692be2b78b8b32d2f5fc9059b5efb30b1ff",
+      "added_file_sha256": {
+        "scripts/finalize_webots_risk_trajectory.py": "9a503ac74f70d0ed5f89bce73d65ca5192f3808ac444ea171f1eb40d51f568fe",
+        "tests/test_finalize_webots_risk_trajectory.py": "6d0e646c42163d3169b087b72e3c40f29ccf8f3d3e5c90b1c0ed3337a81f35a4"
+      }
+    }
+  },
+  "no_webots_rerun": true,
+  "validation_split_was_run": false,
+  "test_split_was_run": false,
+  "validation_or_test_access": "forbidden",
+  "source_bindings_from_original_dry_run": {
+    "git_revision": "3ca553dfd35ca2f2c66728e7046abbfc588c62c9",
+    "config": {
+      "path": "configs/eval/webots_recovery_v1_risk_trajectory_v1.yaml",
+      "sha256": "fcbae35b8d5f66130a86d5fe2f65cb57f05dd502515cf36bdbd19df0d6b207d3"
+    },
+    "runner": {
+      "path": "scripts/run_webots_risk_trajectory.py",
+      "sha256": "b2f745e5bdb2ec94f8ff130dc0fe9ffb6626257d2137ee8614a5b2a956b8d7ad"
+    },
+    "controller": {
+      "path": "controllers/webots_ppo_evaluate/webots_ppo_evaluate.py",
+      "sha256": "fa4871d52c1173cf67fe89b97696f63d10673755643c4b0b03306cfc0386a1fd"
+    },
+    "world": {
+      "path": "worlds/webots_ppo_evaluate.wbt",
+      "sha256": "e0ae7ac8aa2a7981f94673d656d76940166cb12ceab8dd2b17a17329985d5425"
+    },
+    "model": {
+      "path": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+      "sha256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275"
+    },
+    "webots_executable": {
+      "path": "C:\\Users\\13501\\Documents\\Codex\\2026-08-29\\new-chat\\work\\Webots-R2025a\\msys64\\mingw64\\bin\\webots.exe",
+      "sha256": "34e3824b3bb1d64cea8ed58ec4089b607fb83c906d36290df8e2d4a8ee2227c0"
+    }
+  },
+  "result_artifacts": {
+    "episode_context.jsonl": {
+      "path": "artifacts/results/webots_diagnostic_recovery_v1_risk_trajectory_v1_seed11/episode_context.jsonl",
+      "sha256": "fe68fe80c94be7c1c8ccedb75e54435b897c1e16c9305b8ac7c75e412814ed3f"
+    },
+    "episodes.csv": {
+      "path": "artifacts/results/webots_diagnostic_recovery_v1_risk_trajectory_v1_seed11/episodes.csv",
+      "sha256": "1665d9441ef6c28ab8a256aab22f54b4c75b7ac304d37bb902b37d4865c1c5a1"
+    },
+    "summary.json": {
+      "path": "artifacts/results/webots_diagnostic_recovery_v1_risk_trajectory_v1_seed11/summary.json",
+      "sha256": "c6a6d8b1844fb4f6720c6caa3a1b9e6c509bb8c0abed27f84f6afe467a974519"
+    }
+  },
+  "standard_report": {
+    "status": "collection_complete",
+    "bindings": {
+      "json": {
+        "path": "artifacts/results/webots_recovery_v1_risk_trajectory_v1/collection_report.json",
+        "sha256": "bb3e08bb20cb7d67b099323b37e3e15413d075be1b2b59fa9c95afb0317fd2cb"
+      },
+      "yaml": {
+        "path": "artifacts/results/webots_recovery_v1_risk_trajectory_v1/collection_report.yaml",
+        "sha256": "12a57a702e59a800a6b020e4698b70bad49926277a06a6d57906fbbbcd6f5d35"
+      },
+      "sha256_sidecar": {
+        "path": "artifacts/results/webots_recovery_v1_risk_trajectory_v1/collection_report.sha256",
+        "sha256": "473bb0d1aab681e83bf9a1b678413bf20ea3533043e714a83f87e903601370a7"
+      }
+    },
+    "collection_report_sha256": "bb3e08bb20cb7d67b099323b37e3e15413d075be1b2b59fa9c95afb0317fd2cb"
+  },
+  "writes": {
+    "result_directory_modified": false,
+    "webots_started": false,
+    "standard_report_directory": "artifacts/results/webots_recovery_v1_risk_trajectory_v1",
+    "finalize_audit_json": "artifacts/results/webots_recovery_v1_risk_trajectory_v1/finalize_audit.json",
+    "finalize_audit_sha256": "artifacts/results/webots_recovery_v1_risk_trajectory_v1/finalize_audit.sha256"
+  }
+}

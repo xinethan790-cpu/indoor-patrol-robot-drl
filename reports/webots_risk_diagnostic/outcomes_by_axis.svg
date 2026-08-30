@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" role="img">
+  <title>Diagnostic outcomes by route axis</title>
+  <desc>Horizontal: 29 successes and 31 collisions. Vertical: 41 successes and 19 collisions.</desc>
+  <rect width="960" height="560" fill="#f8fafc"/>
+  <text x="50.0" y="48.0" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="start" fill="#172033">Diagnostic outcomes by route axis</text>
+  <text x="50.0" y="78.0" font-family="Arial, sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="#526078">120 diagnostic episodes · 60 per axis · no validation/test access</text>
+  <line x1="110.0" y1="465.0" x2="890.0" y2="465.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="95.0" y="470.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">0</text>
+  <line x1="110.0" y1="407.5" x2="890.0" y2="407.5" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="95.0" y="412.5" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">10</text>
+  <line x1="110.0" y1="350.0" x2="890.0" y2="350.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="95.0" y="355.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">20</text>
+  <line x1="110.0" y1="292.5" x2="890.0" y2="292.5" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="95.0" y="297.5" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">30</text>
+  <line x1="110.0" y1="235.0" x2="890.0" y2="235.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="95.0" y="240.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">40</text>
+  <line x1="110.0" y1="177.5" x2="890.0" y2="177.5" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="95.0" y="182.5" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">50</text>
+  <line x1="110.0" y1="120.0" x2="890.0" y2="120.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="95.0" y="125.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">60</text>
+  <text x="28.0" y="292.5" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#526078" transform="rotate(-90 28.0 292.5)">episodes</text>
+  <rect x="272.7" y="298.2" width="105.0" height="166.8" rx="6" fill="#167d64"/>
+  <text x="325.2" y="288.2" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle" fill="#172033">29 (48.3%)</text>
+  <text x="325.2" y="493.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#526078">Success</text>
+  <rect x="399.7" y="286.8" width="105.0" height="178.3" rx="6" fill="#c94b55"/>
+  <text x="452.2" y="276.8" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle" fill="#172033">31 (51.7%)</text>
+  <text x="452.2" y="493.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#526078">Collision</text>
+  <text x="336.2" y="530.0" font-family="Arial, sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#172033">Horizontal</text>
+  <rect x="600.3" y="229.2" width="105.0" height="235.8" rx="6" fill="#167d64"/>
+  <text x="652.8" y="219.2" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle" fill="#172033">41 (68.3%)</text>
+  <text x="652.8" y="493.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#526078">Success</text>
+  <rect x="727.3" y="355.8" width="105.0" height="109.2" rx="6" fill="#c94b55"/>
+  <text x="779.8" y="345.8" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle" fill="#172033">19 (31.7%)</text>
+  <text x="779.8" y="493.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#526078">Collision</text>
+  <text x="663.8" y="530.0" font-family="Arial, sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#172033">Vertical</text>
+  <rect x="655" y="36" width="18" height="18" rx="3" fill="#167d64"/>
+  <text x="682.0" y="51.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#172033">Success</text>
+  <rect x="770" y="36" width="18" height="18" rx="3" fill="#c94b55"/>
+  <text x="797.0" y="51.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="#172033">Collision</text>
+</svg>

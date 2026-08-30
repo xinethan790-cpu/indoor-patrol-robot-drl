@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1060" height="700" viewBox="0 0 1060 700" role="img">
+  <title>Risk timeline for fixed exemplar seed 20500</title>
+  <desc>Dynamic gap decreases from 0.511 metres to negative overlap. Persistent risk begins at 6.656 seconds and LiDAR collision occurs at 7.808 seconds. The commanded speed does not cross the 30 percent deceleration threshold within the 0.512 second response window.</desc>
+  <rect width="1060" height="700" fill="#f8fafc"/>
+  <text x="50.0" y="46.0" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="start" fill="#172033">Seed 20500 risk timeline (fixed exemplar)</text>
+  <text x="50.0" y="78.0" font-family="Arial, sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="#526078">Lowest physical-imminent v1 seed · fixed example, not population inference</text>
+  <rect x="457.0" y="145.0" width="528.0" height="465.0" fill="#fee8ea" opacity="0.70"/>
+  <line x1="105.0" y1="415.0" x2="985.0" y2="415.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="91.0" y="420.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#526078">-0.05</text>
+  <line x1="105.0" y1="392.5" x2="985.0" y2="392.5" stroke="#a92f3a" stroke-width="2"/>
+  <text x="91.0" y="397.5" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#526078">0.00</text>
+  <line x1="105.0" y1="325.0" x2="985.0" y2="325.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="91.0" y="330.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#526078">0.15</text>
+  <line x1="105.0" y1="257.5" x2="985.0" y2="257.5" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="91.0" y="262.5" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#526078">0.30</text>
+  <line x1="105.0" y1="190.0" x2="985.0" y2="190.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="91.0" y="195.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#526078">0.45</text>
+  <line x1="105.0" y1="145.0" x2="985.0" y2="145.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="91.0" y="150.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#526078">0.55</text>
+  <text x="24.0" y="280.0" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#526078" transform="rotate(-90 24.0 280.0)">dynamic gap (m)</text>
+  <path d="M 105.00 162.65 L 163.67 182.70 L 222.33 203.14 L 281.00 222.40 L 339.67 241.19 L 398.33 260.05 L 457.00 279.54 L 515.67 297.68 L 574.33 315.88 L 633.00 332.83 L 691.67 349.77 L 750.33 364.32 L 809.00 373.71 L 867.67 384.23 L 926.33 392.17 L 985.00 399.66" fill="none" stroke="#2a6fbb" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="105.00" cy="162.65" r="4" fill="#2a6fbb"/>
+  <circle cx="163.67" cy="182.70" r="4" fill="#2a6fbb"/>
+  <circle cx="222.33" cy="203.14" r="4" fill="#2a6fbb"/>
+  <circle cx="281.00" cy="222.40" r="4" fill="#2a6fbb"/>
+  <circle cx="339.67" cy="241.19" r="4" fill="#2a6fbb"/>
+  <circle cx="398.33" cy="260.05" r="4" fill="#2a6fbb"/>
+  <circle cx="457.00" cy="279.54" r="4" fill="#2a6fbb"/>
+  <circle cx="515.67" cy="297.68" r="4" fill="#2a6fbb"/>
+  <circle cx="574.33" cy="315.88" r="4" fill="#2a6fbb"/>
+  <circle cx="633.00" cy="332.83" r="4" fill="#2a6fbb"/>
+  <circle cx="691.67" cy="349.77" r="4" fill="#2a6fbb"/>
+  <circle cx="750.33" cy="364.32" r="4" fill="#2a6fbb"/>
+  <circle cx="809.00" cy="373.71" r="4" fill="#2a6fbb"/>
+  <circle cx="867.67" cy="384.23" r="4" fill="#2a6fbb"/>
+  <circle cx="926.33" cy="392.17" r="4" fill="#2a6fbb"/>
+  <circle cx="985.00" cy="399.66" r="4" fill="#2a6fbb"/>
+  <line x1="105.0" y1="610.0" x2="985.0" y2="610.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="91.0" y="615.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#526078">0.0</text>
+  <line x1="105.0" y1="553.2" x2="985.0" y2="553.2" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="91.0" y="558.2" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#526078">0.1</text>
+  <line x1="105.0" y1="496.4" x2="985.0" y2="496.4" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="91.0" y="501.4" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="end" fill="#526078">0.2</text>
+  <text x="24.0" y="547.5" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#526078" transform="rotate(-90 24.0 547.5)">command (m/s)</text>
+  <path d="M 105.00 525.15 L 163.67 510.05 L 222.33 501.75 L 281.00 514.14 L 339.67 517.21 L 398.33 511.84 L 457.00 500.23 L 515.67 509.35 L 574.33 502.32 L 633.00 507.82 L 691.67 498.54 L 750.33 511.28 L 809.00 547.64 L 867.67 517.63 L 926.33 523.51 L 985.00 504.82" fill="none" stroke="#7b4ab5" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="105.00" cy="525.15" r="4" fill="#7b4ab5"/>
+  <circle cx="163.67" cy="510.05" r="4" fill="#7b4ab5"/>
+  <circle cx="222.33" cy="501.75" r="4" fill="#7b4ab5"/>
+  <circle cx="281.00" cy="514.14" r="4" fill="#7b4ab5"/>
+  <circle cx="339.67" cy="517.21" r="4" fill="#7b4ab5"/>
+  <circle cx="398.33" cy="511.84" r="4" fill="#7b4ab5"/>
+  <circle cx="457.00" cy="500.23" r="4" fill="#7b4ab5"/>
+  <circle cx="515.67" cy="509.35" r="4" fill="#7b4ab5"/>
+  <circle cx="574.33" cy="502.32" r="4" fill="#7b4ab5"/>
+  <circle cx="633.00" cy="507.82" r="4" fill="#7b4ab5"/>
+  <circle cx="691.67" cy="498.54" r="4" fill="#7b4ab5"/>
+  <circle cx="750.33" cy="511.28" r="4" fill="#7b4ab5"/>
+  <circle cx="809.00" cy="547.64" r="4" fill="#7b4ab5"/>
+  <circle cx="867.67" cy="517.63" r="4" fill="#7b4ab5"/>
+  <circle cx="926.33" cy="523.51" r="4" fill="#7b4ab5"/>
+  <circle cx="985.00" cy="504.82" r="4" fill="#7b4ab5"/>
+  <line x1="457.0" y1="541.3" x2="691.7" y2="541.3" stroke="#c94b55" stroke-width="2" stroke-dasharray="7 6"/>
+  <text x="699.7" y="546.3" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="#a92f3a">30% decel threshold</text>
+  <line x1="457.0" y1="137.0" x2="457.0" y2="610.0" stroke="#c94b55" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="464.0" y="128.0" font-family="Arial, sans-serif" font-size="13" font-weight="700" text-anchor="start" fill="#a92f3a">risk onset: step 52, 6.656 s</text>
+  <text x="980.0" y="128.0" font-family="Arial, sans-serif" font-size="13" font-weight="700" text-anchor="end" fill="#a92f3a">LiDAR collision: step 61, 7.808 s</text>
+  <text x="105.0" y="652.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#526078">5.888</text>
+  <text x="281.0" y="652.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#526078">6.272</text>
+  <text x="457.0" y="652.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#526078">6.656</text>
+  <text x="633.0" y="652.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#526078">7.040</text>
+  <text x="809.0" y="652.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#526078">7.424</text>
+  <text x="985.0" y="652.0" font-family="Arial, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#526078">7.808</text>
+  <text x="545.0" y="680.0" font-family="Arial, sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="#526078">post elapsed time (s)</text>
+  <text x="785.0" y="110.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="#a92f3a">shaded = persistent dynamic-risk interval</text>
+</svg>

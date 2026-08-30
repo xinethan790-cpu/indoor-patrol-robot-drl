@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "experiment_id": "webots_recovery_v1_risk_trajectory_v1",
+  "status": "collection_complete",
+  "generated_at_utc": "2026-08-30T12:49:19+00:00",
+  "split": "diagnostic",
+  "validation_split_was_run": false,
+  "test_split_was_run": false,
+  "performance_gate_applied": false,
+  "source_bindings": {
+    "git_revision": "3ca553dfd35ca2f2c66728e7046abbfc588c62c9",
+    "config": {
+      "path": "configs/eval/webots_recovery_v1_risk_trajectory_v1.yaml",
+      "sha256": "fcbae35b8d5f66130a86d5fe2f65cb57f05dd502515cf36bdbd19df0d6b207d3"
+    },
+    "runner": {
+      "path": "scripts/run_webots_risk_trajectory.py",
+      "sha256": "b2f745e5bdb2ec94f8ff130dc0fe9ffb6626257d2137ee8614a5b2a956b8d7ad"
+    },
+    "controller": {
+      "path": "controllers/webots_ppo_evaluate/webots_ppo_evaluate.py",
+      "sha256": "fa4871d52c1173cf67fe89b97696f63d10673755643c4b0b03306cfc0386a1fd"
+    },
+    "world": {
+      "path": "worlds/webots_ppo_evaluate.wbt",
+      "sha256": "e0ae7ac8aa2a7981f94673d656d76940166cb12ceab8dd2b17a17329985d5425"
+    },
+    "model": {
+      "path": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+      "sha256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275"
+    },
+    "webots_executable": {
+      "path": "C:\\Users\\13501\\Documents\\Codex\\2026-08-29\\new-chat\\work\\Webots-R2025a\\msys64\\mingw64\\bin\\webots.exe",
+      "sha256": "34e3824b3bb1d64cea8ed58ec4089b607fb83c906d36290df8e2d4a8ee2227c0"
+    }
+  },
+  "scenario": {
+    "condition_id": "DR1",
+    "scenario_seed_start": 20494,
+    "episodes": 120,
+    "scenario_seeds": [
+      20494,
+      20495,
+      20496,
+      20497,
+      20498,
+      20499,
+      20500,
+      20501,
+      20502,
+      20503,
+      20504,
+      20505,
+      20506,
+      20507,
+      20508,
+      20509,
+      20510,
+      20511,
+      20512,
+      20513,
+      20514,
+      20515,
+      20516,
+      20517,
+      20518,
+      20519,
+      20520,
+      20521,
+      20522,
+      20523,
+      20524,
+      20525,
+      20526,
+      20527,
+      20528,
+      20529,
+      20530,
+      20531,
+      20532,
+      20533,
+      20534,
+      20535,
+      20536,
+      20537,
+      20538,
+      20539,
+      20540,
+      20541,
+      20542,
+      20543,
+      20544,
+      20545,
+      20546,
+      20547,
+      20548,
+      20549,
+      20550,
+      20551,
+      20552,
+      20553,
+      20554,
+      20555,
+      20556,
+      20557,
+      20558,
+      20559,
+      20560,
+      20561,
+      20562,
+      20563,
+      20564,
+      20565,
+      20566,
+      20567,
+      20568,
+      20569,
+      20570,
+      20571,
+      20572,
+      20573,
+      20574,
+      20575,
+      20576,
+      20577,
+      20578,
+      20579,
+      20580,
+      20581,
+      20582,
+      20583,
+      20584,
+      20585,
+      20586,
+      20587,
+      20588,
+      20589,
+      20590,
+      20591,
+      20592,
+      20593,
+      20594,
+      20595,
+      20596,
+      20597,
+      20598,
+      20599,
+      20600,
+      20601,
+      20602,
+      20603,
+      20604,
+      20605,
+      20606,
+      20607,
+      20608,
+      20609,
+      20610,
+      20611,
+      20612,
+      20613
+    ],
+    "axis_counts": {
+      "horizontal": 60,
+      "vertical": 60
+    },
+    "obstacle_count": 1,
+    "obstacle_speed_range": [
+      0.15,
+      0.3
+    ],
+    "horizontal_route_half_length": 1.1,
+    "vertical_route_half_length": 1.1,
+    "safety_shield": false,
+    "deterministic_policy": true
+  },
+  "collection": {
+    "expected_episode_count": 120,
+    "episodes_csv_count": 120,
+    "episode_context_count": 120,
+    "risk_trace_count": 120,
+    "episode_context_schema_version": "1.1",
+    "expected_route_axis_counts": {
+      "horizontal": 60,
+      "vertical": 60
+    },
+    "adaptive_extension": "forbidden",
+    "complete": true
+  },
+  "model": {
+    "path": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+    "sha256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275",
+    "variant": "w1_recovery_v1",
+    "training_seed": 11
+  },
+  "execution": {
+    "command": [
+      "C:\\Users\\13501\\Documents\\Codex\\2026-08-29\\new-chat\\work\\Webots-R2025a\\msys64\\mingw64\\bin\\webots.exe",
+      "--port=13640",
+      "--batch",
+      "--mode=fast",
+      "--no-rendering",
+      "--stdout",
+      "--stderr",
+      "C:\\Users\\13501\\Documents\\Codex\\2026-08-29\\new-chat\\work\\indoor-patrol-robot-drl\\worlds\\webots_ppo_evaluate.wbt"
+    ],
+    "environment": {
+      "WEBOTS_PORT": "13640",
+      "WEBOTS_MODEL_SEED": "11",
+      "WEBOTS_EVAL_MODEL": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+      "WEBOTS_EVAL_MODEL_SHA256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275",
+      "WEBOTS_MODEL_VARIANT": "w1_recovery_v1",
+      "WEBOTS_EVAL_SPLIT": "diagnostic",
+      "WEBOTS_EVAL_SEED_START": "20494",
+      "WEBOTS_EVAL_EPISODES": "120",
+      "WEBOTS_EVAL_CONDITION": "DR1",
+      "WEBOTS_EVAL_PLANNER": "ppo",
+      "WEBOTS_EVAL_PLANNER_LABEL": "ppo_recovery_v1_risk_trace",
+      "WEBOTS_EVAL_RUN_NAME": "webots_diagnostic_recovery_v1_risk_trajectory_v1_seed11",
+      "WEBOTS_OBSTACLE_COUNT": "1",
+      "WEBOTS_OBSTACLE_SPEED_MIN": "0.15",
+      "WEBOTS_OBSTACLE_SPEED_MAX": "0.3",
+      "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH": "1.1",
+      "WEBOTS_VERTICAL_ROUTE_HALF_LENGTH": "1.1",
+      "WEBOTS_SAFETY_SHIELD": "0",
+      "WEBOTS_EVAL_DETERMINISTIC_POLICY": "1",
+      "WEBOTS_EVAL_EPISODE_CONTEXT": "1",
+      "WEBOTS_RISK_TRAJECTORY_ID": "webots_recovery_v1_risk_trajectory_v1",
+      "WEBOTS_RISK_TRAJECTORY_CONFIG": "configs/eval/webots_recovery_v1_risk_trajectory_v1.yaml",
+      "WEBOTS_RISK_TRAJECTORY_CONFIG_SHA256": "fcbae35b8d5f66130a86d5fe2f65cb57f05dd502515cf36bdbd19df0d6b207d3"
+    },
+    "port": 13640,
+    "exit_code": 0
+  },
+  "descriptive_metrics_not_used_as_a_gate": {
+    "overall": {
+      "episodes": 120,
+      "success_count": 70,
+      "collision_count": 50,
+      "timeout_count": 0,
+      "error_count": 0
+    },
+    "by_route_axis": {
+      "horizontal": {
+        "episodes": 60,
+        "success_count": 29,
+        "collision_count": 31,
+        "timeout_count": 0,
+        "error_count": 0
+      },
+      "vertical": {
+        "episodes": 60,
+        "success_count": 41,
+        "collision_count": 19,
+        "timeout_count": 0,
+        "error_count": 0
+      }
+    }
+  },
+  "artifacts": {
+    "result_directory": "artifacts/results/webots_diagnostic_recovery_v1_risk_trajectory_v1_seed11",
+    "summary_json": {
+      "path": "artifacts/results/webots_diagnostic_recovery_v1_risk_trajectory_v1_seed11/summary.json",
+      "sha256": "c6a6d8b1844fb4f6720c6caa3a1b9e6c509bb8c0abed27f84f6afe467a974519"
+    },
+    "episodes_csv": {
+      "path": "artifacts/results/webots_diagnostic_recovery_v1_risk_trajectory_v1_seed11/episodes.csv",
+      "sha256": "1665d9441ef6c28ab8a256aab22f54b4c75b7ac304d37bb902b37d4865c1c5a1"
+    },
+    "episode_context_jsonl": {
+      "path": "artifacts/results/webots_diagnostic_recovery_v1_risk_trajectory_v1_seed11/episode_context.jsonl",
+      "sha256": "fe68fe80c94be7c1c8ccedb75e54435b897c1e16c9305b8ac7c75e412814ed3f"
+    }
+  },
+  "access": {
+    "validation_or_test": "forbidden"
+  },
+  "written_reports": {
+    "json": "artifacts/results/webots_recovery_v1_risk_trajectory_v1/collection_report.json",
+    "yaml": "artifacts/results/webots_recovery_v1_risk_trajectory_v1/collection_report.yaml",
+    "sha256_sidecar": "artifacts/results/webots_recovery_v1_risk_trajectory_v1/collection_report.sha256"
+  }
+}

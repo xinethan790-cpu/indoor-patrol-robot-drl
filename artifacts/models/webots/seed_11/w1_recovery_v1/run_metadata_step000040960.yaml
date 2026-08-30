@@ -1,0 +1,78 @@
+mode: webots_policy_transfer
+seed: 11
+model_variant: w1_recovery_v1
+obstacle_count: 1
+obstacle_speed_range:
+- 0.15
+- 0.3
+reward_config:
+  progress_weight: 3.0
+  time_penalty: -0.01
+  safety_weight: -0.6
+  smoothness_weight: -0.005
+  goal_reward: 30.0
+  collision_penalty: -30.0
+  timeout_penalty: -5.0
+reward_safety_distance: 0.35
+proximity_speed_distance: 0.6
+proximity_speed_weight: 0.4
+route_half_lengths:
+  horizontal: 1.1
+  vertical: 1.1
+ppo:
+  n_steps: 2048
+  batch_size: 128
+  n_epochs: 5
+  learning_rate: 5.0e-05
+  ent_coef: 0.005
+  gamma: 0.995
+  target_kl: 0.02
+  initial_action_std_override: null
+  reset_linear_head_mean: null
+safety_shield_enabled: false
+safety_shield_intervention_penalty: 0.02
+safety_shield_config:
+  lidar_max_range: 3.5
+  front_stop_distance: 0.18
+  front_slowdown_distance: 0.6
+  side_stop_distance: 0.12
+  side_slowdown_distance: 0.32
+  front_half_angle: 0.5235987755982988
+  side_inner_angle: 0.6108652381980153
+  side_outer_angle: 1.8325957145940461
+  clearance_quantile: 0.15
+  side_speed_floor: 0.35
+  side_turn_weight: 0.55
+  turn_gain: 0.9
+  turn_blend: 0.9
+  side_deadband: 0.03
+  intervention_epsilon: 1.0e-06
+reset_health:
+  attempts: 482
+  successful: 482
+  finite_settle_checks: 964
+  readback_checks: 482
+  maximum_translation_error: 0.0
+  maximum_start_xy_error: 2.6132613179557944e-05
+  maximum_gps_root_xy_distance: 0.03603206764174438
+  maximum_yaw_error: 3.002475480240463e-06
+  maximum_linear_speed: 0.07532712697046068
+  maximum_angular_speed: 1.2373384520335031
+starting_webots_steps: 0
+additional_steps_requested: 40960
+final_model_steps: 40960
+source_model: C:\Users\13501\Documents\Codex\2026-08-29\new-chat\work\indoor-patrol-robot-drl\artifacts\models\webots\seed_11\ppo_webots_s11_step000200192.zip
+source_model_sha256: 84e0ebb459e0ef800b1e891f5d549237e246c04be33a3bed24f4811b18993cc8
+final_model: C:\Users\13501\Documents\Codex\2026-08-29\new-chat\work\indoor-patrol-robot-drl\artifacts\models\webots\seed_11\w1_recovery_v1\ppo_webots_s11_step000040960.zip
+final_model_sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+monitor_log: C:\Users\13501\Documents\Codex\2026-08-29\new-chat\work\indoor-patrol-robot-drl\artifacts\logs\webots\seed_11\w1_recovery_v1\training_w1r_e1_medium_short.monitor.csv
+git:
+  revision: 9e8cb7d08a59b78f931704d6c3ea7083b3c36dab
+  dirty: false
+runtime:
+  platform: Windows-10-10.0.26200-SP0
+  python: 3.11.6
+  stable_baselines3: 2.9.0
+  torch: 2.13.0+cpu
+  gymnasium: 1.3.0
+  numpy: 2.4.6
