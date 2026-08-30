@@ -20,6 +20,11 @@ from indoor_patrol_rl.evaluation.checkpoint_selection import (
     resolve_candidate_model,
     write_checkpoint_selection,
 )
+from indoor_patrol_rl.evaluation.episode_context import (
+    EPISODE_CONTEXT_FILENAME,
+    EPISODE_CONTEXT_SCHEMA_VERSION,
+    write_episode_context_jsonl,
+)
 from indoor_patrol_rl.evaluation.formal_protocol import (
     FORMAL_TEST_SEEDS,
     FORMAL_TRAINING_SEEDS,
@@ -68,6 +73,8 @@ __all__ = [
     "BenchmarkCondition",
     "BenchmarkConfig",
     "CheckpointSelectionGate",
+    "EPISODE_CONTEXT_FILENAME",
+    "EPISODE_CONTEXT_SCHEMA_VERSION",
     "EpisodeAccumulator",
     "EpisodeRecord",
     "FORMAL_TEST_SEEDS",
@@ -112,6 +119,7 @@ __all__ = [
     "validate_model_manifest",
     "write_benchmark_outputs",
     "write_checkpoint_selection",
+    "write_episode_context_jsonl",
     "write_episode_records",
     "write_final_lock",
     "write_or_validate_model_provenance",

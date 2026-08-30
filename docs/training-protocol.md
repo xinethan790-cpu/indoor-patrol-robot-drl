@@ -234,6 +234,35 @@ controller_env:
 同一 seed 的 `collision→success` 与 `success→collision` 数量，同时报告 timeout，不能仅凭
 总成功率挑选结论。
 
+H1 最终门禁失败后，中间 checkpoint 的诊断必须与继续训练分开。仓库中的
+`configs/eval/webots_h1_checkpoint_audit_v1.yaml` 在运行前固定 recovery-v1 reference 与
+H1 step `30,720` 两个模型及其 SHA-256。候选只根据训练 Monitor 的非重叠 `10,240`-step
+分块成功率选出，未读取本轮 diagnostic 结果。两臂共享 seeds `20300～20339`；按既有 reset
+语义，这 40 个场景恰好包含 20 个水平和 20 个垂直路线。
+
+候选必须同时满足 `28/40` success、最多 `12/40` collision、水平至少 `13/20`、垂直至少
+`14/20`，并在配对结局中水平净救回至少 2 回合、垂直净退化不超过 1 回合。任一条件失败
+即否决整个 H1 分支；不得换用同一训练轨迹中的其他 checkpoint 反复试验。该审计仍是
+`diagnostic`，不能写 checkpoint selection manifest，也不允许访问 validation/test。
+
+先用 dry-run 复核配置、源码 revision、模型/Monitor 哈希、种子分布和两条 Webots 命令；
+它不会启动仿真或创建结果目录。确认后去掉 `--dry-run`：
+
+```bash
+python scripts/run_webots_diagnostic_audit.py \
+  --config configs/eval/webots_h1_checkpoint_audit_v1.yaml \
+  --webots "PATH_TO_WEBOTS_EXECUTABLE" \
+  --dry-run
+
+python scripts/run_webots_diagnostic_audit.py \
+  --config configs/eval/webots_h1_checkpoint_audit_v1.yaml \
+  --webots "PATH_TO_WEBOTS_EXECUTABLE"
+```
+
+runner 要求 tracked worktree clean，拒绝覆盖已有结果，并逐 seed 交叉复核 `episodes.csv`、
+`episode_context.jsonl` 与 `summary.json`。门禁失败会返回状态码 `3`，但仍保留 JSON、YAML
+和 SHA-256 sidecar；失败报告不得删除或改写后重跑同一配置。
+
 可配置字段还包括 `FRONT_HALF_ANGLE`、`SIDE_INNER_ANGLE`、`SIDE_OUTER_ANGLE`（均为弧度）、
 `SIDE_SPEED_FLOOR`、`SIDE_TURN_WEIGHT`、`TURN_GAIN`、`TURN_BLEND`、`SIDE_DEADBAND` 和
 `INTERVENTION_EPSILON`，变量名前缀均为 `WEBOTS_SAFETY_SHIELD_`。LiDAR 最大量程始终从

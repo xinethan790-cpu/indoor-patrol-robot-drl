@@ -221,3 +221,36 @@ shield 显著有效，但碰撞仍主要集中在水平交叉路线，且默认�
 路线采样概率从 `0.50` 提高至 `0.75`，并训练 `81,920` steps；evaluator 不继承该采样键，
 仍按既有 seed 语义在全新 diagnostic `20200～20219` 上评测。门禁保持 success ≥ 0.70、
 collision ≤ 0.30，不启用 shield，也不访问 validation/test。
+
+H1 随后在 clean commit `07a11b643d86df59e90929bc262a17a95affe6d7` 上完成。最终模型
+SHA-256 为 `e06e2d742335568891ef6152d85c4b0e45da2162f6ae4800106936f36b8ad5d2`；
+训练与 diagnostic 的 reset health 均完整通过，未出现数值或仿真异常。固定门禁结果为：
+
+```text
+success:   12/20 = 0.60
+collision:  8/20 = 0.40
+timeout:    0/20 = 0.00
+gate: success >= 0.70 and collision <= 0.30  -> failed
+```
+
+runner 因此以 `gate_failed` 停止，`test_split_was_run=false`，validation 与 held-out test
+均未访问。对 1,009 个完整训练回合的离线诊断显示，总体成功率 `54.61%`，首个/最后
+100 回合分别为 `57%/49%`；水平路线为 `48.94%`，垂直路线为 `71.54%`。从低、中、高
+三个等宽速度区间看，成功率依次为 `60.58%、55.31%、47.97%`；458 次碰撞中 420 次
+（`91.70%`）为 LiDAR-only。
+
+按评估器的固定 seed 映射重建路线后，H1 diagnostic 的水平路线为 `7/11` success
+（`63.64%`），垂直路线为 `5/9`（`55.56%`）。与 recovery-v1 的非配对 diagnostic
+窗口相比，水平成功率仅从 `9/15`（`60%`）表面上升至 `7/11`，但平均最小间距从
+`0.104 m` 降至 `0.080 m`，near-collision ratio 从 `0.093` 升至 `0.171`；不同 seed
+构成使该差异不能解释为真实提升。结论是提高水平样本占比并继续同类 PPO 更新没有形成
+恢复证据，反而出现末窗退化。该最终 checkpoint 被拒绝；下一步优先检查动态避障时机、
+训练中间 checkpoint 与早停规则，而不是继续追加相同训练步数或降低门槛。
+
+离线曲线显示 H1 在 `30,720` steps 附近曾出现局部峰值，随后持续退化。为区分“训练目标
+无效”与“最终 checkpoint 选错”，下一轮先执行不含训练的配对审计。配置
+`webots_h1_checkpoint_audit_v1.yaml` 已预先绑定 recovery-v1 reference 和 H1 step
+`30,720`（SHA-256 `2beec660...32081`），并固定全新 seeds `20300～20339`；按既有 seed
+映射，该窗口恰好包含 20 个水平和 20 个垂直场景。候选必须同时通过整体、分轴和配对净
+救回门槛，否则否决整个 H1 分支，不再轮流尝试同一轨迹的其他 checkpoint。该审计只使用
+diagnostic split，validation 与 held-out test 继续封存。

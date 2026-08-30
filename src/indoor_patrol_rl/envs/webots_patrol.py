@@ -126,6 +126,14 @@ def _sample_route_axis(
     )
 
 
+def _obstacle_motion_bounds(axis: int) -> tuple[float, float]:
+    if axis == 0:
+        return (-1.55, 1.55)
+    if axis == 1:
+        return (-1.05, 1.05)
+    raise ValueError("obstacle motion axis must be 0 or 1.")
+
+
 class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
     """Continuous TurtleBot3 navigation with one Supervisor-controlled obstacle."""
 
@@ -196,7 +204,10 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.robot_rotation = self.robot_node.getField("rotation")
         self.goal_node = self._required_node(goal_def)
         self.goal_translation = self.goal_node.getField("translation")
-        self.obstacle_nodes = [self._required_node(def_name) for def_name in obstacle_defs]
+        self.obstacle_defs = tuple(obstacle_defs)
+        self.obstacle_nodes = [
+            self._required_node(def_name) for def_name in self.obstacle_defs
+        ]
         self.obstacle_translations = [node.getField("translation") for node in self.obstacle_nodes]
 
         self.mapper = DifferentialDriveMapper(
@@ -746,6 +757,94 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             "maximum_angular_speed": self.maximum_reset_angular_speed,
         }
 
+    def episode_context_at_reset(self) -> dict[str, Any]:
+        """Return JSON-safe scenario details before any policy control step."""
+
+        if self.current_scenario_seed is None:
+            raise RuntimeError("Episode context requires a seeded Webots reset.")
+        if self.current_route_axis not in {"horizontal", "vertical"}:
+            raise RuntimeError("Episode context route axis is not initialized.")
+        dynamic_obstacles: list[dict[str, Any]] = []
+        for index, (def_name, translation) in enumerate(
+            zip(self.obstacle_defs, self.obstacle_translations, strict=True)
+        ):
+            position = np.asarray(translation.getSFVec3f(), dtype=np.float64)
+            if position.shape != (3,) or not np.isfinite(position).all():
+                raise RuntimeError(
+                    f"Dynamic obstacle {def_name!r} has an invalid initial translation."
+                )
+            axis = int(self.obstacle_axes[index])
+            lower, upper = _obstacle_motion_bounds(axis)
+            speed = float(self.obstacle_speeds[index])
+            direction = float(self.obstacle_directions[index])
+            if not math.isfinite(speed) or direction not in {-1.0, 1.0}:
+                raise RuntimeError(
+                    f"Dynamic obstacle {def_name!r} has invalid motion parameters."
+                )
+            dynamic_obstacles.append(
+                {
+                    "def_name": def_name,
+                    "motion_axis": "x" if axis == 0 else "y",
+                    "initial_xy": position[:2].tolist(),
+                    "speed": speed,
+                    "initial_direction": direction,
+                    "lower": lower,
+                    "upper": upper,
+                }
+            )
+        return {
+            "route_axis": self.current_route_axis,
+            "reverse_route": self.current_reverse_route,
+            "start_xy": self.current_start_position.tolist(),
+            "goal_xy": self.goal_position.tolist(),
+            "start_yaw": self.current_start_yaw,
+            "dynamic_obstacles": dynamic_obstacles,
+        }
+
+    def episode_context_at_terminal(self, info: dict[str, Any]) -> dict[str, Any]:
+        """Return JSON-safe terminal state for one completed diagnostic episode."""
+
+        required = {
+            "contact_collision",
+            "lidar_collision",
+            "step_count",
+            "distance_to_goal",
+            "policy_action",
+            "executed_action",
+        }
+        missing = required - info.keys()
+        if missing:
+            raise ValueError(
+                f"Terminal episode context is missing fields: {sorted(missing)}"
+            )
+        terminal_step = int(info["step_count"])
+        if terminal_step != self.step_count:
+            raise RuntimeError("Terminal context step disagrees with the environment state.")
+        terminal_xy = self._position()
+        terminal_yaw = float(self._roll_pitch_yaw()[2])
+        goal_distance = float(info["distance_to_goal"])
+        policy_action = np.asarray(info["policy_action"], dtype=np.float64)
+        executed_action = np.asarray(info["executed_action"], dtype=np.float64)
+        if (
+            not math.isfinite(terminal_yaw)
+            or not math.isfinite(goal_distance)
+            or policy_action.shape != (2,)
+            or executed_action.shape != (2,)
+            or not np.isfinite(policy_action).all()
+            or not np.isfinite(executed_action).all()
+        ):
+            raise RuntimeError("Terminal episode context contains non-finite state.")
+        return {
+            "contact_collision": bool(info["contact_collision"]),
+            "lidar_collision": bool(info["lidar_collision"]),
+            "terminal_step": terminal_step,
+            "terminal_xy": terminal_xy.tolist(),
+            "terminal_yaw": terminal_yaw,
+            "goal_distance": goal_distance,
+            "policy_action": policy_action.tolist(),
+            "executed_action": executed_action.tolist(),
+        }
+
     def _goal_distance(self) -> float:
         return float(np.linalg.norm(self.goal_position - self._position()))
 
@@ -812,7 +911,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         for index, translation in enumerate(self.obstacle_translations):
             position = translation.getSFVec3f()
             axis = int(self.obstacle_axes[index])
-            lower, upper = (-1.55, 1.55) if axis == 0 else (-1.05, 1.05)
+            lower, upper = _obstacle_motion_bounds(axis)
             position[axis] += (
                 self.obstacle_directions[index] * self.obstacle_speeds[index] * seconds
             )

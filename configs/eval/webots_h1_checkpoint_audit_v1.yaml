@@ -1,0 +1,52 @@
+# Diagnostic-only paired audit of the H1 intermediate checkpoint. The candidate
+# was selected from training Monitor data before this seed window was evaluated.
+# This file is not a validation-selection or held-out-test protocol.
+schema_version: 1
+experiment_id: webots_h1_checkpoint_audit_v1
+split: diagnostic
+condition_id: DH1
+training_seed: 11
+scenario_seed_start: 20300
+episodes: 40
+scenario:
+  obstacle_count: 1
+  obstacle_speed_range: [0.15, 0.30]
+  horizontal_route_half_length: 1.10
+  vertical_route_half_length: 1.10
+  safety_shield: false
+  deterministic_policy: true
+selection_basis:
+  source_monitor: artifacts/logs/webots/seed_11/w1_horizontal_recovery_v1/training_w1h_h1_horizontal_medium_short.monitor.csv
+  source_monitor_sha256: e791940049e105f7f8b061335a61c02eeea02acf4ab6d7d277fa82224c31a5c0
+  block_size_steps: 10240
+  rule: highest_non_overlapping_training_block_success_rate
+  selected_checkpoint_step: 30720
+  selected_block_success_rate: 0.6333333333333333
+  audit_window_results_seen_when_selected: false
+arms:
+  - id: recovery_v1_reference
+    role: reference
+    model: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+    model_sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+    model_variant: w1_recovery_v1
+    run_name: webots_diagnostic_h1_checkpoint_audit_v1_reference_seed11
+    planner_label: ppo_recovery_v1_reference
+  - id: h1_step30720
+    role: candidate
+    model: artifacts/models/webots/seed_11/w1_horizontal_recovery_v1/checkpoints/ppo_webots_s11_w1_horizontal_recovery_v1_30720_steps.zip
+    model_sha256: 2beec66023243bd6f0d96ba536ca61976c220dc2a339365d65055b0f5fd32081
+    model_variant: w1_horizontal_recovery_v1
+    run_name: webots_diagnostic_h1_checkpoint_audit_v1_step30720_seed11
+    planner_label: ppo_h1_step30720
+candidate_gate:
+  require_all: true
+  minimum_success_count: 28
+  maximum_collision_count: 12
+  minimum_horizontal_success_count: 13
+  minimum_vertical_success_count: 14
+  minimum_horizontal_paired_net_rescues: 2
+  maximum_vertical_paired_net_regressions: 1
+decision:
+  pass: use_h1_step30720_as_next_bridge_source
+  fail: reject_entire_h1_branch
+  validation_or_test_access: forbidden

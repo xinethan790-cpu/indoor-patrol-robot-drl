@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 import yaml
 
@@ -71,6 +72,53 @@ def test_repository_shield_ablation_is_predeclared_and_split_safe() -> None:
         "WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE": "0.50",
         "WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR": "0.0",
     }
+
+
+def test_repository_h1_checkpoint_audit_is_predeclared_axis_balanced_and_split_safe() -> None:
+    path = REPOSITORY_ROOT / "configs/eval/webots_h1_checkpoint_audit_v1.yaml"
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    seeds = list(
+        range(
+            int(config["scenario_seed_start"]),
+            int(config["scenario_seed_start"]) + int(config["episodes"]),
+        )
+    )
+    reserved = set(EVALUATOR.FORMAL_VALIDATION_SEEDS) | set(
+        EVALUATOR.FORMAL_TEST_SEEDS
+    )
+    axes = [
+        str(np.random.default_rng(seed).choice(["horizontal", "vertical"]))
+        for seed in seeds
+    ]
+
+    assert config["split"] == "diagnostic"
+    assert seeds == list(range(20_300, 20_340))
+    assert set(seeds).isdisjoint(reserved)
+    assert axes.count("horizontal") == axes.count("vertical") == 20
+    assert config["selection_basis"] == {
+        "source_monitor": (
+            "artifacts/logs/webots/seed_11/w1_horizontal_recovery_v1/"
+            "training_w1h_h1_horizontal_medium_short.monitor.csv"
+        ),
+        "source_monitor_sha256": (
+            "e791940049e105f7f8b061335a61c02eeea02acf4ab6d7d277fa82224c31a5c0"
+        ),
+        "block_size_steps": 10_240,
+        "rule": "highest_non_overlapping_training_block_success_rate",
+        "selected_checkpoint_step": 30_720,
+        "selected_block_success_rate": 0.6333333333333333,
+        "audit_window_results_seen_when_selected": False,
+    }
+    reference, candidate = config["arms"]
+    assert reference["model_sha256"] == (
+        "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275"
+    )
+    assert candidate["model_sha256"] == (
+        "2beec66023243bd6f0d96ba536ca61976c220dc2a339365d65055b0f5fd32081"
+    )
+    assert config["candidate_gate"]["require_all"] is True
+    assert config["decision"]["validation_or_test_access"] == "forbidden"
 
 
 def _clear_webots_environment(monkeypatch: pytest.MonkeyPatch) -> None:

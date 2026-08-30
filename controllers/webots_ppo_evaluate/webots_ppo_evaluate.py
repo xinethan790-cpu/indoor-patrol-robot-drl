@@ -23,10 +23,13 @@ from indoor_patrol_rl.core import (
 )
 from indoor_patrol_rl.envs import WebotsPatrolEnv
 from indoor_patrol_rl.evaluation import (
+    EPISODE_CONTEXT_FILENAME,
+    EPISODE_CONTEXT_SCHEMA_VERSION,
     FORMAL_TEST_SEEDS,
     FORMAL_VALIDATION_SEEDS,
     EpisodeAccumulator,
     write_benchmark_outputs,
+    write_episode_context_jsonl,
 )
 from indoor_patrol_rl.evaluation.webots_formal_config import (
     DYNAMIC_OBSTACLE_DEFS,
@@ -48,6 +51,8 @@ from indoor_patrol_rl.training.webots_curriculum import validate_evaluation_run_
 MODEL_VARIANT_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
 PLANNERS = {"reactive", "dwa", "ppo"}
 DEFAULT_DIAGNOSTIC_SEED_START = 20_000
+EPISODE_CONTEXT_OVERRIDE = "WEBOTS_EVAL_EPISODE_CONTEXT"
+DETERMINISTIC_POLICY_ENVIRONMENT_VARIABLE = "WEBOTS_EVAL_DETERMINISTIC_POLICY"
 
 
 @dataclass(frozen=True)
@@ -105,6 +110,11 @@ def _environment_int(name: str, default: int) -> int:
 def _environment_float(name: str, default: float) -> float:
     value = os.environ.get(name)
     return default if value is None else float(value)
+
+
+def _require_deterministic_policy() -> None:
+    if not environment_flag(DETERMINISTIC_POLICY_ENVIRONMENT_VARIABLE, default=True):
+        raise ValueError("Webots evaluation requires deterministic policy actions.")
 
 
 def _required_node(supervisor: Supervisor, def_name: str) -> Any:
@@ -223,6 +233,11 @@ def _assert_optional_text(name: str, expected: str) -> None:
 
 
 def _resolve_formal_plan(repository_root: Path) -> EvaluationPlan:
+    _require_deterministic_policy()
+    if environment_flag(EPISODE_CONTEXT_OVERRIDE):
+        raise PermissionError(
+            "Formal test forbids diagnostic episode_context.jsonl output."
+        )
     required_runner_fields = (
         "WEBOTS_FORMAL_CONFIG",
         "WEBOTS_EVAL_CONFIG_SHA256",
@@ -338,6 +353,7 @@ def _resolve_nonformal_plan(
     split: str,
     default_seed_start: int,
 ) -> EvaluationPlan:
+    _require_deterministic_policy()
     if split not in {"validation", "diagnostic"}:
         raise ValueError("Non-formal Webots split must be validation or diagnostic.")
     planner = os.environ.get("WEBOTS_EVAL_PLANNER", "ppo").strip().lower()
@@ -558,6 +574,49 @@ def _portable_path(path: Path | None, repository_root: Path) -> str | None:
     return path.resolve().relative_to(repository_root.resolve()).as_posix()
 
 
+def _diagnostic_episode_context_record(
+    plan: EvaluationPlan,
+    record: Any,
+    *,
+    initial_context: dict[str, Any],
+    terminal_context: dict[str, Any],
+) -> dict[str, Any]:
+    if plan.split != "diagnostic" or record.split != "diagnostic":
+        raise ValueError("episode_context.jsonl is restricted to diagnostic evaluations.")
+    return {
+        "schema_version": EPISODE_CONTEXT_SCHEMA_VERSION,
+        "identity": {
+            "episode_id": record.episode_id,
+            "split": record.split,
+            "condition_id": record.condition_id,
+            "scenario_seed": record.scenario_seed,
+            "planner": record.planner,
+        },
+        **initial_context,
+        "termination": terminal_context,
+    }
+
+
+def _bind_episode_context_artifact(
+    repository_root: Path,
+    plan: EvaluationPlan,
+    output_directory: Path,
+    context_records: list[dict[str, Any]],
+    provenance: dict[str, Any],
+) -> None:
+    if plan.split != "diagnostic":
+        if context_records or "episode_context" in provenance:
+            raise RuntimeError(
+                "Non-diagnostic evaluation cannot carry episode context evidence."
+            )
+        return
+    provenance["episode_context"] = write_episode_context_jsonl(
+        output_directory / EPISODE_CONTEXT_FILENAME,
+        context_records,
+        repository_root=repository_root,
+    )
+
+
 def _provenance(
     repository_root: Path,
     plan: EvaluationPlan,
@@ -575,6 +634,7 @@ def _provenance(
         "condition_id": plan.condition_id,
         "planner": plan.planner,
         "planner_label": plan.planner_label,
+        "deterministic_policy": True,
         "scenario_seed_start": plan.scenario_seeds[0],
         "scenario_seed_count": len(plan.scenario_seeds),
         "scenario_seeds": list(plan.scenario_seeds),
@@ -708,6 +768,7 @@ def main() -> None:
             model_variant=model_variant,
         )
         records = []
+        episode_context_records: list[dict[str, Any]] = []
         default_run_name = (
             f"webots_{plan.split}_{plan.condition_id.lower()}_{plan.planner_label}"
             if plan.formal_config is not None
@@ -747,6 +808,9 @@ def main() -> None:
                 seed=scenario_seed,
                 options=reset_options,
             )
+            initial_episode_context = (
+                env.episode_context_at_reset() if plan.split == "diagnostic" else None
+            )
             if plan.formal_config is not None:
                 start_values = env.robot_translation.getSFVec3f()
                 start = (round(float(start_values[0]), 6), round(float(start_values[1]), 6))
@@ -785,6 +849,22 @@ def main() -> None:
             record = accumulator.finalize()
             records.append(record)
             provenance["reset_health"] = env.reset_health_diagnostics()
+            if initial_episode_context is not None:
+                episode_context_records.append(
+                    _diagnostic_episode_context_record(
+                        plan,
+                        record,
+                        initial_context=initial_episode_context,
+                        terminal_context=env.episode_context_at_terminal(info),
+                    )
+                )
+            _bind_episode_context_artifact(
+                repository_root,
+                plan,
+                output_directory,
+                episode_context_records,
+                provenance,
+            )
             write_benchmark_outputs(
                 output_directory,
                 records,
@@ -825,6 +905,18 @@ def main() -> None:
         )
         if sha256_file(episodes_path) != episodes_sha256:
             raise RuntimeError("episodes.csv changed while binding its formal SHA-256.")
+        if plan.split == "diagnostic":
+            context_binding = provenance.get("episode_context")
+            if not isinstance(context_binding, dict):
+                raise RuntimeError("Diagnostic episode context provenance is missing.")
+            context_path = output_directory / EPISODE_CONTEXT_FILENAME
+            if (
+                context_binding.get("count") != len(records)
+                or context_binding.get("sha256") != sha256_file(context_path)
+            ):
+                raise RuntimeError(
+                    "episode_context.jsonl changed while binding its SHA-256."
+                )
         planner_summary = summary["by_planner"][0]
         print(
             f"WEBOTS_EVALUATION_OK episodes={len(plan.scenario_seeds)} "
