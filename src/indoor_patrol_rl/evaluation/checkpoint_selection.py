@@ -22,6 +22,28 @@ _RESULT_DIRECTORY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _FINAL_MODEL_PATTERN = re.compile(r"_step0*(?P<steps>\d+)\.zip$")
+_MODEL_VARIANT_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
+
+
+def _validate_model_variant(value: str | None) -> str | None:
+    """Return a safe single-directory model variant without normalizing it."""
+
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("model_variant must be a string or None.")
+    if (
+        not value
+        or value in {".", ".."}
+        or "/" in value
+        or "\\" in value
+        or _MODEL_VARIANT_PATTERN.fullmatch(value) is None
+    ):
+        raise ValueError(
+            "model_variant must be a non-empty single directory name containing only "
+            "letters, digits, '.', '_' and '-', and cannot be '.' or '..'."
+        )
+    return value
 
 
 @dataclass(frozen=True)
@@ -34,6 +56,7 @@ class CheckpointSelectionGate:
     min_success_rate: float
     max_collision_rate: float
     split: str = "validation"
+    model_variant: str | None = None
 
     def __post_init__(self) -> None:
         if self.seed < 0:
@@ -48,6 +71,7 @@ class CheckpointSelectionGate:
             raise ValueError("min_success_rate must be between zero and one.")
         if not 0.0 <= self.max_collision_rate <= 1.0:
             raise ValueError("max_collision_rate must be between zero and one.")
+        _validate_model_variant(self.model_variant)
 
 
 @dataclass(frozen=True)
@@ -96,9 +120,9 @@ def _finite_number(value: Any, label: str, *, minimum: float | None = None) -> f
 def _portable_path(path: Path, repository_root: Path) -> str:
     absolute = path.absolute()
     try:
-        return str(absolute.relative_to(repository_root.absolute()))
+        return absolute.relative_to(repository_root.absolute()).as_posix()
     except ValueError:
-        return str(absolute)
+        return absolute.as_posix()
 
 
 def sha256_file(path: Path) -> str:
@@ -204,7 +228,7 @@ def load_strict_candidate_summary(
     summary_path: Path,
     identity: ResultIdentity,
     gate: CheckpointSelectionGate,
-) -> dict[str, float | int | str]:
+) -> dict[str, Any]:
     """Load one summary and enforce the complete validation selection contract."""
 
     try:
@@ -229,6 +253,39 @@ def load_strict_candidate_summary(
     if episode_count != gate.episodes:
         raise ValueError(
             f"summary.episode_count must equal {gate.episodes}, got {episode_count}."
+        )
+    provenance = _mapping(
+        raw.get("evaluation_provenance"), "summary.evaluation_provenance"
+    )
+    if provenance.get("schema_version") != 1:
+        raise ValueError("summary.evaluation_provenance.schema_version must be 1.")
+    provenance_seed = _integer(
+        provenance.get("training_seed"),
+        "summary.evaluation_provenance.training_seed",
+    )
+    if provenance_seed != gate.seed:
+        raise ValueError(
+            "summary.evaluation_provenance.training_seed does not match the selection seed."
+        )
+    provenance_variant = provenance.get("model_variant")
+    if provenance_variant is not None and not isinstance(provenance_variant, str):
+        raise ValueError("summary.evaluation_provenance.model_variant must be a string or null.")
+    _validate_model_variant(provenance_variant)
+    if provenance_variant != gate.model_variant:
+        raise ValueError(
+            "summary.evaluation_provenance.model_variant does not match the selection gate."
+        )
+    provenance_model_path = provenance.get("model_path")
+    if not isinstance(provenance_model_path, str) or not provenance_model_path:
+        raise ValueError(
+            "summary.evaluation_provenance.model_path must be a non-empty string."
+        )
+    provenance_model_sha256 = provenance.get("model_sha256")
+    if not isinstance(provenance_model_sha256, str) or re.fullmatch(
+        r"[0-9a-fA-F]{64}", provenance_model_sha256
+    ) is None:
+        raise ValueError(
+            "summary.evaluation_provenance.model_sha256 must be a SHA-256 digest."
         )
     planners = _list(raw.get("planners"), "summary.planners")
     if planners != [identity.expected_planner]:
@@ -276,11 +333,16 @@ def load_strict_candidate_summary(
     ):
         if metrics[name] != condition_metrics[name]:
             raise ValueError(f"Aggregate rows disagree on {name} in {summary_path}.")
+    metrics["evaluation_model_path"] = provenance_model_path
+    metrics["evaluation_model_sha256"] = provenance_model_sha256.casefold()
     return metrics
 
 
 def _metadata_final_model(
-    metadata_path: Path, repository_root: Path, expected_step: int
+    metadata_path: Path,
+    repository_root: Path,
+    model_directory: Path,
+    expected_step: int,
 ) -> Path | None:
     try:
         raw = _mapping(yaml.safe_load(metadata_path.read_text(encoding="utf-8")), "metadata")
@@ -289,23 +351,42 @@ def _metadata_final_model(
         path = Path(str(raw["final_model"]))
     except (KeyError, OSError, TypeError, ValueError, yaml.YAMLError):
         return None
-    return path if path.is_absolute() else repository_root / path
+    candidate = path if path.is_absolute() else repository_root / path
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(model_directory.resolve())
+    except ValueError:
+        return None
+    return candidate
+
+
+def _model_directory(
+    repository_root: Path,
+    seed: int,
+    model_variant: str | None,
+) -> Path:
+    directory = repository_root / "artifacts/models/webots" / f"seed_{seed}"
+    variant = _validate_model_variant(model_variant)
+    return directory / variant if variant is not None else directory
 
 
 def resolve_candidate_model(
     repository_root: Path,
     identity: ResultIdentity,
+    model_variant: str | None = None,
 ) -> tuple[Path, str]:
     """Map a validation result to its immutable checkpoint or final model path."""
 
-    model_directory = (
-        repository_root / "artifacts/models/webots" / f"seed_{identity.seed}"
-    )
+    model_directory = _model_directory(repository_root, identity.seed, model_variant)
     if identity.kind == "checkpoint":
+        variant_token = f"_{model_variant}" if model_variant is not None else ""
         expected = (
             model_directory
             / "checkpoints"
-            / f"ppo_webots_s{identity.seed}_{identity.step}_steps.zip"
+            / (
+                f"ppo_webots_s{identity.seed}{variant_token}_"
+                f"{identity.step}_steps.zip"
+            )
         )
         return expected, "checkpoint_filename" if expected.is_file() else "missing_checkpoint"
 
@@ -316,7 +397,12 @@ def resolve_candidate_model(
         model_directory / "run_metadata.yaml",
     ):
         if metadata_path.is_file():
-            mapped = _metadata_final_model(metadata_path, repository_root, identity.step)
+            mapped = _metadata_final_model(
+                metadata_path,
+                repository_root,
+                model_directory,
+                identity.step,
+            )
             if mapped is not None:
                 possibilities.append((mapped, f"metadata:{metadata_path.name}"))
     for model_path in sorted(model_directory.glob(f"ppo_webots_s{identity.seed}_step*.zip")):
@@ -366,9 +452,33 @@ def make_candidate_record(
     """Validate and materialize one auditable candidate record."""
 
     identity = parse_result_identity(summary_path)
+    model_path, resolution = resolve_candidate_model(
+        repository_root,
+        identity,
+        gate.model_variant,
+    )
     metrics = load_strict_candidate_summary(summary_path, identity, gate)
-    model_path, resolution = resolve_candidate_model(repository_root, identity)
+    provenance_path = Path(str(metrics["evaluation_model_path"]))
+    if provenance_path.is_absolute():
+        raise ValueError("Evaluation provenance model_path must be repository-relative.")
+    resolved_provenance_path = (repository_root / provenance_path).resolve()
+    try:
+        resolved_provenance_path.relative_to(repository_root.resolve())
+    except ValueError as error:
+        raise ValueError("Evaluation provenance model_path escapes the repository.") from error
+    if resolved_provenance_path != model_path.resolve():
+        raise ValueError(
+            "Evaluation provenance model_path does not match the checkpoint candidate."
+        )
     model_exists = model_path.is_file()
+    if model_exists:
+        actual_model_sha256 = sha256_file(model_path)
+        if actual_model_sha256 != metrics["evaluation_model_sha256"]:
+            raise ValueError(
+                "Evaluation provenance model_sha256 does not match the checkpoint candidate."
+            )
+    else:
+        actual_model_sha256 = None
     failures = _gate_failures(metrics, gate=gate, model_exists=model_exists)
     metric_gate_passed = (
         float(metrics["success_rate"]) >= gate.min_success_rate
@@ -379,13 +489,15 @@ def make_candidate_record(
         "step": identity.step,
         "seed": identity.seed,
         "condition": gate.condition,
+        "model_variant": gate.model_variant,
         "planner": metrics["planner"],
         "summary_path": _portable_path(summary_path, repository_root),
         "summary_sha256": sha256_file(summary_path),
         "model_path": _portable_path(model_path, repository_root),
         "model_resolution": resolution,
         "model_exists": model_exists,
-        "model_sha256": sha256_file(model_path) if model_exists else None,
+        "model_sha256": actual_model_sha256,
+        "evaluation_model_sha256": metrics["evaluation_model_sha256"],
         "episodes": metrics["episodes"],
         "success_count": metrics["success_count"],
         "collision_count": metrics["collision_count"],
@@ -453,8 +565,12 @@ def build_checkpoint_selection(
             "kind": candidate["kind"],
             "step": candidate["step"],
             "planner": candidate["planner"],
+            "model_variant": candidate["model_variant"],
             "model_path": candidate["model_path"],
             "model_sha256": candidate["model_sha256"],
+            "episodes": candidate["episodes"],
+            "success_rate": candidate["success_rate"],
+            "collision_rate": candidate["collision_rate"],
             "gate_passed": candidate["gate_passed"],
         }
 
@@ -462,6 +578,7 @@ def build_checkpoint_selection(
         "schema_version": 1,
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "selection_status": status,
+        "model_variant": gate.model_variant,
         "selection_rule": [
             "success_rate_desc",
             "collision_rate_asc",
@@ -475,6 +592,7 @@ def build_checkpoint_selection(
             "seed": gate.seed,
             "condition": gate.condition,
             "episodes": gate.episodes,
+            "model_variant": gate.model_variant,
             "planner_template": f"ppo_{gate.condition.casefold()}_step{{step}}",
         },
         "gate": {
@@ -521,11 +639,13 @@ def write_checkpoint_selection(
             if alias_path is None:
                 condition = str(selection["validation_contract"]["condition"]).casefold()
                 seed = int(selection["validation_contract"]["seed"])
-                alias_path = (
-                    repository_root
-                    / "artifacts/models/webots"
-                    / f"seed_{seed}"
-                    / f"ppo_webots_{condition}_validation_selected.zip"
+                model_variant = selection["validation_contract"].get("model_variant")
+                alias_path = _model_directory(
+                    repository_root,
+                    seed,
+                    str(model_variant) if model_variant is not None else None,
+                ) / (
+                    f"ppo_webots_{condition}_validation_selected.zip"
                 )
             elif not alias_path.is_absolute():
                 alias_path = repository_root / alias_path

@@ -8,6 +8,7 @@ controller, so pure Python tests and GitHub CI can still import this package.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import Any
 
 import gymnasium as gym
@@ -45,6 +46,60 @@ def _webots_scan_to_policy_order(raw_scan: np.ndarray) -> np.ndarray:
     centre = raw_scan.size // 2
     indices = (centre - np.arange(raw_scan.size)) % raw_scan.size
     return raw_scan[indices]
+
+
+def validate_obstacle_cross_lanes(
+    value: Any,
+    *,
+    expected_count: int,
+    minimum_separation: float = 0.0,
+) -> tuple[float, ...]:
+    """Validate optional fixed cross-axis lanes without depending on Webots APIs."""
+
+    if expected_count < 0:
+        raise ValueError("expected_count cannot be negative.")
+    if minimum_separation < 0.0 or not math.isfinite(minimum_separation):
+        raise ValueError("minimum_separation must be finite and non-negative.")
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError("obstacle_cross_lanes must be a numeric sequence.")
+    if len(value) != expected_count:
+        raise ValueError(
+            f"obstacle_cross_lanes must contain exactly {expected_count} values."
+        )
+    lanes: list[float] = []
+    for index, raw_lane in enumerate(value):
+        if isinstance(raw_lane, bool) or not isinstance(raw_lane, (int, float)):
+            raise ValueError(f"obstacle_cross_lanes[{index}] must be numeric.")
+        lane = float(raw_lane)
+        if not math.isfinite(lane):
+            raise ValueError(f"obstacle_cross_lanes[{index}] must be finite.")
+        lanes.append(lane)
+    for first in range(len(lanes)):
+        for second in range(first + 1, len(lanes)):
+            if abs(lanes[first] - lanes[second]) <= minimum_separation:
+                raise ValueError(
+                    "obstacle_cross_lanes do not satisfy the minimum separation."
+                )
+    return tuple(lanes)
+
+
+def _sample_obstacle_position(
+    random_generator: Any,
+    *,
+    obstacle_axis: int,
+    cross_lane: float | None = None,
+) -> tuple[float, float]:
+    """Sample exactly as before, optionally overriding only the cross-axis value."""
+
+    if obstacle_axis == 1:
+        random_x = float(random_generator.uniform(-0.55, 0.55))
+        random_y = float(random_generator.uniform(-1.05, 1.05))
+        return (float(cross_lane) if cross_lane is not None else random_x), random_y
+    if obstacle_axis == 0:
+        random_x = float(random_generator.uniform(-1.55, 1.55))
+        random_y = float(random_generator.uniform(-0.45, 0.45))
+        return random_x, (float(cross_lane) if cross_lane is not None else random_y)
+    raise ValueError("obstacle_axis must be 0 or 1.")
 
 
 class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
@@ -222,16 +277,33 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         )
         self.robot_node.resetPhysics()
 
+        raw_cross_lanes = options.get("obstacle_cross_lanes")
+        obstacle_cross_lanes = (
+            validate_obstacle_cross_lanes(
+                raw_cross_lanes,
+                expected_count=len(self.obstacle_nodes),
+                minimum_separation=float(
+                    options.get("obstacle_lane_min_separation", 0.0)
+                ),
+            )
+            if raw_cross_lanes is not None
+            else None
+        )
+
         for index, (node, translation) in enumerate(
             zip(self.obstacle_nodes, self.obstacle_translations, strict=True)
         ):
             self.obstacle_axes[index] = obstacle_axis
-            if obstacle_axis == 1:
-                x = float(self.np_random.uniform(-0.55, 0.55))
-                y = float(self.np_random.uniform(-1.05, 1.05))
-            else:
-                x = float(self.np_random.uniform(-1.55, 1.55))
-                y = float(self.np_random.uniform(-0.45, 0.45))
+            cross_lane = (
+                obstacle_cross_lanes[index]
+                if obstacle_cross_lanes is not None
+                else None
+            )
+            x, y = _sample_obstacle_position(
+                self.np_random,
+                obstacle_axis=obstacle_axis,
+                cross_lane=cross_lane,
+            )
             translation.setSFVec3f([x, y, 0.36])
             node.resetPhysics()
             self.obstacle_speeds[index] = float(

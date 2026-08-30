@@ -1,3 +1,9 @@
+# 探索性配置（未完成）：R1/R2/R3 用于单障碍由慢到快的课程试验，
+# 不属于 W0/W1/W2 计划中的正式路线，也不能作为 Webots 正式结果。
+# policy_transfer_model 和 preferred_resume_model 是本机恢复提示；对应 checkpoint
+# 不随仓库提供。R1/R2/R3 的阶段门禁只能生成探索性选择证据；只有另外满足
+# 正式巡检的 20 回合、success >= 0.75、collision <= 0.15 固定门槛，并生成绑定
+# 评测模型路径、variant 与 SHA-256 的 manifest 后，checkpoint 才能进入正式巡检。
 schema_version: 1
 transfer_model: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
 policy_transfer_model: artifacts/models/webots/seed_11/ppo_webots_s11_step000050176.zip

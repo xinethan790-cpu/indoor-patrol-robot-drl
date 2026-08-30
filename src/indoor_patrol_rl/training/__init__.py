@@ -24,6 +24,7 @@ from indoor_patrol_rl.training.webots_curriculum import (
     select_completed_snapshot,
     select_stage_completed_snapshot,
     snapshot_matches_stage,
+    validate_evaluation_run_name,
 )
 
 __all__ = [
@@ -48,4 +49,5 @@ __all__ = [
     "select_completed_snapshot",
     "select_stage_completed_snapshot",
     "snapshot_matches_stage",
+    "validate_evaluation_run_name",
 ]

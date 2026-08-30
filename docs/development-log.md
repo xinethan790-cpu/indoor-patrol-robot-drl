@@ -57,6 +57,8 @@ minimum LiDAR range: 0.225 m
 
 ## 2026-08-28：运动学课程训练与统一验证基准
 
+> 本节保留首次运行的历史结果；当前可复现结果已由下方 2026-08-30 的干净重训更新。
+
 ### 已完成
 
 - 完成 seed 11 四阶段 PPO 运动学课程，实际累计 811,008 steps；
@@ -82,3 +84,29 @@ PPO:      success 0.6875, collision 0.3125, timeout 0.0000
 2. 复现 seed 22、33，并基于 Webots 验证集选择 checkpoint；
 3. 将三种局部规划器接入同一 Webots `G0～G3` 批量协议；
 4. 完成多航点巡检、泛化、消融和最终测试。
+
+## 2026-08-30：运动学干净重训与正式协议加固
+
+### 已完成
+
+- 在 Windows Python 3.11.6、Stable-Baselines3 2.9.0、PyTorch 2.13.0 CPU 环境重新执行 seed 11 四阶段课程；
+- 验证 stage 0～3 的实际累计步数分别为 `102400、253952、557056、811008`；
+- 用完全相同的 `5000～5019` 验证 seeds 与 `G0～G3` 工况比较四个候选模型；
+- 重新运行 Reactive、DWA、PPO 的 240 回合同场景运动学基准，并从原始 CSV 重建报告和 SVG；
+- 将正式 Webots 测试设计固定为三训练 seed、验证证据锁、一次性 ledger 与 400 回合矩阵；
+- 保持 `10000～10019` held-out test 未访问。
+
+### 当前重训结果
+
+```text
+stage 0: success 0.6875, collision 0.3125
+stage 1: success 0.7000, collision 0.3000
+stage 2: success 0.7625, collision 0.2375  <- Webots 热启动
+stage 3: success 0.7250, collision 0.2750
+
+Reactive: success 0.7250, collision 0.2750, timeout 0.0000
+DWA:      success 0.5750, collision 0.3750, timeout 0.0500
+PPO:      success 0.7625, collision 0.2375, timeout 0.0000
+```
+
+stage 2 模型 SHA-256 为 `152060175d9f0db8e59e0a31d8e158e19395ff16636e6add6e9d2e6fe7372f8c`。这次结果覆盖的是运动学验证后端，只用于选择 Webots 初始化权重；即使 PPO 在该验证集上的总体指标最好，也不能据此宣称已经取得正式 Webots 或真机优势。

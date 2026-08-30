@@ -426,7 +426,11 @@ def _overall_highlights(groups: Sequence[Mapping[str, Any]]) -> list[str]:
 
 
 def render_markdown_report(
-    summary: Mapping[str, Any], *, summary_sha256: str, episodes_sha256: str
+    summary: Mapping[str, Any],
+    *,
+    summary_sha256: str,
+    episodes_sha256: str,
+    input_dir: Path,
 ) -> str:
     """Render a compact thesis-ready metric report from the machine summary."""
 
@@ -446,7 +450,7 @@ def render_markdown_report(
         f"- 工况：{', '.join(f'`{name}`' for name in summary['conditions'])}",
         (
             "- 生成命令：`.venv/bin/python scripts/plot_benchmark.py "
-            "--input-dir artifacts/results/kinematic_validation_seed11`"
+            f"--input-dir {input_dir.as_posix()}`"
         ),
         "",
         "## 总体指标",
@@ -538,14 +542,20 @@ def generate_benchmark_report(
     outcome_path = output_dir / "outcome_rates.svg"
     efficiency_path = output_dir / "efficiency.svg"
     report_path = output_dir / "benchmark_report.md"
-    outcome_path.write_text(render_outcome_rates_svg(summary), encoding="utf-8")
-    efficiency_path.write_text(render_efficiency_svg(summary), encoding="utf-8")
+    outcome_path.write_text(
+        render_outcome_rates_svg(summary), encoding="utf-8", newline="\n"
+    )
+    efficiency_path.write_text(
+        render_efficiency_svg(summary), encoding="utf-8", newline="\n"
+    )
     report_path.write_text(
         render_markdown_report(
             summary,
             summary_sha256=_sha256(summary_path),
             episodes_sha256=_sha256(episodes_path),
+            input_dir=summary_path.parent,
         ),
         encoding="utf-8",
+        newline="\n",
     )
     return outcome_path, efficiency_path, report_path

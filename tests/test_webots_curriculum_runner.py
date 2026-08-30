@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 
+from indoor_patrol_rl.evaluation.checkpoint_selection import (
+    CheckpointSelectionGate,
+    make_candidate_record,
+)
 from indoor_patrol_rl.training import (
     ValidationGate,
     WebotsCurriculumConfig,
@@ -22,7 +28,9 @@ from indoor_patrol_rl.training import (
     resolve_stage_index,
     resolve_webots_executable,
     snapshot_matches_stage,
+    validate_evaluation_run_name,
 )
+from tests.test_formal_protocol import _build_model_manifest
 
 
 def make_stage(
@@ -33,6 +41,7 @@ def make_stage(
     success: float = 0.75,
     controller_env: dict[str, str] | None = None,
     preferred_resume_model: Path | None = None,
+    world: str = "webots_ppo_train.wbt",
 ) -> WebotsStage:
     return WebotsStage(
         stage_id=stage_id,
@@ -47,6 +56,7 @@ def make_stage(
         ),
         controller_env=controller_env,
         preferred_resume_model=preferred_resume_model,
+        world=world,
     )
 
 
@@ -114,26 +124,56 @@ def save_training_result(
 def save_validation_result(
     repository_root: Path,
     *,
-    seed: int,
-    obstacles: int,
-    episodes: int,
+    environment: dict[str, str],
     success_rate: float,
     collision_rate: float,
-    run_name: str | None = None,
 ) -> None:
-    result_name = run_name or f"webots_validation_seed{seed}_obstacles{obstacles}"
+    seed = int(environment["WEBOTS_MODEL_SEED"])
+    episodes = int(environment["WEBOTS_EVAL_EPISODES"])
+    seed_start = int(environment["WEBOTS_EVAL_SEED_START"])
+    result_name = environment["WEBOTS_EVAL_RUN_NAME"]
+    planner = environment["WEBOTS_EVAL_PLANNER_LABEL"]
+    condition = environment["WEBOTS_EVAL_CONDITION"]
+    model_path = (repository_root / environment["WEBOTS_EVAL_MODEL"]).resolve()
+    model_sha256 = hashlib.sha256(model_path.read_bytes()).hexdigest()
     output = repository_root / "artifacts/results" / result_name
     output.mkdir(parents=True, exist_ok=True)
+    success_count = round(success_rate * episodes)
+    collision_count = round(collision_rate * episodes)
+    timeout_count = episodes - success_count - collision_count
+    aggregate = {
+        "planner": planner,
+        "episodes": episodes,
+        "success_count": success_count,
+        "collision_count": collision_count,
+        "timeout_count": timeout_count,
+        "error_count": 0,
+        "success_rate": success_rate,
+        "collision_rate": collision_rate,
+        "timeout_rate": timeout_count / episodes,
+        "completion_time_s_mean": 1.0,
+        "path_length_ratio_mean": 1.0,
+    }
     summary = {
+        "schema_version": "1.0",
         "split": "validation",
-        "by_planner": [
-            {
-                "planner": f"ppo_seed{seed}",
-                "episodes": episodes,
-                "success_rate": success_rate,
-                "collision_rate": collision_rate,
-            }
-        ],
+        "episode_count": episodes,
+        "planners": [planner],
+        "conditions": [condition],
+        "by_planner": [aggregate],
+        "by_planner_condition": [{**aggregate, "condition_id": condition}],
+        "evaluation_provenance": {
+            "schema_version": 1,
+            "model_path": model_path.relative_to(repository_root).as_posix(),
+            "model_sha256": model_sha256,
+            "model_variant": environment.get("WEBOTS_MODEL_VARIANT"),
+            "training_seed": seed,
+            "split": "validation",
+            "condition_id": condition,
+            "scenario_seed_start": seed_start,
+            "scenario_seed_count": episodes,
+            "scenario_seeds": list(range(seed_start, seed_start + episodes)),
+        },
     }
     (output / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
 
@@ -144,6 +184,7 @@ def test_repository_webots_curriculum_has_required_w0_w2_schedule() -> None:
     assert [stage.stage_id for stage in config.stages] == ["W0", "W1", "W2"]
     assert [stage.obstacle_count for stage in config.stages] == [0, 1, 3]
     assert [stage.training_steps for stage in config.stages] == [50_000, 150_000, 300_000]
+    assert {stage.world for stage in config.stages} == {"webots_ppo_train.wbt"}
     assert resolve_stage_index(config.stages, "w1", 0) == 1
     assert resolve_stage_index(config.stages, "2", 0) == 2
 
@@ -191,6 +232,41 @@ def test_controller_env_rejects_unsafe_or_non_webots_values(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         make_stage(controller_env=controller_env)
+
+
+@pytest.mark.parametrize(
+    "variant",
+    ["", ".", "..", "nested/variant", "nested\\variant"],
+)
+def test_curriculum_rejects_unsafe_model_variants(variant: str) -> None:
+    with pytest.raises(ValueError, match="model_variant"):
+        make_config(make_stage(), variant=variant)
+
+
+def test_loader_does_not_collapse_empty_model_variant_to_legacy(tmp_path: Path) -> None:
+    path = tmp_path / "curriculum.yaml"
+    path.write_text(
+        """
+schema_version: 1
+transfer_model: model.zip
+model_variant: ""
+validation:
+  split: validation
+  seed_start: 1
+  episodes: 1
+  min_success_rate: 0.5
+  max_collision_rate: 0.5
+stages:
+  - id: W0
+    name: empty
+    obstacle_count: 0
+    training_steps: 1
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="non-empty path-safe"):
+        load_webots_curriculum(path)
 
 
 def test_evaluation_receives_only_scenario_and_validation_controller_env() -> None:
@@ -259,6 +335,74 @@ def test_validation_parser_rejects_non_validation_summary(tmp_path: Path) -> Non
         load_validation_metrics(summary)
 
 
+@pytest.mark.parametrize("run_name", ["", ".", "..", "nested/name", "nested\\name"])
+def test_evaluation_run_name_rejects_empty_dot_and_path_escapes(run_name: str) -> None:
+    with pytest.raises(ValueError, match="path-safe"):
+        validate_evaluation_run_name(run_name)
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "message"),
+    [
+        (("evaluation_provenance", "model_path"), "artifacts/models/other.zip", "model path"),
+        (("evaluation_provenance", "model_sha256"), "0" * 64, "SHA-256"),
+        (("evaluation_provenance", "training_seed"), 22, "training_seed"),
+        (("evaluation_provenance", "model_variant"), "other", "model_variant"),
+        (("evaluation_provenance", "condition_id"), "W1", "condition"),
+        (("evaluation_provenance", "scenario_seeds"), [5000], "scenario_seeds"),
+        (("root", "episode_count"), 3, "episode count"),
+    ],
+)
+def test_strict_stage_gate_rejects_wrong_evaluation_provenance(
+    tmp_path: Path,
+    path: tuple[str, str],
+    value: object,
+    message: str,
+) -> None:
+    model = save_training_result(tmp_path, seed=11, obstacles=0, steps=10)
+    environment = {
+        "WEBOTS_MODEL_SEED": "11",
+        "WEBOTS_EVAL_MODEL": model.relative_to(tmp_path).as_posix(),
+        "WEBOTS_EVAL_EPISODES": "4",
+        "WEBOTS_EVAL_SEED_START": "5000",
+        "WEBOTS_EVAL_SPLIT": "validation",
+        "WEBOTS_EVAL_CONDITION": "W0",
+        "WEBOTS_EVAL_PLANNER_LABEL": "ppo_w0_step10",
+        "WEBOTS_EVAL_RUN_NAME": "webots_validation_w0_final_step10_seed11",
+        "WEBOTS_OBSTACLE_COUNT": "0",
+    }
+    save_validation_result(
+        tmp_path,
+        environment=environment,
+        success_rate=1.0,
+        collision_rate=0.0,
+    )
+    summary_path = (
+        tmp_path
+        / "artifacts/results/webots_validation_w0_final_step10_seed11/summary.json"
+    )
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    if path[0] == "root":
+        payload[path[1]] = value
+    else:
+        payload[path[0]][path[1]] = value
+    summary_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
+        load_validation_metrics(
+            summary_path,
+            repository_root=tmp_path,
+            expected_model_path=model,
+            expected_model_sha256=hashlib.sha256(model.read_bytes()).hexdigest(),
+            expected_training_seed=11,
+            expected_model_variant=None,
+            expected_condition="W0",
+            expected_planner="ppo_w0_step10",
+            expected_seed_start=5000,
+            expected_episodes=4,
+        )
+
+
 def test_runner_records_commands_results_and_both_manifest_formats(tmp_path: Path) -> None:
     stage = make_stage()
     calls: list[tuple[list[str], dict[str, Any]]] = []
@@ -276,9 +420,7 @@ def test_runner_records_commands_results_and_both_manifest_formats(tmp_path: Pat
         else:
             save_validation_result(
                 tmp_path,
-                seed=11,
-                obstacles=int(environment["WEBOTS_OBSTACLE_COUNT"]),
-                episodes=int(environment["WEBOTS_EVAL_EPISODES"]),
+                environment=environment,
                 success_rate=1.0,
                 collision_rate=0.0,
             )
@@ -301,12 +443,268 @@ def test_runner_records_commands_results_and_both_manifest_formats(tmp_path: Pat
     assert calls[0][0][1] != calls[1][0][1]
     assert calls[1][1]["env"]["WEBOTS_EVAL_SPLIT"] == "validation"
     assert "WEBOTS_CONFIRM_TEST" not in calls[1][1]["env"]
+    assert calls[1][1]["env"]["WEBOTS_EVAL_RUN_NAME"] == (
+        "webots_validation_w0_final_step10_seed11"
+    )
+    assert calls[1][1]["env"]["WEBOTS_EVAL_PLANNER_LABEL"] == "ppo_w0_step10"
     saved = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    assert saved["schema_version"] == 2
+    assert len(saved["curriculum_config_sha256"]) == 64
+    int(saved["curriculum_config_sha256"], 16)
+    assert saved["curriculum_config"]["transfer_model"] == (
+        "artifacts/models/transfer.zip"
+    )
+    assert saved["curriculum_config"]["stages"][0]["world"] == (
+        "webots_ppo_train.wbt"
+    )
     assert saved["status"] == "completed"
     assert saved["test_split_was_run"] is False
     assert saved["stages"][0]["training_attempts"][0]["exit_code"] == 0
     assert saved["stages"][0]["validation"]["passed"] is True
+    assert len(saved["stages"][0]["validation"]["model_sha256"]) == 64
     assert manifest.with_suffix(".json").is_file()
+
+    summary_path = (
+        tmp_path
+        / "artifacts/results/webots_validation_w0_final_step10_seed11/summary.json"
+    )
+    candidate = make_candidate_record(
+        summary_path,
+        repository_root=tmp_path,
+        gate=CheckpointSelectionGate(
+            seed=11,
+            condition="W0",
+            episodes=4,
+            min_success_rate=0.75,
+            max_collision_rate=0.25,
+        ),
+    )
+    assert candidate["gate_passed"] is True
+
+
+def test_identical_semantic_config_can_resume_with_normalized_paths_and_json(
+    tmp_path: Path,
+) -> None:
+    stage = make_stage(
+        controller_env={
+            "WEBOTS_PPO_N_STEPS": "2048",
+            "WEBOTS_REWARD_SAFETY_WEIGHT": "-0.60",
+        }
+    )
+    config = WebotsCurriculumConfig(
+        transfer_model=Path("artifacts/models/transfer.zip"),
+        policy_transfer_model=Path("artifacts/models/base.zip"),
+        model_variant="curriculum_v2",
+        port_base=12490,
+        stages=(stage,),
+    )
+    manifest_path = tmp_path / "manifest.yaml"
+    first = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=lambda *_args, **_kwargs: pytest.fail("dry-run started Webots"),
+        dry_run=True,
+        episodes_override=3,
+    )
+    assert first.run(start_stage=0, stop_after_stage=0) == 0
+
+    equivalent_stage = replace(
+        stage,
+        controller_env={
+            "WEBOTS_REWARD_SAFETY_WEIGHT": "-0.60",
+            "WEBOTS_PPO_N_STEPS": "2048",
+        },
+    )
+    equivalent_config = replace(
+        config,
+        transfer_model=tmp_path / "artifacts/models/transfer.zip",
+        policy_transfer_model=tmp_path / "artifacts/models/base.zip",
+        stages=(equivalent_stage,),
+    )
+    resumed = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=equivalent_config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=lambda *_args, **_kwargs: pytest.fail("resume started Webots"),
+        episodes_override=3,
+    )
+
+    assert resumed.curriculum_config_sha256 == first.curriculum_config_sha256
+    assert resumed.manifest["curriculum_config_sha256"] == (
+        first.curriculum_config_sha256
+    )
+    assert resumed.manifest["curriculum_config"]["transfer_model"] == (
+        "artifacts/models/transfer.zip"
+    )
+
+
+@pytest.mark.parametrize(
+    "changed_field",
+    [
+        "transfer_model",
+        "policy_transfer_model",
+        "model_variant",
+        "port_base",
+        "stage_id",
+        "stage_name",
+        "stage_world",
+        "obstacle_count",
+        "training_steps",
+        "gate",
+        "controller_env",
+        "preferred_resume_model",
+    ],
+)
+def test_resume_rejects_changed_semantic_config(
+    tmp_path: Path, changed_field: str
+) -> None:
+    stage = make_stage()
+    config = make_config(stage)
+    manifest_path = tmp_path / "manifest.yaml"
+    first = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=lambda *_args, **_kwargs: pytest.fail("dry-run started Webots"),
+        dry_run=True,
+    )
+    assert first.run(start_stage=0, stop_after_stage=0) == 0
+
+    changed_stage = stage
+    changed_config = config
+    if changed_field == "transfer_model":
+        changed_config = replace(config, transfer_model=Path("models/other.zip"))
+    elif changed_field == "policy_transfer_model":
+        changed_config = replace(config, policy_transfer_model=Path("models/base.zip"))
+    elif changed_field == "model_variant":
+        changed_config = replace(config, model_variant="curriculum_v2")
+    elif changed_field == "port_base":
+        changed_config = replace(config, port_base=config.port_base + 1)
+    elif changed_field == "stage_id":
+        changed_stage = replace(stage, stage_id="W1")
+    elif changed_field == "stage_name":
+        changed_stage = replace(stage, name="renamed")
+    elif changed_field == "stage_world":
+        changed_stage = replace(stage, world="webots_custom_train.wbt")
+    elif changed_field == "obstacle_count":
+        changed_stage = replace(stage, obstacle_count=1)
+    elif changed_field == "training_steps":
+        changed_stage = replace(stage, training_steps=stage.training_steps + 1)
+    elif changed_field == "gate":
+        changed_stage = replace(stage, gate=replace(stage.gate, episodes=5))
+    elif changed_field == "controller_env":
+        changed_stage = replace(stage, controller_env={"WEBOTS_PPO_N_STEPS": "2048"})
+    elif changed_field == "preferred_resume_model":
+        changed_stage = replace(
+            stage,
+            preferred_resume_model=Path(
+                "artifacts/models/webots/seed_11/checkpoints/"
+                "ppo_webots_s11_5_steps.zip"
+            ),
+        )
+    if changed_stage is not stage:
+        changed_config = replace(config, stages=(changed_stage,))
+
+    with pytest.raises(ValueError, match="configuration fingerprint"):
+        WebotsCurriculumRunner(
+            repository_root=tmp_path,
+            config=changed_config,
+            webots_executable=tmp_path / "webots",
+            seed=11,
+            manifest_path=manifest_path,
+            process_runner=lambda *_args, **_kwargs: pytest.fail(
+                "mismatched resume started Webots"
+            ),
+            dry_run=True,
+        )
+
+
+def test_resume_rejects_changed_gate_override(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.yaml"
+    config = make_config(make_stage())
+    first = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=lambda *_args, **_kwargs: pytest.fail("dry-run started Webots"),
+        dry_run=True,
+    )
+    assert first.run(start_stage=0, stop_after_stage=0) == 0
+
+    with pytest.raises(ValueError, match="configuration fingerprint"):
+        WebotsCurriculumRunner(
+            repository_root=tmp_path,
+            config=config,
+            webots_executable=tmp_path / "webots",
+            seed=11,
+            manifest_path=manifest_path,
+            process_runner=lambda *_args, **_kwargs: pytest.fail(
+                "mismatched resume started Webots"
+            ),
+            dry_run=True,
+            success_rate_override=0.5,
+        )
+
+
+def test_legacy_manifest_without_fingerprint_is_rejected(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.yaml"
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "seed": 11,
+                "model_variant": None,
+                "stages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError, match="schema_version 2 semantic configuration fingerprint"
+    ):
+        WebotsCurriculumRunner(
+            repository_root=tmp_path,
+            config=make_config(make_stage()),
+            webots_executable=tmp_path / "webots",
+            seed=11,
+            manifest_path=manifest_path,
+            dry_run=True,
+        )
+
+
+def test_schema_v2_manifest_without_fingerprint_is_rejected(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.yaml"
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "seed": 11,
+                "model_variant": None,
+                "stages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="missing a valid curriculum_config_sha256"):
+        WebotsCurriculumRunner(
+            repository_root=tmp_path,
+            config=make_config(make_stage()),
+            webots_executable=tmp_path / "webots",
+            seed=11,
+            manifest_path=manifest_path,
+            dry_run=True,
+        )
 
 
 def test_gate_failure_stops_before_next_stage(tmp_path: Path) -> None:
@@ -325,9 +723,7 @@ def test_gate_failure_stops_before_next_stage(tmp_path: Path) -> None:
         else:
             save_validation_result(
                 tmp_path,
-                seed=11,
-                obstacles=int(environment["WEBOTS_OBSTACLE_COUNT"]),
-                episodes=int(environment["WEBOTS_EVAL_EPISODES"]),
+                environment=environment,
                 success_rate=0.5,
                 collision_rate=0.5,
             )
@@ -367,9 +763,7 @@ def test_runner_resumes_partial_checkpoint_with_only_remaining_steps(tmp_path: P
         else:
             save_validation_result(
                 tmp_path,
-                seed=11,
-                obstacles=0,
-                episodes=4,
+                environment=environment,
                 success_rate=1.0,
                 collision_rate=0.0,
             )
@@ -501,9 +895,12 @@ def test_variant_runner_uses_policy_transfer_then_same_variant_resume(tmp_path: 
     first_eval = manifest["stages"][0]["validation"]["environment"]
 
     assert first_env["WEBOTS_MODEL_VARIANT"] == "curriculum_v2"
-    assert first_env["WEBOTS_POLICY_TRANSFER_MODEL"].endswith("seed_11/base.zip")
+    assert first_eval["WEBOTS_MODEL_VARIANT"] == "curriculum_v2"
+    assert Path(first_env["WEBOTS_POLICY_TRANSFER_MODEL"]).as_posix().endswith(
+        "seed_11/base.zip"
+    )
     assert "WEBOTS_RESUME_MODEL" not in first_env
-    assert second_env["WEBOTS_RESUME_MODEL"].endswith(
+    assert Path(second_env["WEBOTS_RESUME_MODEL"]).as_posix().endswith(
         "seed_11/curriculum_v2/checkpoints/ppo_webots_s11_curriculum_v2_40_steps.zip"
     )
     assert "WEBOTS_POLICY_TRANSFER_MODEL" not in second_env
@@ -514,8 +911,9 @@ def test_variant_runner_uses_policy_transfer_then_same_variant_resume(tmp_path: 
     assert "WEBOTS_REWARD_SAFETY_WEIGHT" not in first_eval
     assert first_eval["WEBOTS_EVAL_SPLIT"] == "validation"
     assert first_eval["WEBOTS_EVAL_RUN_NAME"] == (
-        "webots_validation_seed11_curriculum_v2_r1"
+        "webots_validation_r1_final_step50_seed11"
     )
+    assert first_eval["WEBOTS_EVAL_PLANNER_LABEL"] == "ppo_r1_step50"
 
 
 def test_preferred_resume_ignores_endpoint_then_uses_new_stage_checkpoint(
@@ -707,3 +1105,45 @@ def test_stage_completion_matches_scenario_not_just_obstacle_count(tmp_path: Pat
     ]
     assert r1_matches == [r1_model]
     assert r2_matches == [r2_model]
+
+
+def test_completed_formal_curriculum_records_training_time_checkpoint_sidecars(
+    tmp_path: Path,
+) -> None:
+    selected = _build_model_manifest(tmp_path, 11, checkpoint=True)
+    selected_sidecar = tmp_path / selected.model_provenance_path
+    selected_sidecar.unlink()
+    curriculum_path = tmp_path / selected.curriculum_manifest_path
+    manifest = yaml.safe_load(curriculum_path.read_text(encoding="utf-8"))
+    w2 = manifest["stages"][2]
+    w2.pop("artifact_provenance")
+    w2["stage_start_steps"] = 200_000
+    w2["training"] = {
+        "metadata": selected.training_metadata_path,
+        "final_model_steps": 500_000,
+    }
+    curriculum_path.write_text(
+        yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8"
+    )
+
+    runner = object.__new__(WebotsCurriculumRunner)
+    runner.repository_root = tmp_path.resolve()
+    runner.config = make_config(
+        make_stage("W0"),
+        make_stage("W1", obstacles=1),
+        make_stage("W2", obstacles=3),
+    )
+    runner.dry_run = False
+    runner.seed = 11
+    runner.manifest_path = curriculum_path
+    runner.manifest = manifest
+
+    runner._record_formal_w2_artifact_provenance()
+
+    records = runner.manifest["stages"][2]["artifact_provenance"]
+    assert len(records) == 2
+    assert {record["model_path"] for record in records} == {
+        selected.model_path,
+        "artifacts/models/webots/seed_11/ppo_webots_s11_step000500000.zip",
+    }
+    assert all((tmp_path / record["provenance_path"]).is_file() for record in records)

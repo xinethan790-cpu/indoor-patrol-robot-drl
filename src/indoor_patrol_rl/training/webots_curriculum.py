@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -20,7 +21,12 @@ import yaml
 _MODEL_STEP_PATTERN = re.compile(r"step(?P<steps>\d+)\.zip$")
 _CHECKPOINT_STEP_PATTERN = re.compile(r"_(?P<steps>\d+)_steps\.zip$")
 _MODEL_VARIANT_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
+_EVALUATION_RUN_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
+_SHA256_PATTERN = re.compile(r"[0-9a-fA-F]{64}")
 _CONTROLLER_ENV_PATTERN = re.compile(r"WEBOTS_[A-Z0-9_]+")
+_RUN_MANIFEST_SCHEMA_VERSION = 2
+_DEFAULT_TRAINING_WORLD = "webots_ppo_train.wbt"
+_EVALUATION_WORLD = "webots_ppo_evaluate.wbt"
 _EVALUATION_SHARED_ENV = frozenset(
     {
         "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH",
@@ -30,6 +36,7 @@ _EVALUATION_SHARED_ENV = frozenset(
         "WEBOTS_VERTICAL_ROUTE_HALF_LENGTH",
     }
 )
+_EXPECTED_NOT_SET = object()
 
 
 @dataclass(frozen=True)
@@ -61,16 +68,34 @@ class WebotsStage:
     gate: ValidationGate
     controller_env: Mapping[str, str] | None = None
     preferred_resume_model: Path | None = None
+    world: str = _DEFAULT_TRAINING_WORLD
 
     def __post_init__(self) -> None:
         if not self.stage_id or not self.name:
             raise ValueError("A Webots curriculum stage must have an id and name.")
+        if re.fullmatch(r"[A-Za-z0-9]+", self.stage_id) is None:
+            raise ValueError(
+                "A Webots curriculum stage id must contain only letters and digits so "
+                "its validation result can be consumed by checkpoint selection."
+            )
         if not 0 <= self.obstacle_count <= 3:
             raise ValueError("Webots obstacle_count must be between zero and three.")
         if self.training_steps <= 0:
             raise ValueError("Webots training_steps must be positive.")
         if self.controller_env is not None and not isinstance(self.controller_env, Mapping):
             raise ValueError("controller_env must be a mapping.")
+        if not isinstance(self.world, str) or not self.world:
+            raise ValueError("A Webots curriculum stage world must be a non-empty string.")
+        world = self.world.replace("\\", "/")
+        world_path = Path(world)
+        if (
+            world in {".", ".."}
+            or world_path.is_absolute()
+            or ".." in world_path.parts
+            or re.match(r"^[A-Za-z]:/", world)
+        ):
+            raise ValueError("A Webots curriculum stage world must be relative to worlds/.")
+        object.__setattr__(self, "world", world_path.as_posix())
         controller_env = normalize_controller_env(self.controller_env or {})
         object.__setattr__(self, "controller_env", controller_env)
 
@@ -93,13 +118,10 @@ class WebotsCurriculumConfig:
         stage_ids = [stage.stage_id for stage in self.stages]
         if len(stage_ids) != len(set(stage_ids)):
             raise ValueError("Webots curriculum stage ids must be unique.")
-        if self.model_variant and _MODEL_VARIANT_PATTERN.fullmatch(self.model_variant) is None:
-            raise ValueError(
-                "model_variant may contain only letters, digits, '.', '_' and '-'."
-            )
+        _validate_model_variant(self.model_variant)
         for stage in self.stages:
             stage_variant = stage.controller_env.get("WEBOTS_MODEL_VARIANT")
-            if stage_variant and stage_variant != self.model_variant:
+            if stage_variant is not None and stage_variant != self.model_variant:
                 raise ValueError(
                     f"Stage {stage.stage_id} WEBOTS_MODEL_VARIANT must match model_variant."
                 )
@@ -132,6 +154,39 @@ def utc_now() -> str:
 def _mapping(value: Any, label: str) -> Mapping[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be a mapping.")
+    return value
+
+
+def _validate_model_variant(model_variant: str | None) -> None:
+    if model_variant is None:
+        return
+    if not isinstance(model_variant, str):
+        raise ValueError("model_variant must be a string when provided.")
+    if (
+        model_variant in {"", ".", ".."}
+        or "/" in model_variant
+        or "\\" in model_variant
+        or _MODEL_VARIANT_PATTERN.fullmatch(model_variant) is None
+    ):
+        raise ValueError(
+            "model_variant must be a non-empty path-safe name containing only "
+            "letters, digits, '.', '_' and '-'."
+        )
+
+
+def validate_evaluation_run_name(value: str) -> str:
+    """Return one path-safe result directory name, rejecting dot-directory escapes."""
+
+    if (
+        not isinstance(value, str)
+        or value in {"", ".", ".."}
+        or "/" in value
+        or "\\" in value
+        or _EVALUATION_RUN_NAME_PATTERN.fullmatch(value) is None
+    ):
+        raise ValueError(
+            "WEBOTS_EVAL_RUN_NAME must be one non-empty path-safe directory name."
+        )
     return value
 
 
@@ -227,10 +282,13 @@ def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
                     if raw_stage.get("preferred_resume_model")
                     else None
                 ),
+                world=raw_stage.get("world", _DEFAULT_TRAINING_WORLD),
             )
         )
     model_variant_value = raw.get("model_variant")
-    model_variant = str(model_variant_value) if model_variant_value else None
+    if model_variant_value is not None and not isinstance(model_variant_value, str):
+        raise ValueError("model_variant must be a string when provided.")
+    model_variant = model_variant_value
     policy_transfer_value = raw.get("policy_transfer_model")
     return WebotsCurriculumConfig(
         transfer_model=Path(str(raw["transfer_model"])),
@@ -576,8 +634,61 @@ def relative_artifact_path(path: Path, repository_root: Path) -> str:
         return str(path.absolute())
 
 
-def load_validation_metrics(summary_path: Path) -> dict[str, float | int]:
-    """Read the single-planner Webots summary and verify it is validation data."""
+def _semantic_relative_path(path: Path | None, repository_root: Path) -> str | None:
+    """Normalize a configured artifact path relative to the repository for hashing."""
+
+    if path is None:
+        return None
+    root = repository_root.resolve()
+    candidate = path if path.is_absolute() else root / path
+    try:
+        relative = os.path.relpath(candidate.resolve(), root)
+    except ValueError as error:
+        raise ValueError(
+            f"Configured path {path!s} cannot be made relative to repository_root."
+        ) from error
+    return relative.replace("\\", "/")
+
+
+def _semantic_config_sha256(payload: Mapping[str, Any]) -> str:
+    """Hash semantic configuration with a stable, whitespace-free JSON encoding."""
+
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def load_validation_metrics(
+    summary_path: Path,
+    *,
+    repository_root: Path | None = None,
+    expected_model_path: Path | None = None,
+    expected_model_sha256: str | None = None,
+    expected_training_seed: int | None = None,
+    expected_model_variant: object = _EXPECTED_NOT_SET,
+    expected_condition: str | None = None,
+    expected_planner: str | None = None,
+    expected_seed_start: int | None = None,
+    expected_episodes: int | None = None,
+) -> dict[str, float | int]:
+    """Read validation metrics and, when requested, enforce full evaluation provenance.
+
+    The optional strict contract keeps the standalone parser backward compatible while
+    allowing the curriculum runner to reject a fresh-looking summary produced by the
+    wrong model, seed, condition, variant, or scenario seed range.
+    """
 
     with summary_path.open(encoding="utf-8") as stream:
         raw = _mapping(json.load(stream), "Webots validation summary")
@@ -594,6 +705,122 @@ def load_validation_metrics(summary_path: Path) -> dict[str, float | int]:
     }
     if metrics["episodes"] <= 0:
         raise ValueError("Webots validation summary contains no episodes.")
+
+    strict_contract = any(
+        value is not None
+        for value in (
+            repository_root,
+            expected_model_path,
+            expected_model_sha256,
+            expected_training_seed,
+            expected_condition,
+            expected_planner,
+            expected_seed_start,
+            expected_episodes,
+        )
+    ) or expected_model_variant is not _EXPECTED_NOT_SET
+    if not strict_contract:
+        return metrics
+    required = {
+        "repository_root": repository_root,
+        "expected_model_path": expected_model_path,
+        "expected_training_seed": expected_training_seed,
+        "expected_condition": expected_condition,
+        "expected_planner": expected_planner,
+        "expected_seed_start": expected_seed_start,
+        "expected_episodes": expected_episodes,
+    }
+    missing = [name for name, value in required.items() if value is None]
+    if missing or expected_model_variant is _EXPECTED_NOT_SET:
+        missing.extend(
+            ["expected_model_variant"]
+            if expected_model_variant is _EXPECTED_NOT_SET
+            else []
+        )
+        raise ValueError(f"Strict Webots validation contract is incomplete: {missing}")
+
+    assert repository_root is not None
+    assert expected_model_path is not None
+    assert expected_seed_start is not None
+    assert expected_episodes is not None
+    root = repository_root.resolve()
+    model_path = expected_model_path.resolve()
+    try:
+        model_path.relative_to(root)
+    except ValueError as error:
+        raise ValueError("The expected validation model must be inside the repository.") from error
+    if not model_path.is_file():
+        raise FileNotFoundError(f"Expected validation model does not exist: {model_path}")
+    actual_model_sha256 = _sha256_file(model_path)
+    if expected_model_sha256 is not None and (
+        _SHA256_PATTERN.fullmatch(expected_model_sha256) is None
+        or actual_model_sha256 != expected_model_sha256.casefold()
+    ):
+        raise ValueError("The validation model changed after evaluation was launched.")
+
+    provenance = _mapping(raw.get("evaluation_provenance"), "evaluation_provenance")
+    if provenance.get("schema_version") != 1:
+        raise ValueError("evaluation_provenance.schema_version must be 1.")
+    raw_model_path = provenance.get("model_path")
+    if not isinstance(raw_model_path, str) or not raw_model_path:
+        raise ValueError("evaluation_provenance.model_path must be a non-empty string.")
+    provenance_model_path = Path(raw_model_path)
+    if provenance_model_path.is_absolute():
+        raise ValueError("evaluation_provenance.model_path must be repository-relative.")
+    resolved_provenance_model = (root / provenance_model_path).resolve()
+    try:
+        resolved_provenance_model.relative_to(root)
+    except ValueError as error:
+        raise ValueError("evaluation_provenance.model_path escapes the repository.") from error
+    if resolved_provenance_model != model_path:
+        raise ValueError("Validation summary was produced by a different model path.")
+    provenance_sha256 = provenance.get("model_sha256")
+    if not isinstance(provenance_sha256, str) or (
+        _SHA256_PATTERN.fullmatch(provenance_sha256) is None
+        or provenance_sha256.casefold() != actual_model_sha256
+    ):
+        raise ValueError("Validation summary model SHA-256 does not match the expected model.")
+    training_seed = provenance.get("training_seed")
+    if isinstance(training_seed, bool) or training_seed != expected_training_seed:
+        raise ValueError("Validation summary training_seed does not match the curriculum seed.")
+    if provenance.get("model_variant") != expected_model_variant:
+        raise ValueError("Validation summary model_variant does not match the curriculum.")
+    if provenance.get("split") != "validation":
+        raise ValueError("Validation provenance split must be validation.")
+    if provenance.get("condition_id") != expected_condition:
+        raise ValueError("Validation summary condition does not match the curriculum stage.")
+
+    expected_seed_values = list(
+        range(
+            expected_seed_start,
+            expected_seed_start + expected_episodes,
+        )
+    )
+    if provenance.get("scenario_seed_start") != expected_seed_start:
+        raise ValueError("Validation summary scenario_seed_start does not match the gate.")
+    if provenance.get("scenario_seed_count") != expected_episodes:
+        raise ValueError("Validation summary scenario_seed_count does not match the gate.")
+    if provenance.get("scenario_seeds") != expected_seed_values:
+        raise ValueError("Validation summary scenario_seeds do not match the fixed gate seeds.")
+
+    if raw.get("episode_count") != expected_episodes or metrics["episodes"] != expected_episodes:
+        raise ValueError("Validation summary episode count does not exactly match the gate.")
+    if raw.get("planners") != [expected_planner]:
+        raise ValueError("Validation summary planner does not match the checkpoint identity.")
+    if raw.get("conditions") != [expected_condition]:
+        raise ValueError("Validation summary condition list does not match the stage.")
+    if planner.get("planner") != expected_planner:
+        raise ValueError("Validation aggregate planner does not match the checkpoint identity.")
+    by_condition = raw.get("by_planner_condition")
+    if not isinstance(by_condition, list) or len(by_condition) != 1:
+        raise ValueError("Validation summary must contain one planner-condition aggregate.")
+    condition_group = _mapping(by_condition[0], "Webots planner-condition summary")
+    if (
+        condition_group.get("planner") != expected_planner
+        or condition_group.get("condition_id") != expected_condition
+        or condition_group.get("episodes") != expected_episodes
+    ):
+        raise ValueError("Validation planner-condition aggregate does not match the gate.")
     return metrics
 
 
@@ -643,21 +870,105 @@ class WebotsCurriculumRunner:
         self.episodes_override = episodes_override
         self.seed_start_override = seed_start_override
         self.reserved_ports: set[int] = set()
+        self.curriculum_config = self._semantic_config()
+        self.curriculum_config_sha256 = _semantic_config_sha256(
+            self.curriculum_config
+        )
         self.manifest = self._load_or_create_manifest()
+
+    def _semantic_config(self) -> dict[str, Any]:
+        """Return every configured input that can change training, gates, or resume."""
+
+        stages = []
+        for stage in self.config.stages:
+            stages.append(
+                {
+                    "id": stage.stage_id,
+                    "name": stage.name,
+                    "world": stage.world,
+                    "obstacle_count": stage.obstacle_count,
+                    "training_steps": stage.training_steps,
+                    "gate": {
+                        "seed_start": stage.gate.seed_start,
+                        "episodes": stage.gate.episodes,
+                        "min_success_rate": stage.gate.min_success_rate,
+                        "max_collision_rate": stage.gate.max_collision_rate,
+                    },
+                    "controller_env": dict(sorted(stage.controller_env.items())),
+                    "preferred_resume_model": _semantic_relative_path(
+                        stage.preferred_resume_model, self.repository_root
+                    ),
+                }
+            )
+        return {
+            "semantic_schema_version": 1,
+            "seed": self.seed,
+            "transfer_model": _semantic_relative_path(
+                self.config.transfer_model, self.repository_root
+            ),
+            "policy_transfer_model": _semantic_relative_path(
+                self.config.policy_transfer_model, self.repository_root
+            ),
+            "model_variant": self.config.model_variant,
+            "port_base": self.config.port_base,
+            "automatic_split": "validation",
+            "evaluation_world": _EVALUATION_WORLD,
+            "gate_overrides": {
+                "seed_start": self.seed_start_override,
+                "episodes": self.episodes_override,
+                "min_success_rate": self.success_rate_override,
+                "max_collision_rate": self.collision_rate_override,
+            },
+            "stages": stages,
+        }
 
     def _load_or_create_manifest(self) -> dict[str, Any]:
         if self.manifest_path.is_file():
             raw = yaml.safe_load(self.manifest_path.read_text(encoding="utf-8"))
             manifest = dict(_mapping(raw, "run manifest"))
+            schema_version = manifest.get("schema_version")
+            if schema_version != _RUN_MANIFEST_SCHEMA_VERSION:
+                raise ValueError(
+                    "Existing run manifest is legacy or unsupported: schema_version "
+                    f"{schema_version!r} lacks the required schema_version 2 semantic "
+                    "configuration fingerprint; refusing unsafe resume."
+                )
+            stored_sha256 = manifest.get("curriculum_config_sha256")
+            if (
+                not isinstance(stored_sha256, str)
+                or _SHA256_PATTERN.fullmatch(stored_sha256) is None
+            ):
+                raise ValueError(
+                    "Existing schema_version 2 run manifest is missing a valid "
+                    "curriculum_config_sha256; refusing unsafe resume."
+                )
+            stored_config = manifest.get("curriculum_config")
+            if not isinstance(stored_config, dict):
+                raise ValueError(
+                    "Existing schema_version 2 run manifest is missing the semantic "
+                    "curriculum_config snapshot; refusing unsafe resume."
+                )
+            if _semantic_config_sha256(stored_config) != stored_sha256.casefold():
+                raise ValueError(
+                    "Existing run manifest curriculum_config does not match its "
+                    "curriculum_config_sha256; refusing unsafe resume."
+                )
             if int(manifest.get("seed", -1)) != self.seed:
                 raise ValueError("Existing manifest seed does not match --seed.")
+            if stored_sha256.casefold() != self.curriculum_config_sha256:
+                raise ValueError(
+                    "Existing manifest curriculum configuration fingerprint does not "
+                    "match the current configuration; refusing unsafe resume."
+                )
             if manifest.get("model_variant") != self.config.model_variant:
                 raise ValueError("Existing manifest model_variant does not match the config.")
             return manifest
         return {
-            "schema_version": 1,
+            "schema_version": _RUN_MANIFEST_SCHEMA_VERSION,
             "seed": self.seed,
             "model_variant": self.config.model_variant,
+            "curriculum_config_sha256": self.curriculum_config_sha256,
+            "curriculum_config": self.curriculum_config,
             "created_at": utc_now(),
             "updated_at": utc_now(),
             "status": "planned" if self.dry_run else "running",
@@ -680,6 +991,75 @@ class WebotsCurriculumRunner:
             encoding="utf-8",
         )
 
+    def _record_formal_w2_artifact_provenance(self) -> None:
+        """Create training-time sidecars for every immutable W2 model artifact."""
+
+        if self.dry_run or [stage.stage_id for stage in self.config.stages] != [
+            "W0",
+            "W1",
+            "W2",
+        ]:
+            return
+        from indoor_patrol_rl.evaluation.formal_protocol import (
+            file_sha256,
+            write_or_validate_model_provenance,
+        )
+
+        matching = [
+            record for record in self.manifest["stages"] if record.get("id") == "W2"
+        ]
+        if len(matching) != 1:
+            raise ValueError("Completed formal curriculum must contain exactly one W2 record.")
+        record = matching[0]
+        training = _mapping(record.get("training"), "W2 training record")
+        metadata_value = training.get("metadata")
+        if not isinstance(metadata_value, str) or not metadata_value:
+            raise ValueError("Completed W2 training must record its immutable metadata path.")
+        metadata_path = (self.repository_root / metadata_value).resolve()
+        stage_start = int(record["stage_start_steps"])
+        final_steps = int(training["final_model_steps"])
+        snapshots = discover_model_snapshots(
+            self.repository_root, self.seed, self.config.model_variant
+        )
+        candidates = sorted(
+            (
+                snapshot
+                for snapshot in snapshots
+                if stage_start < snapshot.steps <= final_steps
+                and (
+                    _CHECKPOINT_STEP_PATTERN.search(snapshot.path.name) is not None
+                    or _MODEL_STEP_PATTERN.search(snapshot.path.name) is not None
+                )
+            ),
+            key=lambda item: (item.steps, item.path.as_posix()),
+        )
+        if not candidates:
+            raise ValueError("Completed W2 training has no immutable model artifacts.")
+        provenance_records: list[dict[str, str]] = []
+        for snapshot in candidates:
+            provenance_path, _payload = write_or_validate_model_provenance(
+                repository_root=self.repository_root,
+                training_seed=self.seed,
+                model_path=snapshot.path,
+                metadata_path=metadata_path,
+                curriculum_manifest_path=self.manifest_path.with_suffix(".yaml"),
+                allow_create=True,
+            )
+            provenance_records.append(
+                {
+                    "model_path": relative_artifact_path(
+                        snapshot.path, self.repository_root
+                    ).replace("\\", "/"),
+                    "model_sha256": file_sha256(snapshot.path),
+                    "provenance_path": relative_artifact_path(
+                        provenance_path, self.repository_root
+                    ).replace("\\", "/"),
+                    "provenance_sha256": file_sha256(provenance_path),
+                }
+            )
+        record["artifact_provenance"] = provenance_records
+        self._write_manifest()
+
     def _stage_record(self, stage: WebotsStage) -> dict[str, Any]:
         records = self.manifest["stages"]
         for record in records:
@@ -688,6 +1068,7 @@ class WebotsCurriculumRunner:
         record = {
             "id": stage.stage_id,
             "name": stage.name,
+            "world": stage.world,
             "obstacle_count": stage.obstacle_count,
             "training_steps": stage.training_steps,
             "controller_env": dict(stage.controller_env),
@@ -754,18 +1135,24 @@ class WebotsCurriculumRunner:
         )
         return int(completed.returncode)
 
-    def _evaluation_run_name(self, stage: WebotsStage) -> str:
-        configured = stage.controller_env.get("WEBOTS_EVAL_RUN_NAME")
-        if configured:
-            if Path(configured).name != configured:
-                raise ValueError("WEBOTS_EVAL_RUN_NAME must be a single directory name.")
-            return configured
-        if self.config.model_variant:
-            return (
-                f"webots_validation_seed{self.seed}_{self.config.model_variant}_"
-                f"{stage.stage_id.lower()}"
+    def _evaluation_run_name(self, stage: WebotsStage, model: ModelSnapshot) -> str:
+        """Build the exact result identity consumed by checkpoint selection."""
+
+        encoded_steps = model_steps_from_path(model.path)
+        if encoded_steps is not None and encoded_steps != model.steps:
+            raise ValueError(
+                f"Validation model filename encodes {encoded_steps} steps, "
+                f"but the snapshot records {model.steps}."
             )
-        return f"webots_validation_seed{self.seed}_obstacles{stage.obstacle_count}"
+        kind = (
+            "checkpoint"
+            if _CHECKPOINT_STEP_PATTERN.search(model.path.name) is not None
+            else "final_step"
+        )
+        return validate_evaluation_run_name(
+            f"webots_validation_{stage.stage_id.casefold()}_{kind}{model.steps}_"
+            f"seed{self.seed}"
+        )
 
     def _expected_result_directory(self, run_name: str) -> Path:
         return self.repository_root / "artifacts/results" / run_name
@@ -952,7 +1339,7 @@ class WebotsCurriculumRunner:
         )
         remaining_steps = max(1, stage.training_steps - progressed_steps)
         port = choose_available_port(self.config.port_base, self.reserved_ports)
-        command = self._webots_command(port, "webots_ppo_train.wbt")
+        command = self._webots_command(port, stage.world)
         overrides = dict(stage.controller_env)
         overrides.update(
             {
@@ -1049,8 +1436,10 @@ class WebotsCurriculumRunner:
     ) -> bool:
         gate = self._gate_for(stage)
         port = choose_available_port(self.config.port_base, self.reserved_ports)
-        command = self._webots_command(port, "webots_ppo_evaluate.wbt")
-        run_name = self._evaluation_run_name(stage)
+        command = self._webots_command(port, _EVALUATION_WORLD)
+        run_name = self._evaluation_run_name(stage, model)
+        planner_label = f"ppo_{stage.stage_id.casefold()}_step{model.steps}"
+        model_sha256 = None if self.dry_run else _sha256_file(model.path)
         overrides = evaluation_controller_env(stage.controller_env)
         overrides.update(
             {
@@ -1062,21 +1451,20 @@ class WebotsCurriculumRunner:
                 "WEBOTS_EVAL_SEED_START": str(gate.seed_start),
                 "WEBOTS_EVAL_SPLIT": "validation",
                 "WEBOTS_EVAL_CONDITION": stage.stage_id,
+                "WEBOTS_EVAL_PLANNER_LABEL": planner_label,
                 "WEBOTS_EVAL_RUN_NAME": run_name,
                 "WEBOTS_OBSTACLE_COUNT": str(stage.obstacle_count),
             }
         )
         if self.config.model_variant:
-            overrides.setdefault(
-                "WEBOTS_EVAL_PLANNER_LABEL",
-                f"ppo_seed{self.seed}_{self.config.model_variant}_{stage.stage_id.lower()}",
-            )
+            overrides["WEBOTS_MODEL_VARIANT"] = self.config.model_variant
         validation = {
             "started_at": utc_now(),
             "command": command,
             "environment": overrides,
             "port": port,
             "model": relative_artifact_path(model.path, self.repository_root),
+            "model_sha256": model_sha256,
             "gate": {
                 "episodes": gate.episodes,
                 "min_success_rate": gate.min_success_rate,
@@ -1116,7 +1504,18 @@ class WebotsCurriculumRunner:
             self._write_manifest()
             return False
         try:
-            metrics = load_validation_metrics(summary_path)
+            metrics = load_validation_metrics(
+                summary_path,
+                repository_root=self.repository_root,
+                expected_model_path=model.path,
+                expected_model_sha256=model_sha256,
+                expected_training_seed=self.seed,
+                expected_model_variant=self.config.model_variant,
+                expected_condition=stage.stage_id,
+                expected_planner=planner_label,
+                expected_seed_start=gate.seed_start,
+                expected_episodes=gate.episodes,
+            )
         except (OSError, ValueError, json.JSONDecodeError) as error:
             validation["status"] = "summary_invalid"
             validation["error"] = str(error)
@@ -1200,4 +1599,5 @@ class WebotsCurriculumRunner:
 
         self.manifest["status"] = "planned" if self.dry_run else "completed"
         self._write_manifest()
+        self._record_formal_w2_artifact_provenance()
         return 0

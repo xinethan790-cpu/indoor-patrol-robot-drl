@@ -88,9 +88,13 @@ def main() -> None:
         obstacle_count = int(os.environ.get("WEBOTS_OBSTACLE_COUNT", "1"))
         safety_shield_enabled = environment_flag("WEBOTS_SAFETY_SHIELD")
         model_variant = os.environ.get("WEBOTS_MODEL_VARIANT", "").strip()
-        if model_variant and re.fullmatch(r"[A-Za-z0-9_.-]+", model_variant) is None:
+        if model_variant in {".", ".."} or (
+            model_variant
+            and re.fullmatch(r"[A-Za-z0-9_.-]+", model_variant) is None
+        ):
             raise ValueError(
-                "WEBOTS_MODEL_VARIANT may contain only letters, digits, '.', '_' and '-'."
+                "WEBOTS_MODEL_VARIANT must be a path-safe single name containing only "
+                "letters, digits, '.', '_' and '-'."
             )
         obstacle_speed_range = (
             float(os.environ.get("WEBOTS_OBSTACLE_SPEED_MIN", "0.20")),

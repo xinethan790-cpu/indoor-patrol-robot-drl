@@ -334,12 +334,19 @@ def summarize_records(records: Sequence[EpisodeRecord]) -> dict[str, Any]:
     }
 
 
-def write_benchmark_outputs(output_dir: Path, records: list[EpisodeRecord]) -> dict[str, Any]:
+def write_benchmark_outputs(
+    output_dir: Path,
+    records: list[EpisodeRecord],
+    *,
+    provenance: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Write the required raw episode table and machine-readable aggregate."""
 
     output_dir.mkdir(parents=True, exist_ok=True)
     write_episode_records(output_dir / "episodes.csv", records)
     summary = summarize_records(records)
+    if provenance is not None:
+        summary["evaluation_provenance"] = dict(provenance)
     (output_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

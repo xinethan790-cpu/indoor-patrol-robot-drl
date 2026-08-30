@@ -85,6 +85,7 @@ def test_generate_benchmark_report_writes_deterministic_artifacts(tmp_path: Path
     assert "成功率" in first_contents[0]
     assert "平均完成时间" in first_contents[1]
     assert "SHA-256" in first_contents[2]
+    assert f"--input-dir {summary_path.parent.as_posix()}" in first_contents[2]
 
 
 def test_generate_benchmark_report_rejects_csv_summary_count_mismatch(
