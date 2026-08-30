@@ -1,0 +1,63 @@
+schema_version: 1
+experiment_id: webots_formal_g0_g3_v1
+webots_version: R2025a
+world: worlds/webots_ppo_evaluate.wbt
+split: test
+
+ppo_training_seeds: [11, 22, 33]
+
+scenario_seeds:
+  start: 10000
+  count: 20
+
+planners:
+  - reactive
+  - dwa
+  - ppo_seed11
+  - ppo_seed22
+  - ppo_seed33
+
+conditions:
+  - id: G0
+    description: training-layout and nominal dynamic obstacles
+    static_layout: train_a
+    obstacle_count: 3
+    obstacle_cross_lanes: null
+    obstacle_speed_range: [0.20, 0.42]
+    horizontal_route_half_length: 1.55
+    vertical_route_half_length: 1.10
+  - id: G1
+    description: unseen static layout with nominal dynamic obstacles
+    static_layout: unseen_b
+    obstacle_count: 3
+    obstacle_cross_lanes: null
+    obstacle_speed_range: [0.20, 0.42]
+    horizontal_route_half_length: 1.55
+    vertical_route_half_length: 1.10
+  - id: G2
+    description: training-layout with deterministic five-lane higher dynamic-obstacle density
+    static_layout: train_a
+    obstacle_count: 5
+    obstacle_cross_lanes: [0.00, -0.39, 0.39, 0.75, -0.77]
+    obstacle_speed_range: [0.20, 0.42]
+    horizontal_route_half_length: 1.55
+    vertical_route_half_length: 1.10
+  - id: G3
+    description: training-layout with faster dynamic obstacles
+    static_layout: train_a
+    obstacle_count: 3
+    obstacle_cross_lanes: null
+    obstacle_speed_range: [0.45, 0.85]
+    horizontal_route_half_length: 1.55
+    vertical_route_half_length: 1.10
+
+control:
+  action_repeat: 4
+  max_episode_steps: 300
+  max_linear_speed: 0.22
+  max_angular_speed: 1.50
+  max_linear_acceleration: 0.50
+  max_angular_acceleration: 3.00
+
+required_runs: 20
+required_episode_count: 400

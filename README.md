@@ -20,9 +20,21 @@
 - [x] 完成 Webots 真实传感器到 PPO 模型保存的短链路验证
 - [x] 完成 seed 11 的 811,008-step 运动学课程训练和阶段模型选择
 - [x] 完成 Reactive、DWA、PPO 的 240 回合运动学统一验证基准
+- [x] 实现三训练 seed、验证证据锁、一次性测试 ledger 和 400 回合汇总的正式实验协议
 - [ ] 完成 Webots 三 seed 正式训练、统一批量评测、泛化和奖励消融
 
 轻量二维环境不是最终实验平台。它用于快速验证状态、动作、奖励、随机种子、训练和测试代码，并为 Webots 提供策略热启动。当前验证集选择的是 stage 2（557,056 steps），不是训练最久的 stage 3；完整选择依据见[当前实验进展](reports/current-progress.md)。正式论文效果结论仍以 Webots 批量实验为准。
+
+正式 Webots 实验的**执行协议已经实现，但正式结果尚未产生**。固定流程为：分别用 `11、22、33` 三个训练 seed 训练和验证 PPO；在 clean Git revision 上将三个模型的训练期 sidecar、训练元数据、W0～W2 课程 manifest、验证选择 manifest 和逐回合验证 CSV 与正式配置、world、evaluator、controller 及完整 source bundle 一起绑定到不可覆盖的 FinalLock v2；先执行不消耗测试机会的 `--dry-run`；最后才对 `10000～10019` held-out seeds 运行一次 `G0～G3 ×（Reactive、DWA、PPO-seed11、PPO-seed22、PPO-seed33）= 20` 个 Webots 调用、共 400 回合。当前仓库没有可引用为论文结论的这 400 回合正式 Webots 输出，详见[训练复现协议](docs/training-protocol.md)和[当前实验进展](reports/current-progress.md)。
+
+创建 final lock 时，每个 seed 的 `--model-evidence` 必须依次提供 `SEED MODEL METADATA CURRICULUM SELECTION VALIDATION_EPISODES` 六个值。训练期 `.formal-provenance.json` sidecar 不是第七个命令行参数；它必须已由 W2 训练生成并被课程 manifest 登记，create-lock 只做定位和复核，不会事后补写。
+
+## 可审计模型选择与安全过滤
+
+- Webots 评测汇总会绑定实际模型路径、variant 与 SHA-256；checkpoint 只能在 `validation` 数据上通过门禁后写入选择 manifest。正式巡检还固定要求至少 20 回合、成功率不低于 0.75、碰撞率不高于 0.15，并在加载时复核 manifest 指标和模型哈希。可变的 `latest`、运动学热启动和显式模型都不会被静默当成正式模型，探索运行必须设置 `WEBOTS_PATROL_ALLOW_UNVALIDATED_MODEL=1`。完整命令见[训练复现协议](docs/training-protocol.md)。
+- Webots 环境已接入可选的 LiDAR safety shield，记录策略动作、过滤后动作、实际执行动作和介入指标。它是默认关闭的应用层启发式过滤，不是形式化安全保证；当前也尚无开启/关闭的受控消融，因此不能宣称它已经改善正式指标。
+
+正式测试不能通过手工设置 `WEBOTS_EVAL_SPLIT=test` 绕过协议。推荐入口是 `scripts/run_webots_formal_test.py`：它校验 clean Git revision、配置/模型/验证证据哈希和 final lock，拒绝已有输出。消费键只由固定的受保护测试协议派生，不包含 campaign、模型、输出目录或时间戳；同一协议的所有 campaign 共用唯一的 `artifacts/results/formal_ledgers/protected_test_<consumption-key>.json`，自定义 ledger 路径会被拒绝。`--dry-run --confirm-test` 会只读探测 Webots 版本与可执行文件哈希，读取并复核 lock 绑定的 world 文件哈希，再打印并校验 20 个调用；它不启动 Webots 仿真、不会让模拟器打开 world，也不创建 ledger 或消耗测试机会。去掉 `--dry-run` 后，runner 会把 runtime evidence 与 `attempt` 原子写入全局 ledger；之后无论终态为 `success` 还是 `invalidated`，都不能通过改 campaign、输出目录或 lock 获得第二次机会。
 
 ## 系统边界
 
@@ -114,7 +126,7 @@ python scripts/benchmark_kinematic.py --split validation \
   --output-dir artifacts/results/kinematic_validation_seed11
 ```
 
-当前 240 回合运动学验证的成功率/碰撞率为：Reactive `0.725/0.275`、DWA `0.575/0.375`、PPO stage 2 `0.6875/0.3125`。这组结果用于开发期比较，不能包装成最终 Webots 结论。Webots 正式训练、恢复、验证和最终测试门禁命令见[训练复现协议](docs/training-protocol.md)。
+当前 240 回合运动学验证的成功率/碰撞率为：Reactive `0.725/0.275`、DWA `0.575/0.375`、PPO stage 2 `0.7625/0.2375`。PPO 在当前固定验证集上的总体指标最好，但这组结果只用于开发期比较，不能包装成最终 Webots 结论。Webots 正式训练、恢复、验证和最终测试门禁命令见[训练复现协议](docs/training-protocol.md)。
 
 打开 Webots 动态避障演示：
 

@@ -55,6 +55,20 @@ def wrap_angle(angle: float) -> float:
     return (angle + math.pi) % (2.0 * math.pi) - math.pi
 
 
+def environment_flag(name: str, *, default: bool = False) -> bool:
+    """Parse a strict environment boolean for deployment-safety switches."""
+
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    normalized = value.strip().casefold()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be one of 1/0, true/false, yes/no, or on/off.")
+
+
 def main() -> None:
     repository_root = Path(__file__).absolute().parents[2]
     supervisor = Supervisor()
@@ -121,7 +135,18 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             raise RuntimeError("Webots ended while initializing the patrol controller.")
 
     explicit_model = os.environ.get("WEBOTS_PATROL_MODEL")
-    model_selection = select_patrol_model(repository_root, explicit_model)
+    selection_manifest = os.environ.get(
+        "WEBOTS_PATROL_SELECTION_MANIFEST",
+        "artifacts/results/webots_validation_w1_selection_seed11/selection.json",
+    )
+    model_selection = select_patrol_model(
+        repository_root,
+        explicit_model,
+        selection_manifest=selection_manifest or None,
+        allow_unvalidated_fallback=environment_flag(
+            "WEBOTS_PATROL_ALLOW_UNVALIDATED_MODEL"
+        ),
+    )
     model = PPO.load(model_selection.path, device="cpu")
     mapper = DifferentialDriveMapper(0.22, 1.5, 0.033, 0.16, 6.0)
     limiter = VelocityRateLimiter(0.50, 3.0, control_dt)
@@ -147,14 +172,18 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
 
     print(
         f"PATROL_MODEL path={portable_model_path(model_selection.path, repository_root)} "
+        f"sha256={model_selection.model_sha256} "
         f"training_domain={model_selection.training_domain} "
         f"reason={model_selection.selection_reason}",
         flush=True,
     )
-    if model_selection.training_domain != "webots":
+    if (
+        model_selection.training_domain != "webots"
+        or model_selection.selection_reason.startswith("UNVALIDATED")
+    ):
         print(
-            "PATROL_MODEL_WARNING selected model is not Webots-fine-tuned; "
-            "the generated files still report only this Webots run's measured behavior.",
+            "PATROL_MODEL_WARNING selected model is not a formal validation selection; "
+            "the generated files report only this Webots run's measured behavior.",
             flush=True,
         )
 
@@ -244,6 +273,7 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             planner="astar_local_waypoint_ppo",
             scenario_seed=seed,
             model_path=portable_model_path(model_selection.path, repository_root),
+            model_sha256=model_selection.model_sha256,
             model_training_domain=model_selection.training_domain,
             model_selection_reason=model_selection.selection_reason,
             outcome=outcome,  # type: ignore[arg-type]

@@ -17,7 +17,7 @@
 
 全部方法必须使用同一组测试场景。每次训练保存配置、seed、Git commit、Python/依赖/Webots 版本和地图文件哈希。
 
-验证集可以用于选择 checkpoint 和调整超参数，最终测试集不能参与任何选择。运动学脚本要求显式传入 `--confirm-test`，Webots Controller 要求 `WEBOTS_CONFIRM_TEST=1`，以降低开发中误用最终测试 seed 的风险。完整执行命令见[训练复现协议](training-protocol.md)。
+验证集可以用于选择 checkpoint 和调整超参数，最终测试集不能参与任何选择。运动学脚本要求显式传入 `--confirm-test`；正式 Webots held-out test 则必须通过 `scripts/run_webots_formal_test.py` 执行，由 runner 注入 Controller 所需的 test 环境变量，并同时校验 final lock 与 campaign 无关的全局一次性 ledger。完整执行命令见[训练复现协议](training-protocol.md)。
 
 ## 3. 对比方法
 

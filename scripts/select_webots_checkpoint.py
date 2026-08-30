@@ -23,6 +23,12 @@ def _expand_globs(repository_root: Path, patterns: list[str]) -> list[Path]:
     return sorted(paths)
 
 
+def selection_exit_code(selection: dict[str, object]) -> int:
+    """Fail automation when validation produced no gate-passing formal model."""
+
+    return 0 if selection.get("formal_selected") is not None else 2
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -38,6 +44,13 @@ def main() -> int:
     )
     parser.add_argument("--seed", type=int, default=11)
     parser.add_argument("--condition", default="W1")
+    parser.add_argument(
+        "--model-variant",
+        help=(
+            "Optional model variant directory and filename token, for example "
+            "curriculum_v2."
+        ),
+    )
     parser.add_argument("--episodes", type=int, default=20)
     parser.add_argument("--min-success-rate", type=float, default=0.75)
     parser.add_argument("--max-collision-rate", type=float, default=0.15)
@@ -75,18 +88,22 @@ def main() -> int:
     output_directory = args.output_dir or (
         repository_root
         / "artifacts/results"
-        / f"webots_validation_{condition.casefold()}_selection_seed{args.seed}"
+        / (
+            f"webots_validation_{condition.casefold()}_selection_seed{args.seed}"
+            f"{f'_{args.model_variant}' if args.model_variant is not None else ''}"
+        )
     )
     if not output_directory.is_absolute():
         output_directory = repository_root / output_directory
-    gate = CheckpointSelectionGate(
-        seed=args.seed,
-        condition=condition,
-        episodes=args.episodes,
-        min_success_rate=args.min_success_rate,
-        max_collision_rate=args.max_collision_rate,
-    )
     try:
+        gate = CheckpointSelectionGate(
+            seed=args.seed,
+            condition=condition,
+            episodes=args.episodes,
+            min_success_rate=args.min_success_rate,
+            max_collision_rate=args.max_collision_rate,
+            model_variant=args.model_variant,
+        )
         summaries = _expand_globs(repository_root, patterns)
         selection = build_checkpoint_selection(
             summaries,
@@ -116,7 +133,7 @@ def main() -> int:
     print(f"formal selected: {formal['model_path'] if formal is not None else 'none'}")
     print(f"wrote: {json_path}")
     print(f"wrote: {yaml_path}")
-    return 0
+    return selection_exit_code(selection)
 
 
 if __name__ == "__main__":

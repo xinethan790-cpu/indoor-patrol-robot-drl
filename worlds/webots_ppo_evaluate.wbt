@@ -36,6 +36,46 @@ DEF TRAIN_OBSTACLE_2 Solid {
   boundingObject Cylinder { height 0.72 radius 0.18 }
   locked TRUE
 }
+DEF TRAIN_OBSTACLE_3 Solid {
+  translation 0 0 -5
+  children [ Shape { appearance PBRAppearance { baseColor 0.1 0.55 0.9 roughness 0.65 metalness 0 } geometry Cylinder { height 0.72 radius 0.17 } } ]
+  name "TrainingObstacle3"
+  boundingObject Cylinder { height 0.72 radius 0.17 }
+  locked TRUE
+}
+DEF TRAIN_OBSTACLE_4 Solid {
+  translation 0 0 -5
+  children [ Shape { appearance PBRAppearance { baseColor 0.1 0.75 0.45 roughness 0.65 metalness 0 } geometry Cylinder { height 0.72 radius 0.19 } } ]
+  name "TrainingObstacle4"
+  boundingObject Cylinder { height 0.72 radius 0.19 }
+  locked TRUE
+}
+# G0/G2/G3 use the empty training arena.  These three evaluation-only walls
+# form the non-symmetric, held-out G1 layout and start safely below the floor.
+DEF STATIC_UNSEEN_B_0 Solid {
+  translation 0 0 -5
+  rotation 0 0 1 0.20
+  children [ Shape { appearance PBRAppearance { baseColor 0.22 0.25 0.32 roughness 0.85 metalness 0 } geometry Box { size 0.50 0.14 0.50 } } ]
+  name "StaticUnseenB0"
+  boundingObject Box { size 0.50 0.14 0.50 }
+  locked TRUE
+}
+DEF STATIC_UNSEEN_B_1 Solid {
+  translation 0 0 -5
+  rotation 0 0 1 -0.40
+  children [ Shape { appearance PBRAppearance { baseColor 0.30 0.24 0.20 roughness 0.85 metalness 0 } geometry Box { size 0.18 0.45 0.50 } } ]
+  name "StaticUnseenB1"
+  boundingObject Box { size 0.18 0.45 0.50 }
+  locked TRUE
+}
+DEF STATIC_UNSEEN_B_2 Solid {
+  translation 0 0 -5
+  rotation 0 0 1 1.00
+  children [ Shape { appearance PBRAppearance { baseColor 0.25 0.31 0.22 roughness 0.85 metalness 0 } geometry Box { size 0.42 0.14 0.50 } } ]
+  name "StaticUnseenB2"
+  boundingObject Box { size 0.42 0.14 0.50 }
+  locked TRUE
+}
 TurtleBot3Burger {
   translation -1.55 0 0
   name "PatrolRobot"
