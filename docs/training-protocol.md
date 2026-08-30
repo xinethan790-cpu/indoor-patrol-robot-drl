@@ -270,6 +270,43 @@ runner 要求 tracked worktree clean，拒绝覆盖已有结果，并逐 seed �
 Webots 前失败。正式 G0～G3 仍固定 `WEBOTS_SAFETY_SHIELD=0`，并拒绝任何自定义 shield
 阈值；该实现不改变 held-out 协议。
 
+### Recovery-v1 风险诊断后的前向制动配对实验
+
+固定 `20494～20613` 的 120 回合风险诊断正式 v1 结论为 `indeterminate`；使用同一
+extension slot GPS 作为 LiDAR 原点代理的结果只属于 post-hoc sensitivity，不能替代正式
+判定。公开数据、三张图和复现入口见
+[`reports/webots_risk_diagnostic/diagnostic_report.md`](../reports/webots_risk_diagnostic/diagnostic_report.md)。
+
+在读取下一批结果前，`configs/eval/webots_front_brake_paired_diagnostic_v1.yaml` 只冻结一个
+候选：保持 PPO recovery-v1 权重和转向输出不变，在前方 `±60°` 扇区按最小净空将线速度于
+`0.75 m` 开始平滑限制、`0.24 m` 限制为零。参考臂与候选臂全部 shield 参数相同，唯一处理
+差异是 `WEBOTS_SAFETY_SHIELD=0/1`。场景固定为纯处理前协变量搜索得到的首个平衡连续窗
+`25728～25847`：水平/垂直 × 正/反向四格各 30 回合，障碍初始方向各 60 回合；不得扫描
+阈值、追加样本或访问 validation/test。
+
+主效应门槛必须全部满足：碰撞相对下降至少 25%；以 success/non-success 为端点的单侧精确
+McNemar `p < 0.05`；新增 timeout 不超过 2；共同成功至少 24 回合，且逐 seed 的候选/参考
+完成时间比中位数不高于 1.15；两臂 error 均为 0。独立 `shield_evidence.jsonl` 保存每一步
+policy、shielded、executed action、速度上限和介入量。操纵完整性虽不属于主效应门槛，却是
+实验有效性的先决条件：参考臂必须零介入，候选的每个 active step 必须同时是恰好受预注册
+速度上限约束的纯线速度制动并保持角动作；否则报告状态为 `invalid_manipulation`，不能保留候选。
+
+```bash
+python scripts/run_webots_front_brake_diagnostic.py \
+  --config configs/eval/webots_front_brake_paired_diagnostic_v1.yaml \
+  --webots "PATH_TO_WEBOTS_EXECUTABLE" \
+  --dry-run
+
+python scripts/run_webots_front_brake_diagnostic.py \
+  --config configs/eval/webots_front_brake_paired_diagnostic_v1.yaml \
+  --webots "PATH_TO_WEBOTS_EXECUTABLE"
+```
+
+runner 只允许在 clean Git revision 上运行，绑定配置、模型、world、controller、环境、shield、
+证据 schema、直接依赖和 Webots 可执行文件 SHA-256；两臂及最终报告均拒绝覆盖。最终结论仍是
+整个带 admitted-action 反馈的闭环 profile 的配对 ITT 效果，不能把结果夸大为某一阈值的
+独立因果效应，也不能直接写成 validation 或 held-out test 结论。
+
 ### W1 失败后的预声明恢复课程
 
 seed 11 的首次 W1 正式门禁失败后，使用

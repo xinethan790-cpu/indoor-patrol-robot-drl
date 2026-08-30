@@ -295,6 +295,35 @@ def test_nonformal_plan_and_provenance_bind_complete_shield_configuration(
     }
 
 
+def test_shield_evidence_requires_explicit_diagnostic_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    monkeypatch.setenv("WEBOTS_EVAL_SPLIT", "diagnostic")
+    assert EVALUATOR._resolve_plan(REPOSITORY_ROOT).shield_evidence_enabled is False
+
+    monkeypatch.setenv("WEBOTS_EVAL_SHIELD_EVIDENCE", "1")
+    plan = EVALUATOR._resolve_plan(REPOSITORY_ROOT)
+    assert plan.split == "diagnostic"
+    assert plan.shield_evidence_enabled is True
+
+
+def test_validation_and_formal_plans_reject_shield_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    monkeypatch.setenv("WEBOTS_EVAL_SPLIT", "validation")
+    monkeypatch.setenv("WEBOTS_EVAL_SHIELD_EVIDENCE", "1")
+    with pytest.raises(PermissionError, match="restricted to diagnostic"):
+        EVALUATOR._resolve_plan(REPOSITORY_ROOT)
+
+    _set_formal_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("WEBOTS_EVAL_SHIELD_EVIDENCE", "1")
+    with pytest.raises(PermissionError, match="forbids diagnostic shield evidence"):
+        EVALUATOR._resolve_formal_plan(tmp_path)
+
+
 def test_formal_plan_rejects_shield_config_even_when_shield_is_disabled(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

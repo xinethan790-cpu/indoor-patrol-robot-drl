@@ -1183,5 +1183,6 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             "reward_terms": reward_terms,
             "episode_shield_intervention_ratio": self.shield_active_steps / denominator,
             "episode_shield_intervention_mean": self.shield_intervention_sum / denominator,
+            "shield_intervention_epsilon": self.safety_shield.config.intervention_epsilon,
             **shield_info,
         }

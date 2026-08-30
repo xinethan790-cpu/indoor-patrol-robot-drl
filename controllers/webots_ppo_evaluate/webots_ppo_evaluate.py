@@ -30,9 +30,12 @@ from indoor_patrol_rl.evaluation import (
     RISK_TRACE_COORDINATE_SEMANTICS,
     RISK_TRACE_SAMPLE_SEMANTICS,
     RISK_TRACE_WINDOW_STEPS,
+    SHIELD_EVIDENCE_FILENAME,
     EpisodeAccumulator,
+    build_shield_evidence_record,
     write_benchmark_outputs,
     write_episode_context_jsonl,
+    write_shield_evidence_jsonl,
 )
 from indoor_patrol_rl.evaluation.webots_formal_config import (
     DYNAMIC_OBSTACLE_DEFS,
@@ -55,6 +58,7 @@ MODEL_VARIANT_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
 PLANNERS = {"reactive", "dwa", "ppo"}
 DEFAULT_DIAGNOSTIC_SEED_START = 20_000
 EPISODE_CONTEXT_OVERRIDE = "WEBOTS_EVAL_EPISODE_CONTEXT"
+SHIELD_EVIDENCE_OVERRIDE = "WEBOTS_EVAL_SHIELD_EVIDENCE"
 DETERMINISTIC_POLICY_ENVIRONMENT_VARIABLE = "WEBOTS_EVAL_DETERMINISTIC_POLICY"
 
 
@@ -79,6 +83,7 @@ class EvaluationPlan:
     safety_shield_config: SafetyShieldConfig
     static_layout: str
     formal_config: WebotsFormalConfig | None = None
+    shield_evidence_enabled: bool = False
 
 
 def sha256_file(path: Path) -> str:
@@ -241,6 +246,8 @@ def _resolve_formal_plan(repository_root: Path) -> EvaluationPlan:
         raise PermissionError(
             "Formal test forbids diagnostic episode_context.jsonl output."
         )
+    if environment_flag(SHIELD_EVIDENCE_OVERRIDE):
+        raise PermissionError("Formal test forbids diagnostic shield evidence output.")
     required_runner_fields = (
         "WEBOTS_FORMAL_CONFIG",
         "WEBOTS_EVAL_CONFIG_SHA256",
@@ -359,6 +366,9 @@ def _resolve_nonformal_plan(
     _require_deterministic_policy()
     if split not in {"validation", "diagnostic"}:
         raise ValueError("Non-formal Webots split must be validation or diagnostic.")
+    shield_evidence = environment_flag(SHIELD_EVIDENCE_OVERRIDE)
+    if shield_evidence and split != "diagnostic":
+        raise PermissionError("Shield evidence is restricted to diagnostic evaluations.")
     planner = os.environ.get("WEBOTS_EVAL_PLANNER", "ppo").strip().lower()
     if planner not in PLANNERS:
         raise ValueError("WEBOTS_EVAL_PLANNER must be reactive, dwa, or ppo.")
@@ -440,6 +450,7 @@ def _resolve_nonformal_plan(
         safety_shield_enabled=shield,
         safety_shield_config=shield_config,
         static_layout="train_a",
+        shield_evidence_enabled=shield_evidence,
     )
 
 
@@ -622,6 +633,28 @@ def _bind_episode_context_artifact(
     )
 
 
+def _bind_shield_evidence_artifact(
+    repository_root: Path,
+    plan: EvaluationPlan,
+    output_directory: Path,
+    evidence_records: list[dict[str, Any]],
+    provenance: dict[str, Any],
+) -> None:
+    if not plan.shield_evidence_enabled:
+        if evidence_records or "shield_evidence" in provenance:
+            raise RuntimeError("Disabled shield evidence cannot carry records or provenance.")
+        return
+    if plan.split != "diagnostic":
+        raise PermissionError("Shield evidence is restricted to diagnostic evaluations.")
+    if len(evidence_records) != len(plan.scenario_seeds):
+        raise RuntimeError("Shield evidence must contain one complete record per scenario seed.")
+    provenance["shield_evidence"] = write_shield_evidence_jsonl(
+        output_directory / SHIELD_EVIDENCE_FILENAME,
+        evidence_records,
+        repository_root=repository_root,
+    )
+
+
 def _provenance(
     repository_root: Path,
     plan: EvaluationPlan,
@@ -774,6 +807,7 @@ def main() -> None:
         )
         records = []
         episode_context_records: list[dict[str, Any]] = []
+        shield_evidence_records: list[dict[str, Any]] = []
         default_run_name = (
             f"webots_{plan.split}_{plan.condition_id.lower()}_{plan.planner_label}"
             if plan.formal_config is not None
@@ -846,6 +880,7 @@ def main() -> None:
                 planner=plan.planner_label,
                 reference_path_length=reference_path_length,
             )
+            episode_shield_steps: list[dict[str, Any]] = []
             terminated = truncated = False
             while not (terminated or truncated):
                 started = time.perf_counter()
@@ -859,6 +894,8 @@ def main() -> None:
                 )
                 if initial_episode_context is not None:
                     env.record_diagnostic_risk_sample(info)
+                if plan.shield_evidence_enabled:
+                    episode_shield_steps.append(dict(info))
             record = accumulator.finalize()
             records.append(record)
             provenance["reset_health"] = env.reset_health_diagnostics()
@@ -870,6 +907,21 @@ def main() -> None:
                         initial_context=initial_episode_context,
                         terminal_context=env.episode_context_at_terminal(info),
                         risk_trace=env.diagnostic_risk_trace(),
+                    )
+                )
+            if plan.shield_evidence_enabled:
+                shield_evidence_records.append(
+                    build_shield_evidence_record(
+                        identity={
+                            "episode_id": record.episode_id,
+                            "split": record.split,
+                            "condition_id": record.condition_id,
+                            "scenario_seed": record.scenario_seed,
+                            "planner": record.planner,
+                        },
+                        steps=episode_shield_steps,
+                        intervention_epsilon=plan.safety_shield_config.intervention_epsilon,
+                        terminal_info=info,
                     )
                 )
             _bind_episode_context_artifact(
@@ -891,6 +943,13 @@ def main() -> None:
                 flush=True,
             )
 
+        _bind_shield_evidence_artifact(
+            repository_root,
+            plan,
+            output_directory,
+            shield_evidence_records,
+            provenance,
+        )
         reset_health = env.reset_health_diagnostics()
         expected_resets = len(plan.scenario_seeds)
         if (
@@ -931,6 +990,15 @@ def main() -> None:
                 raise RuntimeError(
                     "episode_context.jsonl changed while binding its SHA-256."
                 )
+        if plan.shield_evidence_enabled:
+            evidence_binding = provenance.get("shield_evidence")
+            evidence_path = output_directory / SHIELD_EVIDENCE_FILENAME
+            if (
+                not isinstance(evidence_binding, dict)
+                or evidence_binding.get("count") != len(records)
+                or evidence_binding.get("sha256") != sha256_file(evidence_path)
+            ):
+                raise RuntimeError("shield_evidence.jsonl changed while binding its SHA-256.")
         planner_summary = summary["by_planner"][0]
         print(
             f"WEBOTS_EVALUATION_OK episodes={len(plan.scenario_seeds)} "
