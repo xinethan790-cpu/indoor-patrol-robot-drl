@@ -22,11 +22,14 @@
 - [x] 完成 Reactive、DWA、PPO 的 240 回合运动学统一验证基准
 - [x] 实现三训练 seed、验证证据锁、一次性测试 ledger 和 400 回合汇总的正式实验协议
 - [x] 完成 recovery-v1 的 120 回合 Webots 风险诊断与可审计图文报告
+- [x] 完成前向制动 SafetyShield 的 120 对同场景独立诊断确认与逐步动作审计
 - [ ] 完成 Webots 三 seed 正式训练、统一批量评测、泛化和奖励消融
 
 轻量二维环境不是最终实验平台。它用于快速验证状态、动作、奖励、随机种子、训练和测试代码，并为 Webots 提供策略热启动。当前验证集选择的是 stage 2（557,056 steps），不是训练最久的 stage 3；完整选择依据见[当前实验进展](reports/current-progress.md)。正式论文效果结论仍以 Webots 批量实验为准。
 
 最新的[Webots 动态避障风险诊断公开版](reports/webots_risk_diagnostic/diagnostic_report.md)提供按路线方向结果、机制证据对比和固定 seed 20500 风险时间线。该批次只使用 `diagnostic` seeds；正式 v1 机制结论为 `indeterminate`。LiDAR 原点敏感性是 post-hoc、nonformal 审计，不替代 v1，也没有访问 validation 或 held-out test 数据。
+
+在此基础上，项目又用全新 `54775～54894` diagnostic seeds 对唯一冻结的前向制动候选做了独立同场景确认。纯 PPO 为 `66/120` success、`54/120` collision；启用候选后为 `95/120` success、`25/120` collision，碰撞相对下降 `53.70%`，配对转移为 `35` 次救回、`6` 次新增失败，单侧精确 McNemar `p=2.4368×10⁻⁶`。共同成功回合的完成时间中位比为 `1.0722`，没有 timeout 或 error。完整的[图文报告](reports/webots_front_brake_confirmation/confirmation_report.md)同时公开原始两臂结果、逐步 shield 证据、哈希和复现入口。这个 `passed` 只表示 recovery-v1 单模型、单障碍 DB1 场景中的独立诊断确认，不是 validation、held-out test、三训练 seed 或泛化结论。
 
 正式 Webots 实验的**执行协议已经实现，但正式结果尚未产生**。固定流程为：分别用 `11、22、33` 三个训练 seed 训练和验证 PPO；在 clean Git revision 上将三个模型的训练期 sidecar、训练元数据、W0～W2 课程 manifest、验证选择 manifest 和逐回合验证 CSV 与正式配置、world、evaluator、controller 及完整 source bundle 一起绑定到不可覆盖的 FinalLock v2；先执行不消耗测试机会的 `--dry-run`；最后才对 `10000～10019` held-out seeds 运行一次 `G0～G3 ×（Reactive、DWA、PPO-seed11、PPO-seed22、PPO-seed33）= 20` 个 Webots 调用、共 400 回合。当前仓库没有可引用为论文结论的这 400 回合正式 Webots 输出，详见[训练复现协议](docs/training-protocol.md)和[当前实验进展](reports/current-progress.md)。
 
@@ -35,7 +38,7 @@
 ## 可审计模型选择与安全过滤
 
 - Webots 评测汇总会绑定实际模型路径、variant 与 SHA-256；checkpoint 只能在 `validation` 数据上通过门禁后写入选择 manifest。正式巡检还固定要求至少 20 回合、成功率不低于 0.75、碰撞率不高于 0.15，并在加载时复核 manifest 指标和模型哈希。可变的 `latest`、运动学热启动和显式模型都不会被静默当成正式模型，探索运行必须设置 `WEBOTS_PATROL_ALLOW_UNVALIDATED_MODEL=1`。完整命令见[训练复现协议](docs/training-protocol.md)。
-- Webots 环境已接入可选的 LiDAR safety shield，记录策略动作、过滤后动作、实际执行动作和介入指标。它是默认关闭的应用层启发式过滤，不是形式化安全保证；当前也尚无开启/关闭的受控消融，因此不能宣称它已经改善正式指标。
+- Webots 环境已接入可选的 LiDAR safety shield，记录策略动作、过滤后动作、实际执行动作和介入指标。前向制动候选已在单模型、单障碍 `diagnostic` 配对实验中获得独立确认，但它仍是默认关闭的应用层启发式过滤，不是形式化安全保证；在三 seed、G0～G3 validation 与 held-out test 完成前，不能把该结果写成正式指标或跨场景泛化结论。
 
 正式测试不能通过手工设置 `WEBOTS_EVAL_SPLIT=test` 绕过协议。推荐入口是 `scripts/run_webots_formal_test.py`：它校验 clean Git revision、配置/模型/验证证据哈希和 final lock，拒绝已有输出。消费键只由固定的受保护测试协议派生，不包含 campaign、模型、输出目录或时间戳；同一协议的所有 campaign 共用唯一的 `artifacts/results/formal_ledgers/protected_test_<consumption-key>.json`，自定义 ledger 路径会被拒绝。`--dry-run --confirm-test` 会只读探测 Webots 版本与可执行文件哈希，读取并复核 lock 绑定的 world 文件哈希，再打印并校验 20 个调用；它不启动 Webots 仿真、不会让模拟器打开 world，也不创建 ledger 或消耗测试机会。去掉 `--dry-run` 后，runner 会把 runtime evidence 与 `attempt` 原子写入全局 ledger；之后无论终态为 `success` 还是 `invalidated`，都不能通过改 campaign、输出目录或 lock 获得第二次机会。
 

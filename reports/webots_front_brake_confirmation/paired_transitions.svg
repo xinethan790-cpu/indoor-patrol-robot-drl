@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="550" viewBox="0 0 980 550" role="img">
+  <title>v2 paired outcome transitions</title>
+  <desc>19 collision-to-collision, 35 rescues, 6 regressions, and 60 success-to-success pairs.</desc>
+  <rect width="980" height="550" fill="#f8fafc"/>
+  <text x="48.0" y="48.0" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="start" fill="#172033">Paired outcome transitions</text>
+  <text x="48.0" y="79.0" font-family="Arial, sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="#526078">Every v2 scenario seed is compared arm-to-arm</text>
+  <text x="48.0" y="150.0" font-family="Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#172033">Collision -&gt; collision</text>
+  <rect x="320" y="125" width="610" height="34" rx="6" fill="#e5eaf1"/>
+  <rect x="320" y="125" width="193.2" height="34" rx="6" fill="#8c98aa"/>
+  <text x="503.2" y="149.0" font-family="Arial, sans-serif" font-size="16" font-weight="700" text-anchor="end" fill="#ffffff">19</text>
+  <text x="48.0" y="232.0" font-family="Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#172033">Rescue: collision -&gt; success</text>
+  <rect x="320" y="207" width="610" height="34" rx="6" fill="#e5eaf1"/>
+  <rect x="320" y="207" width="355.8" height="34" rx="6" fill="#167d64"/>
+  <text x="665.8" y="231.0" font-family="Arial, sans-serif" font-size="16" font-weight="700" text-anchor="end" fill="#ffffff">35</text>
+  <text x="48.0" y="314.0" font-family="Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#172033">Regression: success -&gt; collision</text>
+  <rect x="320" y="289" width="610" height="34" rx="6" fill="#e5eaf1"/>
+  <rect x="320" y="289" width="61.0" height="34" rx="6" fill="#c94b55"/>
+  <text x="391.0" y="313.0" font-family="Arial, sans-serif" font-size="16" font-weight="700" text-anchor="start" fill="#172033">6</text>
+  <text x="48.0" y="396.0" font-family="Arial, sans-serif" font-size="15" font-weight="600" text-anchor="start" fill="#172033">Success -&gt; success</text>
+  <rect x="320" y="371" width="610" height="34" rx="6" fill="#e5eaf1"/>
+  <rect x="320" y="371" width="610.0" height="34" rx="6" fill="#2878b5"/>
+  <text x="920.0" y="395.0" font-family="Arial, sans-serif" font-size="16" font-weight="700" text-anchor="end" fill="#ffffff">60</text>
+  <text x="48.0" y="482.0" font-family="Arial, sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="#172033">Rescues 35 · regressions 6 · discordant pairs 41</text>
+  <text x="48.0" y="515.0" font-family="Arial, sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="#167d64">Exact one-sided McNemar p = 2.4368e-6</text>
+</svg>

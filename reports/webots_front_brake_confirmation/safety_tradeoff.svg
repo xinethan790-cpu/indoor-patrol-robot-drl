@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="500" viewBox="0 0 1000 500" role="img">
+  <title>v2 safety effect and trade-off</title>
+  <desc>53.70 percent collision reduction, 60 common successes, median completion ratio 1.0722, p90 ratio 1.1897, and 3740 active shield steps out of 12741.</desc>
+  <rect width="1000" height="500" fill="#f8fafc"/>
+  <text x="48.0" y="48.0" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="start" fill="#172033">Safety effect and completion trade-off</text>
+  <text x="48.0" y="80.0" font-family="Arial, sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="#526078">Raw-derived v2 diagnostic metrics · no validation/test claim</text>
+  <rect x="48" y="125" width="214" height="250" rx="14" fill="#ffffff" stroke="#d9e0ea"/>
+  <rect x="48" y="125" width="214" height="10" rx="5" fill="#167d64"/>
+  <text x="66.0" y="177.0" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="#526078">Collision reduction</text>
+  <text x="155.0" y="254.0" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle" fill="#167d64">53.70%</text>
+  <text x="155.0" y="310.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">54 -&gt; 25</text>
+  <rect x="286" y="125" width="214" height="250" rx="14" fill="#ffffff" stroke="#d9e0ea"/>
+  <rect x="286" y="125" width="214" height="10" rx="5" fill="#2878b5"/>
+  <text x="304.0" y="177.0" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="#526078">Common successes</text>
+  <text x="393.0" y="254.0" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle" fill="#2878b5">60</text>
+  <text x="393.0" y="310.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">paired completion set</text>
+  <rect x="524" y="125" width="214" height="250" rx="14" fill="#ffffff" stroke="#d9e0ea"/>
+  <rect x="524" y="125" width="214" height="10" rx="5" fill="#b46b18"/>
+  <text x="542.0" y="177.0" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="#526078">Median time ratio</text>
+  <text x="631.0" y="254.0" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle" fill="#b46b18">1.0722</text>
+  <text x="631.0" y="310.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">p90 1.1897 (+18.97%)</text>
+  <rect x="762" y="125" width="214" height="250" rx="14" fill="#ffffff" stroke="#d9e0ea"/>
+  <rect x="762" y="125" width="214" height="10" rx="5" fill="#7847a8"/>
+  <text x="780.0" y="177.0" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="#526078">Shield-active steps</text>
+  <text x="869.0" y="254.0" font-family="Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle" fill="#7847a8">3740/12741</text>
+  <text x="869.0" y="310.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">29.35% of candidate steps</text>
+  <text x="500.0" y="430.0" font-family="Arial, sans-serif" font-size="16" font-weight="700" text-anchor="middle" fill="#172033">Manipulation integrity passed in v2: 3740 active = braking = cap-binding steps</text>
+  <text x="500.0" y="465.0" font-family="Arial, sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="#9b3340">Diagnostic confirmation only; not validation, held-out test, or generalization evidence</text>
+</svg>

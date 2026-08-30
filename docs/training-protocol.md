@@ -315,6 +315,14 @@ reaudit 的 SHA-256；两臂及最终报告均拒绝覆盖。确认结论只由 
 只作未校正描述。最终结论仍是整个带 admitted-action 反馈的闭环 profile 的配对 ITT 效果，
 不能把结果夸大为某一阈值的独立因果效应，也不能直接写成 validation、held-out test 或泛化结论。
 
+该 v2 协议已在 commit `680e6aceb15b3c655c8e2bf03438d877ca23a0a1` 上执行一次：reference
+为 `66/120` success、`54/120` collision，candidate 为 `95/120` success、`25/120`
+collision；35 次救回、6 次新增失败，碰撞相对下降 `53.70%`，单侧精确 McNemar
+`p=2.436799150018487e-6`。两臂均无 timeout/error，共同成功 60 对的完成时间中位比为
+`1.0722`，所有 manipulation checks 通过。复现入口、输入哈希、原始证据和图表见
+[`reports/webots_front_brake_confirmation/confirmation_report.md`](../reports/webots_front_brake_confirmation/confirmation_report.md)。
+该结果仍属于单模型、DB1 单障碍 diagnostic 确认，未访问 validation/test。
+
 ### W1 失败后的预声明恢复课程
 
 seed 11 的首次 W1 正式门禁失败后，使用

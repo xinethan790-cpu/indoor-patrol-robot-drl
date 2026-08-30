@@ -1,0 +1,2340 @@
+{
+  "schema_version": 1,
+  "experiment_id": "webots_front_brake_paired_confirmation_v2",
+  "status": "passed",
+  "generated_at_utc": "2026-08-30T14:39:59+00:00",
+  "split": "diagnostic",
+  "validation_split_was_run": false,
+  "test_split_was_run": false,
+  "source_bindings": {
+    "git_revision": "680e6aceb15b3c655c8e2bf03438d877ca23a0a1",
+    "config": {
+      "path": "configs/eval/webots_front_brake_paired_confirmation_v2.yaml",
+      "sha256": "71f1408255499b8765d39ff891b01ffb963152d66cceef43077d2a7229eea388"
+    },
+    "runner": {
+      "path": "scripts/run_webots_front_brake_diagnostic.py",
+      "sha256": "b50e8a82840d1a0ccc4e6bf9ea9918fca4872cdd82c64817edd24cc61d90b6b3"
+    },
+    "controller": {
+      "path": "controllers/webots_ppo_evaluate/webots_ppo_evaluate.py",
+      "sha256": "92d6fc76e7d143e0d5ef1a4b5798274656d991fe154052c05c05ded64e60dbea"
+    },
+    "world": {
+      "path": "worlds/webots_ppo_evaluate.wbt",
+      "sha256": "e0ae7ac8aa2a7981f94673d656d76940166cb12ceab8dd2b17a17329985d5425"
+    },
+    "safety_shield": {
+      "path": "src/indoor_patrol_rl/core/safety_shield.py",
+      "sha256": "0affe799301c11a43b5d67a9d5eb37efe89ec54406c5fbd08be80f4853b3b50b"
+    },
+    "control": {
+      "path": "src/indoor_patrol_rl/core/control.py",
+      "sha256": "5e95838266364c33894992f425f9e653a5ebe370c19bc73ac4cdd6852cf8e04a"
+    },
+    "webots_patrol_environment": {
+      "path": "src/indoor_patrol_rl/envs/webots_patrol.py",
+      "sha256": "9c1a17eb436c3a3591a795b0dde843a4c6b8f2f5a4a44b2b76cfd2ed5c9c413a"
+    },
+    "evaluation_exports": {
+      "path": "src/indoor_patrol_rl/evaluation/__init__.py",
+      "sha256": "181825c68b116edf4e525635073de332deb93bbcb761c4c64e29f3af014897f9"
+    },
+    "evaluation_metrics": {
+      "path": "src/indoor_patrol_rl/evaluation/metrics.py",
+      "sha256": "355691402123ff9a5dbd0731c0e1b41aa3db81c5ac4d00c8ab9d2a0a676306e2"
+    },
+    "webots_formal_config": {
+      "path": "src/indoor_patrol_rl/evaluation/webots_formal_config.py",
+      "sha256": "dea197c3a33ad7debb1b20a2a02ef8c57cd962faf83ce9cb090e47b688485af0"
+    },
+    "episode_context": {
+      "path": "src/indoor_patrol_rl/evaluation/episode_context.py",
+      "sha256": "26562c242869aa3cf39f9438d8c170411d5d40605c3813fa702dfc4b682537c0"
+    },
+    "shield_evidence": {
+      "path": "src/indoor_patrol_rl/evaluation/shield_evidence.py",
+      "sha256": "09f6400c653915a5966ec81fc3225e6c94762af0fb3cea202e0e62134d518e1b"
+    },
+    "webots_curriculum": {
+      "path": "src/indoor_patrol_rl/training/webots_curriculum.py",
+      "sha256": "657b6f3843d4905bfce83fa640927f368c508702ef9e96bc487be0afa58d9f35"
+    },
+    "model": {
+      "path": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+      "sha256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275"
+    },
+    "v1_paired_report": {
+      "path": "artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.json",
+      "sha256": "2779e8dcb6f8ccf2216464e196dc5c5f3a5ba1c8092eb0d75cb14fb62e2cc787"
+    },
+    "manipulation_boundary_reaudit": {
+      "path": "artifacts/results/webots_front_brake_v1_manipulation_reaudit_v1/manipulation_boundary_reaudit.json",
+      "sha256": "aac1bf62e755a1868837c294adc4e2d13cf9949a4dcba484d0c0b18c4ffd16ed"
+    },
+    "webots_executable": {
+      "path": "C:\\Users\\13501\\Documents\\Codex\\2026-08-29\\new-chat\\work\\Webots-R2025a\\msys64\\mingw64\\bin\\webots.exe",
+      "sha256": "34e3824b3bb1d64cea8ed58ec4089b607fb83c906d36290df8e2d4a8ee2227c0"
+    }
+  },
+  "prior_evidence": {
+    "v1_paired_report": {
+      "path": "artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.json",
+      "sha256": "2779e8dcb6f8ccf2216464e196dc5c5f3a5ba1c8092eb0d75cb14fb62e2cc787"
+    },
+    "manipulation_boundary_reaudit": {
+      "path": "artifacts/results/webots_front_brake_v1_manipulation_reaudit_v1/manipulation_boundary_reaudit.json",
+      "sha256": "aac1bf62e755a1868837c294adc4e2d13cf9949a4dcba484d0c0b18c4ffd16ed"
+    },
+    "restrictions": {
+      "v1_rerun": "forbidden",
+      "v1_reinterpretation": "forbidden",
+      "v1_report_rewrite": "forbidden",
+      "v1_v2_pooled_fallback": "forbidden"
+    },
+    "v1_status_remains": "invalid_manipulation",
+    "confirmation_uses_v2_overall_only": true
+  },
+  "model": {
+    "path": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+    "sha256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275",
+    "variant": "w1_recovery_v1",
+    "training_seed": 11
+  },
+  "scenario": {
+    "condition_id": "DB1",
+    "scenario_seed_start": 54775,
+    "episodes": 120,
+    "scenario_seeds": [
+      54775,
+      54776,
+      54777,
+      54778,
+      54779,
+      54780,
+      54781,
+      54782,
+      54783,
+      54784,
+      54785,
+      54786,
+      54787,
+      54788,
+      54789,
+      54790,
+      54791,
+      54792,
+      54793,
+      54794,
+      54795,
+      54796,
+      54797,
+      54798,
+      54799,
+      54800,
+      54801,
+      54802,
+      54803,
+      54804,
+      54805,
+      54806,
+      54807,
+      54808,
+      54809,
+      54810,
+      54811,
+      54812,
+      54813,
+      54814,
+      54815,
+      54816,
+      54817,
+      54818,
+      54819,
+      54820,
+      54821,
+      54822,
+      54823,
+      54824,
+      54825,
+      54826,
+      54827,
+      54828,
+      54829,
+      54830,
+      54831,
+      54832,
+      54833,
+      54834,
+      54835,
+      54836,
+      54837,
+      54838,
+      54839,
+      54840,
+      54841,
+      54842,
+      54843,
+      54844,
+      54845,
+      54846,
+      54847,
+      54848,
+      54849,
+      54850,
+      54851,
+      54852,
+      54853,
+      54854,
+      54855,
+      54856,
+      54857,
+      54858,
+      54859,
+      54860,
+      54861,
+      54862,
+      54863,
+      54864,
+      54865,
+      54866,
+      54867,
+      54868,
+      54869,
+      54870,
+      54871,
+      54872,
+      54873,
+      54874,
+      54875,
+      54876,
+      54877,
+      54878,
+      54879,
+      54880,
+      54881,
+      54882,
+      54883,
+      54884,
+      54885,
+      54886,
+      54887,
+      54888,
+      54889,
+      54890,
+      54891,
+      54892,
+      54893,
+      54894
+    ],
+    "route_strata_counts": {
+      "horizontal": {
+        "non_reverse": 30,
+        "reverse": 30
+      },
+      "vertical": {
+        "non_reverse": 30,
+        "reverse": 30
+      }
+    },
+    "initial_obstacle_direction_counts": {
+      "negative": 60,
+      "positive": 60
+    },
+    "obstacle_count": 1,
+    "obstacle_speed_range": [
+      0.15,
+      0.3
+    ],
+    "horizontal_route_half_length": 1.1,
+    "vertical_route_half_length": 1.1,
+    "deterministic_policy": true
+  },
+  "preregistration": {
+    "paired_same_scenarios": true,
+    "episode_context_schema_version": "1.1",
+    "risk_trace_required": true,
+    "shield_evidence_schema_version": "1.0",
+    "shield_evidence_required": true,
+    "seed_window_selection": {
+      "search_start": 25848,
+      "rule": "first_contiguous_120_balancing_route_reverse_and_obstacle_direction",
+      "covariates_only": [
+        "route_axis",
+        "reverse_route",
+        "initial_obstacle_direction"
+      ],
+      "outcome_data_used": false
+    },
+    "candidate_count": 1,
+    "parameter_scan": "forbidden",
+    "adaptive_extension": "forbidden",
+    "validation_or_test": "forbidden",
+    "primary_inference": "v2_overall_only",
+    "subgroup_inference": "descriptive_unadjusted_only"
+  },
+  "arms": [
+    {
+      "id": "recovery_v1_reference_confirmation_v2",
+      "role": "reference",
+      "run_name": "webots_diagnostic_front_brake_v2_reference_seed11",
+      "planner_label": "ppo_recovery_v1_front_brake_v2_reference",
+      "model": {
+        "path": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+        "sha256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275",
+        "variant": "w1_recovery_v1",
+        "training_seed": 11
+      },
+      "controller_env": {
+        "WEBOTS_SAFETY_SHIELD": "0",
+        "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.0",
+        "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+        "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.75",
+        "WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE": "1.0471975511965976",
+        "WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE": "1.0471975511965976",
+        "WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR": "1.0",
+        "WEBOTS_SAFETY_SHIELD_TURN_BLEND": "0.0"
+      },
+      "resolved_safety_shield_config": {
+        "lidar_max_range": 3.5,
+        "front_stop_distance": 0.24,
+        "front_slowdown_distance": 0.75,
+        "side_stop_distance": 0.12,
+        "side_slowdown_distance": 0.32,
+        "front_half_angle": 1.0471975511965976,
+        "side_inner_angle": 1.0471975511965976,
+        "side_outer_angle": 1.8325957145940461,
+        "clearance_quantile": 0.0,
+        "side_speed_floor": 1.0,
+        "side_turn_weight": 0.55,
+        "turn_gain": 0.9,
+        "turn_blend": 0.0,
+        "side_deadband": 0.03,
+        "intervention_epsilon": 1e-06
+      },
+      "shield_evidence_metrics": {
+        "episode_count": 120,
+        "enabled_episode_count": 0,
+        "episode_with_active_step_count": 0,
+        "total_step_count": 9523,
+        "active_step_count": 0,
+        "active_step_ratio": 0.0,
+        "intervention_sum": 0.0,
+        "braking_step_count": 0,
+        "speed_cap_binding_step_count": 0,
+        "active_operational_semantics_step_count": 0,
+        "recorded_active_matches_float32_norm_step_count": 9523,
+        "recorded_intervention_matches_float32_norm_step_count": 9523,
+        "active_angular_action_float32_bits_unchanged_step_count": 0,
+        "all_angular_action_float32_bits_unchanged_step_count": 9523,
+        "all_action_float32_bits_unchanged_step_count": 9523,
+        "maximum_absolute_angular_action_delta": 0.0,
+        "maximum_recorded_vs_recomputed_intervention_error": 0.0
+      },
+      "execution": {
+        "command": [
+          "C:\\Users\\13501\\Documents\\Codex\\2026-08-29\\new-chat\\work\\Webots-R2025a\\msys64\\mingw64\\bin\\webots.exe",
+          "--port=13680",
+          "--batch",
+          "--mode=fast",
+          "--no-rendering",
+          "--stdout",
+          "--stderr",
+          "C:\\Users\\13501\\Documents\\Codex\\2026-08-29\\new-chat\\work\\indoor-patrol-robot-drl\\worlds\\webots_ppo_evaluate.wbt"
+        ],
+        "environment": {
+          "WEBOTS_PORT": "13680",
+          "WEBOTS_MODEL_SEED": "11",
+          "WEBOTS_EVAL_MODEL": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+          "WEBOTS_EVAL_MODEL_SHA256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275",
+          "WEBOTS_MODEL_VARIANT": "w1_recovery_v1",
+          "WEBOTS_EVAL_SPLIT": "diagnostic",
+          "WEBOTS_EVAL_SEED_START": "54775",
+          "WEBOTS_EVAL_EPISODES": "120",
+          "WEBOTS_EVAL_CONDITION": "DB1",
+          "WEBOTS_EVAL_PLANNER": "ppo",
+          "WEBOTS_EVAL_PLANNER_LABEL": "ppo_recovery_v1_front_brake_v2_reference",
+          "WEBOTS_EVAL_RUN_NAME": "webots_diagnostic_front_brake_v2_reference_seed11",
+          "WEBOTS_OBSTACLE_COUNT": "1",
+          "WEBOTS_OBSTACLE_SPEED_MIN": "0.15",
+          "WEBOTS_OBSTACLE_SPEED_MAX": "0.3",
+          "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH": "1.1",
+          "WEBOTS_VERTICAL_ROUTE_HALF_LENGTH": "1.1",
+          "WEBOTS_EVAL_DETERMINISTIC_POLICY": "1",
+          "WEBOTS_EVAL_EPISODE_CONTEXT": "1",
+          "WEBOTS_EVAL_SHIELD_EVIDENCE": "1",
+          "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_ID": "webots_front_brake_paired_confirmation_v2",
+          "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_CONFIG": "configs/eval/webots_front_brake_paired_confirmation_v2.yaml",
+          "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_CONFIG_SHA256": "71f1408255499b8765d39ff891b01ffb963152d66cceef43077d2a7229eea388",
+          "WEBOTS_SAFETY_SHIELD": "0",
+          "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.0",
+          "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+          "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.75",
+          "WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE": "1.0471975511965976",
+          "WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE": "1.0471975511965976",
+          "WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR": "1.0",
+          "WEBOTS_SAFETY_SHIELD_TURN_BLEND": "0.0"
+        },
+        "port": 13680,
+        "exit_code": 0
+      },
+      "metrics": {
+        "overall": {
+          "episodes": 120,
+          "success_count": 66,
+          "collision_count": 54,
+          "timeout_count": 0,
+          "error_count": 0
+        },
+        "by_route_axis": {
+          "horizontal": {
+            "episodes": 60,
+            "success_count": 28,
+            "collision_count": 32,
+            "timeout_count": 0,
+            "error_count": 0
+          },
+          "vertical": {
+            "episodes": 60,
+            "success_count": 38,
+            "collision_count": 22,
+            "timeout_count": 0,
+            "error_count": 0
+          }
+        },
+        "by_route_direction": {
+          "non_reverse": {
+            "episodes": 60,
+            "success_count": 33,
+            "collision_count": 27,
+            "timeout_count": 0,
+            "error_count": 0
+          },
+          "reverse": {
+            "episodes": 60,
+            "success_count": 33,
+            "collision_count": 27,
+            "timeout_count": 0,
+            "error_count": 0
+          }
+        },
+        "by_initial_obstacle_direction": {
+          "negative": {
+            "episodes": 60,
+            "success_count": 35,
+            "collision_count": 25,
+            "timeout_count": 0,
+            "error_count": 0
+          },
+          "positive": {
+            "episodes": 60,
+            "success_count": 31,
+            "collision_count": 29,
+            "timeout_count": 0,
+            "error_count": 0
+          }
+        },
+        "by_route_axis_and_direction": {
+          "horizontal": {
+            "non_reverse": {
+              "episodes": 30,
+              "success_count": 12,
+              "collision_count": 18,
+              "timeout_count": 0,
+              "error_count": 0
+            },
+            "reverse": {
+              "episodes": 30,
+              "success_count": 16,
+              "collision_count": 14,
+              "timeout_count": 0,
+              "error_count": 0
+            }
+          },
+          "vertical": {
+            "non_reverse": {
+              "episodes": 30,
+              "success_count": 21,
+              "collision_count": 9,
+              "timeout_count": 0,
+              "error_count": 0
+            },
+            "reverse": {
+              "episodes": 30,
+              "success_count": 17,
+              "collision_count": 13,
+              "timeout_count": 0,
+              "error_count": 0
+            }
+          }
+        }
+      },
+      "artifacts": {
+        "result_directory": "artifacts/results/webots_diagnostic_front_brake_v2_reference_seed11",
+        "summary_json": {
+          "path": "artifacts/results/webots_diagnostic_front_brake_v2_reference_seed11/summary.json",
+          "sha256": "5153fb51ec749f205ed6e21615e68f3674f9946b93c65b7fda68305652d5e210"
+        },
+        "episodes_csv": {
+          "path": "artifacts/results/webots_diagnostic_front_brake_v2_reference_seed11/episodes.csv",
+          "sha256": "e9c6f0d92d561f0d374baf446106c394b577cc165c58bc61c43077be01b3dad3"
+        },
+        "episode_context_jsonl": {
+          "path": "artifacts/results/webots_diagnostic_front_brake_v2_reference_seed11/episode_context.jsonl",
+          "sha256": "fa0ee4cb70e5377ba138ea26595fcec783c1a317aeaa79b318e21c8c23f5e157"
+        },
+        "shield_evidence_jsonl": {
+          "path": "artifacts/results/webots_diagnostic_front_brake_v2_reference_seed11/shield_evidence.jsonl",
+          "sha256": "247540a73ced04b1a0c4c5075c3ff0a85a9bd11c43fb25334e0c61cd89b1879b"
+        }
+      }
+    },
+    {
+      "id": "front_brake_candidate_confirmation_v2",
+      "role": "candidate",
+      "run_name": "webots_diagnostic_front_brake_v2_candidate_seed11",
+      "planner_label": "ppo_recovery_v1_front_brake_v2_candidate",
+      "model": {
+        "path": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+        "sha256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275",
+        "variant": "w1_recovery_v1",
+        "training_seed": 11
+      },
+      "controller_env": {
+        "WEBOTS_SAFETY_SHIELD": "1",
+        "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.0",
+        "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+        "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.75",
+        "WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE": "1.0471975511965976",
+        "WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE": "1.0471975511965976",
+        "WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR": "1.0",
+        "WEBOTS_SAFETY_SHIELD_TURN_BLEND": "0.0"
+      },
+      "resolved_safety_shield_config": {
+        "lidar_max_range": 3.5,
+        "front_stop_distance": 0.24,
+        "front_slowdown_distance": 0.75,
+        "side_stop_distance": 0.12,
+        "side_slowdown_distance": 0.32,
+        "front_half_angle": 1.0471975511965976,
+        "side_inner_angle": 1.0471975511965976,
+        "side_outer_angle": 1.8325957145940461,
+        "clearance_quantile": 0.0,
+        "side_speed_floor": 1.0,
+        "side_turn_weight": 0.55,
+        "turn_gain": 0.9,
+        "turn_blend": 0.0,
+        "side_deadband": 0.03,
+        "intervention_epsilon": 1e-06
+      },
+      "shield_evidence_metrics": {
+        "episode_count": 120,
+        "enabled_episode_count": 120,
+        "episode_with_active_step_count": 108,
+        "total_step_count": 12741,
+        "active_step_count": 3740,
+        "active_step_ratio": 0.29354053841927635,
+        "intervention_sum": 3743.3074385374784,
+        "braking_step_count": 3740,
+        "speed_cap_binding_step_count": 3740,
+        "active_operational_semantics_step_count": 3740,
+        "recorded_active_matches_float32_norm_step_count": 12741,
+        "recorded_intervention_matches_float32_norm_step_count": 12741,
+        "active_angular_action_float32_bits_unchanged_step_count": 3740,
+        "all_angular_action_float32_bits_unchanged_step_count": 12741,
+        "all_action_float32_bits_unchanged_step_count": 9001,
+        "maximum_absolute_angular_action_delta": 0.0,
+        "maximum_recorded_vs_recomputed_intervention_error": 0.0
+      },
+      "execution": {
+        "command": [
+          "C:\\Users\\13501\\Documents\\Codex\\2026-08-29\\new-chat\\work\\Webots-R2025a\\msys64\\mingw64\\bin\\webots.exe",
+          "--port=13681",
+          "--batch",
+          "--mode=fast",
+          "--no-rendering",
+          "--stdout",
+          "--stderr",
+          "C:\\Users\\13501\\Documents\\Codex\\2026-08-29\\new-chat\\work\\indoor-patrol-robot-drl\\worlds\\webots_ppo_evaluate.wbt"
+        ],
+        "environment": {
+          "WEBOTS_PORT": "13681",
+          "WEBOTS_MODEL_SEED": "11",
+          "WEBOTS_EVAL_MODEL": "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip",
+          "WEBOTS_EVAL_MODEL_SHA256": "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275",
+          "WEBOTS_MODEL_VARIANT": "w1_recovery_v1",
+          "WEBOTS_EVAL_SPLIT": "diagnostic",
+          "WEBOTS_EVAL_SEED_START": "54775",
+          "WEBOTS_EVAL_EPISODES": "120",
+          "WEBOTS_EVAL_CONDITION": "DB1",
+          "WEBOTS_EVAL_PLANNER": "ppo",
+          "WEBOTS_EVAL_PLANNER_LABEL": "ppo_recovery_v1_front_brake_v2_candidate",
+          "WEBOTS_EVAL_RUN_NAME": "webots_diagnostic_front_brake_v2_candidate_seed11",
+          "WEBOTS_OBSTACLE_COUNT": "1",
+          "WEBOTS_OBSTACLE_SPEED_MIN": "0.15",
+          "WEBOTS_OBSTACLE_SPEED_MAX": "0.3",
+          "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH": "1.1",
+          "WEBOTS_VERTICAL_ROUTE_HALF_LENGTH": "1.1",
+          "WEBOTS_EVAL_DETERMINISTIC_POLICY": "1",
+          "WEBOTS_EVAL_EPISODE_CONTEXT": "1",
+          "WEBOTS_EVAL_SHIELD_EVIDENCE": "1",
+          "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_ID": "webots_front_brake_paired_confirmation_v2",
+          "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_CONFIG": "configs/eval/webots_front_brake_paired_confirmation_v2.yaml",
+          "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_CONFIG_SHA256": "71f1408255499b8765d39ff891b01ffb963152d66cceef43077d2a7229eea388",
+          "WEBOTS_SAFETY_SHIELD": "1",
+          "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.0",
+          "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+          "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.75",
+          "WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE": "1.0471975511965976",
+          "WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE": "1.0471975511965976",
+          "WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR": "1.0",
+          "WEBOTS_SAFETY_SHIELD_TURN_BLEND": "0.0"
+        },
+        "port": 13681,
+        "exit_code": 0
+      },
+      "metrics": {
+        "overall": {
+          "episodes": 120,
+          "success_count": 95,
+          "collision_count": 25,
+          "timeout_count": 0,
+          "error_count": 0
+        },
+        "by_route_axis": {
+          "horizontal": {
+            "episodes": 60,
+            "success_count": 43,
+            "collision_count": 17,
+            "timeout_count": 0,
+            "error_count": 0
+          },
+          "vertical": {
+            "episodes": 60,
+            "success_count": 52,
+            "collision_count": 8,
+            "timeout_count": 0,
+            "error_count": 0
+          }
+        },
+        "by_route_direction": {
+          "non_reverse": {
+            "episodes": 60,
+            "success_count": 47,
+            "collision_count": 13,
+            "timeout_count": 0,
+            "error_count": 0
+          },
+          "reverse": {
+            "episodes": 60,
+            "success_count": 48,
+            "collision_count": 12,
+            "timeout_count": 0,
+            "error_count": 0
+          }
+        },
+        "by_initial_obstacle_direction": {
+          "negative": {
+            "episodes": 60,
+            "success_count": 50,
+            "collision_count": 10,
+            "timeout_count": 0,
+            "error_count": 0
+          },
+          "positive": {
+            "episodes": 60,
+            "success_count": 45,
+            "collision_count": 15,
+            "timeout_count": 0,
+            "error_count": 0
+          }
+        },
+        "by_route_axis_and_direction": {
+          "horizontal": {
+            "non_reverse": {
+              "episodes": 30,
+              "success_count": 21,
+              "collision_count": 9,
+              "timeout_count": 0,
+              "error_count": 0
+            },
+            "reverse": {
+              "episodes": 30,
+              "success_count": 22,
+              "collision_count": 8,
+              "timeout_count": 0,
+              "error_count": 0
+            }
+          },
+          "vertical": {
+            "non_reverse": {
+              "episodes": 30,
+              "success_count": 26,
+              "collision_count": 4,
+              "timeout_count": 0,
+              "error_count": 0
+            },
+            "reverse": {
+              "episodes": 30,
+              "success_count": 26,
+              "collision_count": 4,
+              "timeout_count": 0,
+              "error_count": 0
+            }
+          }
+        }
+      },
+      "artifacts": {
+        "result_directory": "artifacts/results/webots_diagnostic_front_brake_v2_candidate_seed11",
+        "summary_json": {
+          "path": "artifacts/results/webots_diagnostic_front_brake_v2_candidate_seed11/summary.json",
+          "sha256": "38867d29a074a15ef6e0fa10fd028a58cf7ebf2b7f4da4983b6035145970ec91"
+        },
+        "episodes_csv": {
+          "path": "artifacts/results/webots_diagnostic_front_brake_v2_candidate_seed11/episodes.csv",
+          "sha256": "b35daccaddd6fdbb693d090f1b8d0de17a6e2bc3318272a689586732a0502643"
+        },
+        "episode_context_jsonl": {
+          "path": "artifacts/results/webots_diagnostic_front_brake_v2_candidate_seed11/episode_context.jsonl",
+          "sha256": "c42cbb2b5f3383ff56d76fee80adeb0e28f2d285f93fd179451b100d48dc41c4"
+        },
+        "shield_evidence_jsonl": {
+          "path": "artifacts/results/webots_diagnostic_front_brake_v2_candidate_seed11/shield_evidence.jsonl",
+          "sha256": "f3e2d822c339ae3123f750db5253f30e21df511a00221944d583d5a2aadf3f7a"
+        }
+      }
+    }
+  ],
+  "paired_analysis": {
+    "by_seed": [
+      {
+        "scenario_seed": 54775,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54776,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54777,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54778,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54779,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "collision",
+        "transition": "success_to_collision"
+      },
+      {
+        "scenario_seed": 54780,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54781,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54782,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54783,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54784,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54785,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54786,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54787,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54788,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54789,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54790,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54791,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54792,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54793,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54794,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54795,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54796,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54797,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54798,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54799,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54800,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54801,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54802,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54803,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54804,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54805,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54806,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54807,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54808,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54809,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54810,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54811,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54812,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "collision",
+        "transition": "success_to_collision"
+      },
+      {
+        "scenario_seed": 54813,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54814,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54815,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54816,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54817,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "collision",
+        "transition": "success_to_collision"
+      },
+      {
+        "scenario_seed": 54818,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54819,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54820,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54821,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54822,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54823,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54824,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54825,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54826,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54827,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54828,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54829,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54830,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54831,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54832,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54833,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54834,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54835,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54836,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54837,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54838,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54839,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54840,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54841,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54842,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54843,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "collision",
+        "transition": "success_to_collision"
+      },
+      {
+        "scenario_seed": 54844,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54845,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54846,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54847,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54848,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54849,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54850,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54851,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54852,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54853,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54854,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54855,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54856,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54857,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54858,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54859,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54860,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54861,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54862,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54863,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54864,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54865,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54866,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54867,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54868,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54869,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54870,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54871,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54872,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "collision",
+        "transition": "success_to_collision"
+      },
+      {
+        "scenario_seed": 54873,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54874,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54875,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "collision",
+        "transition": "success_to_collision"
+      },
+      {
+        "scenario_seed": 54876,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54877,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54878,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54879,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54880,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54881,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54882,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54883,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54884,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54885,
+        "route_axis": "vertical",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54886,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54887,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54888,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54889,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54890,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      },
+      {
+        "scenario_seed": 54891,
+        "route_axis": "vertical",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54892,
+        "route_axis": "horizontal",
+        "reverse_route": true,
+        "reference_outcome": "collision",
+        "candidate_outcome": "success",
+        "transition": "collision_to_success"
+      },
+      {
+        "scenario_seed": 54893,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "collision",
+        "candidate_outcome": "collision",
+        "transition": "collision_to_collision"
+      },
+      {
+        "scenario_seed": 54894,
+        "route_axis": "horizontal",
+        "reverse_route": false,
+        "reference_outcome": "success",
+        "candidate_outcome": "success",
+        "transition": "success_to_success"
+      }
+    ],
+    "overall": {
+      "episodes": 120,
+      "outcome_transitions": {
+        "collision_to_collision": 19,
+        "collision_to_success": 35,
+        "success_to_collision": 6,
+        "success_to_success": 60
+      },
+      "collision": {
+        "reference_count": 54,
+        "candidate_count": 25,
+        "absolute_reduction_count": 29,
+        "relative_reduction": 0.5370370370370371
+      },
+      "paired_success_endpoint": {
+        "rescues_reference_non_success_to_candidate_success": 35,
+        "regressions_reference_success_to_candidate_non_success": 6,
+        "discordant_total": 41,
+        "exact_one_sided_mcnemar_p": 2.436799150018487e-06,
+        "alternative": "candidate_success_probability_is_higher"
+      },
+      "timeouts": {
+        "reference_count": 0,
+        "candidate_count": 0,
+        "new_timeout_count": 0,
+        "resolved_timeout_count": 0,
+        "net_increase_count": 0
+      },
+      "errors": {
+        "reference_count": 0,
+        "candidate_count": 0
+      },
+      "completion_delay_on_reference_success": {
+        "reference_success_count": 66,
+        "paired_success_count": 60,
+        "candidate_noncompletion_count": 6,
+        "eligible_transition": "success_to_success",
+        "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+        "quantile_method": "numpy_linear",
+        "median_ratio": 1.072172619047619,
+        "ratio_q25": 1.0,
+        "ratio_q75": 1.1304347826086956,
+        "ratio_iqr": 0.13043478260869557,
+        "ratio_p90": 1.1896752519596865,
+        "median_reference_completion_time_s": 12.416,
+        "median_candidate_completion_time_s": 13.76
+      }
+    },
+    "by_route_axis": {
+      "horizontal": {
+        "episodes": 60,
+        "outcome_transitions": {
+          "collision_to_collision": 13,
+          "collision_to_success": 19,
+          "success_to_collision": 4,
+          "success_to_success": 24
+        },
+        "collision": {
+          "reference_count": 32,
+          "candidate_count": 17,
+          "absolute_reduction_count": 15,
+          "relative_reduction": 0.46875
+        },
+        "paired_success_endpoint": {
+          "rescues_reference_non_success_to_candidate_success": 19,
+          "regressions_reference_success_to_candidate_non_success": 4,
+          "discordant_total": 23,
+          "exact_one_sided_mcnemar_p": 0.001299738883972168,
+          "alternative": "candidate_success_probability_is_higher"
+        },
+        "timeouts": {
+          "reference_count": 0,
+          "candidate_count": 0,
+          "new_timeout_count": 0,
+          "resolved_timeout_count": 0,
+          "net_increase_count": 0
+        },
+        "errors": {
+          "reference_count": 0,
+          "candidate_count": 0
+        },
+        "completion_delay_on_reference_success": {
+          "reference_success_count": 28,
+          "paired_success_count": 24,
+          "candidate_noncompletion_count": 4,
+          "eligible_transition": "success_to_success",
+          "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+          "quantile_method": "numpy_linear",
+          "median_ratio": 1.0993130227001195,
+          "ratio_q25": 1.0105297438124186,
+          "ratio_q75": 1.152242668200115,
+          "ratio_iqr": 0.14171292438769645,
+          "ratio_p90": 1.2,
+          "median_reference_completion_time_s": 13.504,
+          "median_candidate_completion_time_s": 14.656
+        }
+      },
+      "vertical": {
+        "episodes": 60,
+        "outcome_transitions": {
+          "collision_to_collision": 6,
+          "collision_to_success": 16,
+          "success_to_collision": 2,
+          "success_to_success": 36
+        },
+        "collision": {
+          "reference_count": 22,
+          "candidate_count": 8,
+          "absolute_reduction_count": 14,
+          "relative_reduction": 0.6363636363636364
+        },
+        "paired_success_endpoint": {
+          "rescues_reference_non_success_to_candidate_success": 16,
+          "regressions_reference_success_to_candidate_non_success": 2,
+          "discordant_total": 18,
+          "exact_one_sided_mcnemar_p": 0.0006561279296875,
+          "alternative": "candidate_success_probability_is_higher"
+        },
+        "timeouts": {
+          "reference_count": 0,
+          "candidate_count": 0,
+          "new_timeout_count": 0,
+          "resolved_timeout_count": 0,
+          "net_increase_count": 0
+        },
+        "errors": {
+          "reference_count": 0,
+          "candidate_count": 0
+        },
+        "completion_delay_on_reference_success": {
+          "reference_success_count": 38,
+          "paired_success_count": 36,
+          "candidate_noncompletion_count": 2,
+          "eligible_transition": "success_to_success",
+          "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+          "quantile_method": "numpy_linear",
+          "median_ratio": 1.0198327615780447,
+          "ratio_q25": 1.0,
+          "ratio_q75": 1.1048805815160954,
+          "ratio_iqr": 0.10488058151609536,
+          "ratio_p90": 1.17989921612542,
+          "median_reference_completion_time_s": 12.096,
+          "median_candidate_completion_time_s": 12.864
+        }
+      }
+    },
+    "by_route_direction": {
+      "non_reverse": {
+        "episodes": 60,
+        "outcome_transitions": {
+          "collision_to_collision": 11,
+          "collision_to_success": 16,
+          "success_to_collision": 2,
+          "success_to_success": 31
+        },
+        "collision": {
+          "reference_count": 27,
+          "candidate_count": 13,
+          "absolute_reduction_count": 14,
+          "relative_reduction": 0.5185185185185185
+        },
+        "paired_success_endpoint": {
+          "rescues_reference_non_success_to_candidate_success": 16,
+          "regressions_reference_success_to_candidate_non_success": 2,
+          "discordant_total": 18,
+          "exact_one_sided_mcnemar_p": 0.0006561279296875,
+          "alternative": "candidate_success_probability_is_higher"
+        },
+        "timeouts": {
+          "reference_count": 0,
+          "candidate_count": 0,
+          "new_timeout_count": 0,
+          "resolved_timeout_count": 0,
+          "net_increase_count": 0
+        },
+        "errors": {
+          "reference_count": 0,
+          "candidate_count": 0
+        },
+        "completion_delay_on_reference_success": {
+          "reference_success_count": 33,
+          "paired_success_count": 31,
+          "candidate_noncompletion_count": 2,
+          "eligible_transition": "success_to_success",
+          "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+          "quantile_method": "numpy_linear",
+          "median_ratio": 1.0840336134453783,
+          "ratio_q25": 1.0112373737373739,
+          "ratio_q75": 1.1639417693169092,
+          "ratio_iqr": 0.1527043955795353,
+          "ratio_p90": 1.1914893617021276,
+          "median_reference_completion_time_s": 12.288,
+          "median_candidate_completion_time_s": 14.208
+        }
+      },
+      "reverse": {
+        "episodes": 60,
+        "outcome_transitions": {
+          "collision_to_collision": 8,
+          "collision_to_success": 19,
+          "success_to_collision": 4,
+          "success_to_success": 29
+        },
+        "collision": {
+          "reference_count": 27,
+          "candidate_count": 12,
+          "absolute_reduction_count": 15,
+          "relative_reduction": 0.5555555555555556
+        },
+        "paired_success_endpoint": {
+          "rescues_reference_non_success_to_candidate_success": 19,
+          "regressions_reference_success_to_candidate_non_success": 4,
+          "discordant_total": 23,
+          "exact_one_sided_mcnemar_p": 0.001299738883972168,
+          "alternative": "candidate_success_probability_is_higher"
+        },
+        "timeouts": {
+          "reference_count": 0,
+          "candidate_count": 0,
+          "new_timeout_count": 0,
+          "resolved_timeout_count": 0,
+          "net_increase_count": 0
+        },
+        "errors": {
+          "reference_count": 0,
+          "candidate_count": 0
+        },
+        "completion_delay_on_reference_success": {
+          "reference_success_count": 33,
+          "paired_success_count": 29,
+          "candidate_noncompletion_count": 4,
+          "eligible_transition": "success_to_success",
+          "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+          "quantile_method": "numpy_linear",
+          "median_ratio": 1.0,
+          "ratio_q25": 1.0,
+          "ratio_q75": 1.10752688172043,
+          "ratio_iqr": 0.10752688172043001,
+          "ratio_p90": 1.136780258519389,
+          "median_reference_completion_time_s": 12.8,
+          "median_candidate_completion_time_s": 13.184
+        }
+      }
+    },
+    "by_initial_obstacle_direction": {
+      "negative": {
+        "episodes": 60,
+        "outcome_transitions": {
+          "collision_to_collision": 9,
+          "collision_to_success": 16,
+          "success_to_collision": 1,
+          "success_to_success": 34
+        },
+        "collision": {
+          "reference_count": 25,
+          "candidate_count": 10,
+          "absolute_reduction_count": 15,
+          "relative_reduction": 0.6
+        },
+        "paired_success_endpoint": {
+          "rescues_reference_non_success_to_candidate_success": 16,
+          "regressions_reference_success_to_candidate_non_success": 1,
+          "discordant_total": 17,
+          "exact_one_sided_mcnemar_p": 0.0001373291015625,
+          "alternative": "candidate_success_probability_is_higher"
+        },
+        "timeouts": {
+          "reference_count": 0,
+          "candidate_count": 0,
+          "new_timeout_count": 0,
+          "resolved_timeout_count": 0,
+          "net_increase_count": 0
+        },
+        "errors": {
+          "reference_count": 0,
+          "candidate_count": 0
+        },
+        "completion_delay_on_reference_success": {
+          "reference_success_count": 35,
+          "paired_success_count": 34,
+          "candidate_noncompletion_count": 1,
+          "eligible_transition": "success_to_success",
+          "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+          "quantile_method": "numpy_linear",
+          "median_ratio": 1.0663229331923145,
+          "ratio_q25": 1.0,
+          "ratio_q75": 1.132608695652174,
+          "ratio_iqr": 0.13260869565217392,
+          "ratio_p90": 1.1974468085106382,
+          "median_reference_completion_time_s": 12.48,
+          "median_candidate_completion_time_s": 13.696
+        }
+      },
+      "positive": {
+        "episodes": 60,
+        "outcome_transitions": {
+          "collision_to_collision": 10,
+          "collision_to_success": 19,
+          "success_to_collision": 5,
+          "success_to_success": 26
+        },
+        "collision": {
+          "reference_count": 29,
+          "candidate_count": 15,
+          "absolute_reduction_count": 14,
+          "relative_reduction": 0.4827586206896552
+        },
+        "paired_success_endpoint": {
+          "rescues_reference_non_success_to_candidate_success": 19,
+          "regressions_reference_success_to_candidate_non_success": 5,
+          "discordant_total": 24,
+          "exact_one_sided_mcnemar_p": 0.003305375576019287,
+          "alternative": "candidate_success_probability_is_higher"
+        },
+        "timeouts": {
+          "reference_count": 0,
+          "candidate_count": 0,
+          "new_timeout_count": 0,
+          "resolved_timeout_count": 0,
+          "net_increase_count": 0
+        },
+        "errors": {
+          "reference_count": 0,
+          "candidate_count": 0
+        },
+        "completion_delay_on_reference_success": {
+          "reference_success_count": 31,
+          "paired_success_count": 26,
+          "candidate_noncompletion_count": 5,
+          "eligible_transition": "success_to_success",
+          "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+          "quantile_method": "numpy_linear",
+          "median_ratio": 1.072172619047619,
+          "ratio_q25": 1.0025510204081631,
+          "ratio_q75": 1.1188992731048806,
+          "ratio_iqr": 0.11634825269671745,
+          "ratio_p90": 1.1715066129959748,
+          "median_reference_completion_time_s": 12.352,
+          "median_candidate_completion_time_s": 13.76
+        }
+      }
+    },
+    "by_route_axis_and_direction": {
+      "horizontal": {
+        "non_reverse": {
+          "episodes": 30,
+          "outcome_transitions": {
+            "collision_to_collision": 8,
+            "collision_to_success": 10,
+            "success_to_collision": 1,
+            "success_to_success": 11
+          },
+          "collision": {
+            "reference_count": 18,
+            "candidate_count": 9,
+            "absolute_reduction_count": 9,
+            "relative_reduction": 0.5
+          },
+          "paired_success_endpoint": {
+            "rescues_reference_non_success_to_candidate_success": 10,
+            "regressions_reference_success_to_candidate_non_success": 1,
+            "discordant_total": 11,
+            "exact_one_sided_mcnemar_p": 0.005859375,
+            "alternative": "candidate_success_probability_is_higher"
+          },
+          "timeouts": {
+            "reference_count": 0,
+            "candidate_count": 0,
+            "new_timeout_count": 0,
+            "resolved_timeout_count": 0,
+            "net_increase_count": 0
+          },
+          "errors": {
+            "reference_count": 0,
+            "candidate_count": 0
+          },
+          "completion_delay_on_reference_success": {
+            "reference_success_count": 12,
+            "paired_success_count": 11,
+            "candidate_noncompletion_count": 1,
+            "eligible_transition": "success_to_success",
+            "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+            "quantile_method": "numpy_linear",
+            "median_ratio": 1.1443298969072164,
+            "ratio_q25": 1.0811472415052978,
+            "ratio_q75": 1.1918367346938776,
+            "ratio_iqr": 0.11068949318857979,
+            "ratio_p90": 1.2,
+            "median_reference_completion_time_s": 12.544,
+            "median_candidate_completion_time_s": 14.848
+          }
+        },
+        "reverse": {
+          "episodes": 30,
+          "outcome_transitions": {
+            "collision_to_collision": 5,
+            "collision_to_success": 9,
+            "success_to_collision": 3,
+            "success_to_success": 13
+          },
+          "collision": {
+            "reference_count": 14,
+            "candidate_count": 8,
+            "absolute_reduction_count": 6,
+            "relative_reduction": 0.42857142857142855
+          },
+          "paired_success_endpoint": {
+            "rescues_reference_non_success_to_candidate_success": 9,
+            "regressions_reference_success_to_candidate_non_success": 3,
+            "discordant_total": 12,
+            "exact_one_sided_mcnemar_p": 0.072998046875,
+            "alternative": "candidate_success_probability_is_higher"
+          },
+          "timeouts": {
+            "reference_count": 0,
+            "candidate_count": 0,
+            "new_timeout_count": 0,
+            "resolved_timeout_count": 0,
+            "net_increase_count": 0
+          },
+          "errors": {
+            "reference_count": 0,
+            "candidate_count": 0
+          },
+          "completion_delay_on_reference_success": {
+            "reference_success_count": 16,
+            "paired_success_count": 13,
+            "candidate_noncompletion_count": 3,
+            "eligible_transition": "success_to_success",
+            "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+            "quantile_method": "numpy_linear",
+            "median_ratio": 1.0869565217391306,
+            "ratio_q25": 1.0,
+            "ratio_q75": 1.10752688172043,
+            "ratio_iqr": 0.10752688172043001,
+            "ratio_p90": 1.1540287951502906,
+            "median_reference_completion_time_s": 13.824,
+            "median_candidate_completion_time_s": 13.824
+          }
+        }
+      },
+      "vertical": {
+        "non_reverse": {
+          "episodes": 30,
+          "outcome_transitions": {
+            "collision_to_collision": 3,
+            "collision_to_success": 6,
+            "success_to_collision": 1,
+            "success_to_success": 20
+          },
+          "collision": {
+            "reference_count": 9,
+            "candidate_count": 4,
+            "absolute_reduction_count": 5,
+            "relative_reduction": 0.5555555555555556
+          },
+          "paired_success_endpoint": {
+            "rescues_reference_non_success_to_candidate_success": 6,
+            "regressions_reference_success_to_candidate_non_success": 1,
+            "discordant_total": 7,
+            "exact_one_sided_mcnemar_p": 0.0625,
+            "alternative": "candidate_success_probability_is_higher"
+          },
+          "timeouts": {
+            "reference_count": 0,
+            "candidate_count": 0,
+            "new_timeout_count": 0,
+            "resolved_timeout_count": 0,
+            "net_increase_count": 0
+          },
+          "errors": {
+            "reference_count": 0,
+            "candidate_count": 0
+          },
+          "completion_delay_on_reference_success": {
+            "reference_success_count": 21,
+            "paired_success_count": 20,
+            "candidate_noncompletion_count": 1,
+            "eligible_transition": "success_to_success",
+            "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+            "quantile_method": "numpy_linear",
+            "median_ratio": 1.0636322463768115,
+            "ratio_q25": 1.0,
+            "ratio_q75": 1.1097114993904915,
+            "ratio_iqr": 0.10971149939049152,
+            "ratio_p90": 1.1817133258678612,
+            "median_reference_completion_time_s": 12.096,
+            "median_candidate_completion_time_s": 13.76
+          }
+        },
+        "reverse": {
+          "episodes": 30,
+          "outcome_transitions": {
+            "collision_to_collision": 3,
+            "collision_to_success": 10,
+            "success_to_collision": 1,
+            "success_to_success": 16
+          },
+          "collision": {
+            "reference_count": 13,
+            "candidate_count": 4,
+            "absolute_reduction_count": 9,
+            "relative_reduction": 0.6923076923076923
+          },
+          "paired_success_endpoint": {
+            "rescues_reference_non_success_to_candidate_success": 10,
+            "regressions_reference_success_to_candidate_non_success": 1,
+            "discordant_total": 11,
+            "exact_one_sided_mcnemar_p": 0.005859375,
+            "alternative": "candidate_success_probability_is_higher"
+          },
+          "timeouts": {
+            "reference_count": 0,
+            "candidate_count": 0,
+            "new_timeout_count": 0,
+            "resolved_timeout_count": 0,
+            "net_increase_count": 0
+          },
+          "errors": {
+            "reference_count": 0,
+            "candidate_count": 0
+          },
+          "completion_delay_on_reference_success": {
+            "reference_success_count": 17,
+            "paired_success_count": 16,
+            "candidate_noncompletion_count": 1,
+            "eligible_transition": "success_to_success",
+            "estimand": "median_of_per_scenario_candidate_to_reference_completion_time_ratio",
+            "quantile_method": "numpy_linear",
+            "median_ratio": 1.0,
+            "ratio_q25": 1.0,
+            "ratio_q75": 1.0708105646630237,
+            "ratio_iqr": 0.07081056466302371,
+            "ratio_p90": 1.126328502415459,
+            "median_reference_completion_time_s": 12.16,
+            "median_candidate_completion_time_s": 12.8
+          }
+        }
+      }
+    }
+  },
+  "manipulation_integrity_check": {
+    "role": "required_experiment_validity_check_not_primary_efficacy_gate",
+    "passed": true,
+    "checks": {
+      "reference_all_episodes_disabled": true,
+      "reference_zero_active_steps": true,
+      "reference_zero_intervention": true,
+      "reference_disabled_preserves_float32_action_bits": true,
+      "reference_all_steps_match_float32_intervention_semantics": true,
+      "candidate_all_episodes_enabled": true,
+      "candidate_has_active_steps": true,
+      "candidate_has_braking_steps": true,
+      "candidate_preserves_angular_action": true,
+      "candidate_all_steps_preserve_angular_action_float32_bits": true,
+      "candidate_all_steps_match_float32_intervention_semantics": true,
+      "candidate_active_steps_are_exact_speed_cap_braking": true
+    },
+    "reference_metrics": {
+      "episode_count": 120,
+      "enabled_episode_count": 0,
+      "episode_with_active_step_count": 0,
+      "total_step_count": 9523,
+      "active_step_count": 0,
+      "active_step_ratio": 0.0,
+      "intervention_sum": 0.0,
+      "braking_step_count": 0,
+      "speed_cap_binding_step_count": 0,
+      "active_operational_semantics_step_count": 0,
+      "recorded_active_matches_float32_norm_step_count": 9523,
+      "recorded_intervention_matches_float32_norm_step_count": 9523,
+      "active_angular_action_float32_bits_unchanged_step_count": 0,
+      "all_angular_action_float32_bits_unchanged_step_count": 9523,
+      "all_action_float32_bits_unchanged_step_count": 9523,
+      "maximum_absolute_angular_action_delta": 0.0,
+      "maximum_recorded_vs_recomputed_intervention_error": 0.0
+    },
+    "candidate_metrics": {
+      "episode_count": 120,
+      "enabled_episode_count": 120,
+      "episode_with_active_step_count": 108,
+      "total_step_count": 12741,
+      "active_step_count": 3740,
+      "active_step_ratio": 0.29354053841927635,
+      "intervention_sum": 3743.3074385374784,
+      "braking_step_count": 3740,
+      "speed_cap_binding_step_count": 3740,
+      "active_operational_semantics_step_count": 3740,
+      "recorded_active_matches_float32_norm_step_count": 12741,
+      "recorded_intervention_matches_float32_norm_step_count": 12741,
+      "active_angular_action_float32_bits_unchanged_step_count": 3740,
+      "all_angular_action_float32_bits_unchanged_step_count": 12741,
+      "all_action_float32_bits_unchanged_step_count": 9001,
+      "maximum_absolute_angular_action_delta": 0.0,
+      "maximum_recorded_vs_recomputed_intervention_error": 0.0
+    }
+  },
+  "experiment_validity": {
+    "manipulation_integrity_required": true,
+    "manipulation_integrity_passed": true,
+    "primary_efficacy_gate_passed": true,
+    "overall_passed": true
+  },
+  "interpretation_scope": {
+    "estimand": "paired_intent_to_treat_whole_closed_loop_profile_effect",
+    "candidate_profile": "front_brake_enabled_with_admitted_action_fed_back_into_next_observation",
+    "only_treatment_parameter_difference": "WEBOTS_SAFETY_SHIELD_enabled_0_vs_1",
+    "step_level_action_transformation_evidence_available": true,
+    "outcome_effect_remains_intent_to_treat": true,
+    "mechanism_evidence_scope": "shield_activation_action_braking_speed_cap_and_angular_preservation"
+  },
+  "candidate_gate": {
+    "require_all": true,
+    "checks": {
+      "minimum_relative_collision_reduction": {
+        "actual": 0.5370370370370371,
+        "operator": ">=",
+        "threshold": 0.25,
+        "passed": true
+      },
+      "exact_one_sided_mcnemar_p": {
+        "actual": 2.436799150018487e-06,
+        "operator": "<",
+        "threshold": 0.05,
+        "passed": true
+      },
+      "maximum_new_timeout_count": {
+        "actual": 0,
+        "operator": "<=",
+        "threshold": 2,
+        "passed": true
+      },
+      "maximum_median_completion_time_ratio": {
+        "actual": 1.072172619047619,
+        "operator": "<=",
+        "threshold": 1.15,
+        "denominator": "success_to_success_scenarios",
+        "passed": true
+      },
+      "minimum_common_success_count": {
+        "actual": 60,
+        "operator": ">=",
+        "threshold": 24,
+        "passed": true
+      },
+      "maximum_reference_error_count": {
+        "actual": 0,
+        "operator": "<=",
+        "threshold": 0,
+        "passed": true
+      },
+      "maximum_candidate_error_count": {
+        "actual": 0,
+        "operator": "<=",
+        "threshold": 0,
+        "passed": true
+      }
+    },
+    "passed": true
+  },
+  "decision": {
+    "selected": "front_brake_independently_confirmed_in_diagnostic_v2",
+    "validation_or_test_access": "forbidden"
+  },
+  "written_reports": {
+    "json": "artifacts/results/webots_front_brake_paired_confirmation_v2/paired_diagnostic_report.json",
+    "yaml": "artifacts/results/webots_front_brake_paired_confirmation_v2/paired_diagnostic_report.yaml",
+    "sha256_sidecar": "artifacts/results/webots_front_brake_paired_confirmation_v2/paired_diagnostic_report.sha256"
+  }
+}

@@ -269,3 +269,52 @@ reference 与 H1 step `30,720` 都取得 `21/40` success、`19/40` collision、0
 “只是最终 checkpoint 选错”的解释：H1 的训练中间峰值没有转化为独立场景中的策略改善。
 validation 与 held-out test 仍未访问；后续不再从 H1 任一 checkpoint 续训，而是回到
 recovery-v1 参考模型，先基于逐回合上下文定位动态横穿的时序观测/风险建模缺口。
+
+## 2026-08-30：前向制动 v1 边界复核与 v2 独立确认
+
+recovery-v1 的 120 回合风险轨迹诊断将主要问题收敛到接近障碍时的前向响应不足。随后只
+冻结一个最小候选：保持模型权重、策略输出和角动作不变，在前方 `±60°` 扇区按净空对
+线速度做 `0.75 m → 0.24 m` 的平滑限制。首次配对实验 v1 使用 diagnostic seeds
+`25728～25847`，reference 为 `65 success / 55 collision`，candidate 为
+`96 success / 24 collision`；主效应门槛全部通过，但原报告因速度上限检查少计一个 active
+step 而保持 `invalid_manipulation`，报告 JSON SHA-256 为
+`2779e8dcb6f8ccf2216464e196dc5c5f3a5ba1c8092eb0d75cb14fb62e2cc787`。
+
+没有重跑或改写 v1。纯离线 checker audit 绑定原报告三件套、两臂 8 个 raw 文件、模型、
+历史 commit `f957181...` 的 13 个源码 blob 和审计脚本自身哈希，并从 raw action 以
+`np.float32` 重新计算 intervention、active、cap 和角动作位。结果确认 candidate 的
+`3197/3197` 个 active step 全部满足预设操作语义；唯一旧判据漏计的是 seed `25737`、
+step `21`，其 float32 线速度差为 `1.013278961e-6`，而 policy 到 double cap 的差为
+`9.985105547e-7`。审计 JSON SHA-256 为
+`aac1bf62e755a1868837c294adc4e2d13cf9949a4dcba484d0c0b18c4ffd16ed`。该审计明确不提升
+v1，只允许一次新样本 diagnostic 确认。
+
+v2 协议在结果产生前提交为 clean commit
+`680e6aceb15b3c655c8e2bf03438d877ca23a0a1`。从 v1 后首个未使用 seed `25848` 开始，
+仅按路线轴、是否反向和障碍初始方向搜索，得到首个满足四格各 30 且方向 60/60 的连续窗
+`54775～54894`；它与 v1、validation `5000～5019`、held-out test `10000～10019`
+均不重叠。模型、shield 参数、120 对样本、主门槛和严格 manipulation gate 全部冻结，
+明确禁止参数扫描、追加样本和 v1/v2 pooled fallback。全量 Python 测试为 `402 passed`，
+dry-run 未创建结果目录，随后只执行了一次 120+120 回合 Webots 配对运行。
+
+v2 结果如下：
+
+```text
+reference: 66 success / 54 collision / 0 timeout / 0 error
+candidate: 95 success / 25 collision / 0 timeout / 0 error
+paired:    19 C→C / 35 C→S / 6 S→C / 60 S→S
+collision relative reduction: 0.537037
+one-sided exact McNemar p:     2.436799150018487e-6
+common-success pairs:          60
+median candidate/reference completion-time ratio: 1.072173
+```
+
+所有预声明主门槛均通过。候选组在 12,741 个控制步中介入 3,740 步，108/120 个回合至少
+介入一次；3,740 个 active step 全部满足严格 float32 速度上限绑定和线性制动，全部
+12,741 步的角动作位保持不变，intervention/active 与动作重算一致。最终报告状态为
+`passed`，JSON SHA-256 为
+`62397f5ffa892183dcca24438ea8c5de98c32adb7dcacad13fde47291cbe23d0`。
+
+这只确认 recovery-v1 单模型在 DB1 单动态障碍下的整个前向制动闭环 profile；分层结果只作
+描述，不能解释为阈值的独立因果效应，也不是 validation、held-out test、三 seed 均值、
+复杂场景泛化或形式化安全证明。v2 没有访问正式保留数据，400 回合正式协议仍未启动。

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" role="img">
+  <title>v2 diagnostic outcome rates</title>
+  <desc>Reference 66 successes and 54 collisions; candidate 95 successes and 25 collisions.</desc>
+  <rect width="960" height="560" fill="#f8fafc"/>
+  <text x="48.0" y="48.0" font-family="Arial, sans-serif" font-size="27" font-weight="700" text-anchor="start" fill="#172033">Independent diagnostic confirmation: outcomes</text>
+  <text x="48.0" y="79.0" font-family="Arial, sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="#526078">v2 seeds 54775-54894 · 120 paired episodes</text>
+  <line x1="110.0" y1="435.0" x2="900.0" y2="435.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="96.0" y="440.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">0</text>
+  <line x1="110.0" y1="383.3" x2="900.0" y2="383.3" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="96.0" y="388.3" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">20</text>
+  <line x1="110.0" y1="331.7" x2="900.0" y2="331.7" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="96.0" y="336.7" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">40</text>
+  <line x1="110.0" y1="280.0" x2="900.0" y2="280.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="96.0" y="285.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">60</text>
+  <line x1="110.0" y1="228.3" x2="900.0" y2="228.3" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="96.0" y="233.3" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">80</text>
+  <line x1="110.0" y1="176.7" x2="900.0" y2="176.7" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="96.0" y="181.7" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">100</text>
+  <line x1="110.0" y1="125.0" x2="900.0" y2="125.0" stroke="#d9e0ea" stroke-width="1"/>
+  <text x="96.0" y="130.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="end" fill="#526078">120</text>
+  <rect x="255.0" y="264.5" width="80" height="170.5" rx="6" fill="#167d64"/>
+  <text x="295.0" y="254.5" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#172033">66/120 (55.00%)</text>
+  <text x="295.0" y="462.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">Success</text>
+  <rect x="365.0" y="295.5" width="80" height="139.5" rx="6" fill="#c94b55"/>
+  <text x="405.0" y="285.5" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#172033">54/120 (45.00%)</text>
+  <text x="405.0" y="462.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">Collision</text>
+  <text x="330.0" y="510.0" font-family="Arial, sans-serif" font-size="19" font-weight="700" text-anchor="middle" fill="#172033">Reference</text>
+  <rect x="625.0" y="189.6" width="80" height="245.4" rx="6" fill="#167d64"/>
+  <text x="665.0" y="179.6" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#172033">95/120 (79.17%)</text>
+  <text x="665.0" y="462.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">Success</text>
+  <rect x="735.0" y="370.4" width="80" height="64.6" rx="6" fill="#c94b55"/>
+  <text x="775.0" y="360.4" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="#172033">25/120 (20.83%)</text>
+  <text x="775.0" y="462.0" font-family="Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#526078">Collision</text>
+  <text x="700.0" y="510.0" font-family="Arial, sans-serif" font-size="19" font-weight="700" text-anchor="middle" fill="#172033">Candidate</text>
+  <text x="480.0" y="548.0" font-family="Arial, sans-serif" font-size="16" font-weight="700" text-anchor="middle" fill="#9b3340">Collision reduction: 54 -&gt; 25 (-53.70%)</text>
+</svg>

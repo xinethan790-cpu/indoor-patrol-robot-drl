@@ -5,3 +5,11 @@ artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/* -text whit
 artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/* -text whitespace=cr-at-eol
 artifacts/results/webots_front_brake_paired_diagnostic_v1/* -text whitespace=cr-at-eol
 artifacts/results/webots_front_brake_v1_manipulation_reaudit_v1/* -text whitespace=cr-at-eol
+artifacts/results/webots_diagnostic_front_brake_v2_candidate_seed11/* -text whitespace=cr-at-eol
+artifacts/results/webots_diagnostic_front_brake_v2_reference_seed11/* -text whitespace=cr-at-eol
+artifacts/results/webots_front_brake_paired_confirmation_v2/* -text whitespace=cr-at-eol
+
+# The public-report sidecar hashes the exact LF bytes of the generator and all
+# five derived files.  Keep those bytes stable even on autocrlf-enabled clones.
+scripts/generate_webots_front_brake_confirmation_report.py text eol=lf
+reports/webots_front_brake_confirmation/* text eol=lf
