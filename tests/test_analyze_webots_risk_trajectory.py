@@ -4,6 +4,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -237,6 +238,10 @@ def _write_collection_report(
     context_path: Path,
     episodes_path: Path,
 ) -> tuple[Path, dict[str, Any]]:
+    source_model = REPOSITORY_ROOT / ANALYZER.RECOVERY_MODEL_PATH
+    locked_model = root / ANALYZER.RECOVERY_MODEL_PATH
+    locked_model.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_model, locked_model)
     summary_path = context_path.with_name("summary.json")
     summary_path.write_text("{}\n", encoding="utf-8")
     report_path = (

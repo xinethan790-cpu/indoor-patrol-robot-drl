@@ -360,6 +360,13 @@ def load_locked_collection(
         "sha256": RECOVERY_MODEL_SHA256,
     }:
         raise PermissionError("source_bindings.model is not the locked recovery-v1 model.")
+    model_path = _portable_path(
+        RECOVERY_MODEL_PATH,
+        repository_root=root,
+        label="locked recovery-v1 model path",
+    )
+    if not model_path.is_file() or _sha256_file(model_path) != RECOVERY_MODEL_SHA256:
+        raise ValueError("Locked recovery-v1 model file is missing or has an invalid SHA-256.")
     webots_binding = _mapping(
         source_bindings["webots_executable"],
         "collection_report.source_bindings.webots_executable",
@@ -1493,6 +1500,14 @@ def response_decision(episodes: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "reaction_evaluable_physical_episodes": len(evaluable),
         "reaction_indeterminate_physical_episodes": len(indeterminate),
         "reaction_indeterminate_fraction": indeterminate_fraction,
+        "reaction_indeterminate_reason_counts": dict(
+            sorted(
+                Counter(
+                    str(value.get("deceleration_reaction_indeterminate_reason"))
+                    for value in indeterminate
+                ).items()
+            )
+        ),
         "short_horizon_response_insufficient": insufficient_interval,
         "timely_deceleration_response": timely_interval,
         "thresholds": {
