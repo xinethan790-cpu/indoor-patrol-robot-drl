@@ -254,3 +254,18 @@ runner 因此以 `gate_failed` 停止，`test_split_was_run=false`，validation 
 映射，该窗口恰好包含 20 个水平和 20 个垂直场景。候选必须同时通过整体、分轴和配对净
 救回门槛，否则否决整个 H1 分支，不再轮流尝试同一轨迹的其他 checkpoint。该审计只使用
 diagnostic split，validation 与 held-out test 继续封存。
+
+配对审计在 clean commit `26b70333cd4ab5bfabaedaa15d0af588498247b6` 上完成；配置
+SHA-256 为 `b4da4f2ec6d9d76f6beed8396af697eba4a498c1eefe06865786bbaae71a0a9b`。
+reference 与 H1 step `30,720` 都取得 `21/40` success、`19/40` collision、0 timeout；
+其中水平路线均为 `9/20` success，垂直路线均为 `12/20`。更重要的是，40 个 seed 的
+结局逐一相同：19 个 `collision→collision`、21 个 `success→success`，没有任何救回或
+新增失败。候选因此同时未通过整体 success/collision、水平、垂直和水平净救回门槛；
+自动决策为 `reject_entire_h1_branch`。
+
+审计报告分别绑定两臂的模型、`summary.json`、`episodes.csv` 与 diagnostic-only
+`episode_context.jsonl`，报告 JSON SHA-256 为
+`b31b5a475c17793e3387ebfaaef171c4b25ee6a9dbbb6c14647242ecbb8eb06e`。该结果排除了
+“只是最终 checkpoint 选错”的解释：H1 的训练中间峰值没有转化为独立场景中的策略改善。
+validation 与 held-out test 仍未访问；后续不再从 H1 任一 checkpoint 续训，而是回到
+recovery-v1 参考模型，先基于逐回合上下文定位动态横穿的时序观测/风险建模缺口。
