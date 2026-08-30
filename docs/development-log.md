@@ -167,3 +167,30 @@ manifest、训练 metadata、模型、validation summary 与 episodes CSV 已完
 该失败结果按原样保留，不通过放宽碰撞阈值修饰。下一轮只使用独立 diagnostic seeds
 验证渐进速度课程、提前减速奖励和完整路线恢复；新配置冻结后才重新运行 validation，
 最终 `10000～10019` held-out test 继续封存。
+
+## 2026-08-30：W1 recovery-v1 诊断门禁结果
+
+在 clean commit `9e8cb7d08a59b78f931704d6c3ea7083b3c36dab` 上，以首次 W1 失败模型
+`84e0ebb...93cc8` 为精确策略迁移源执行 recovery-v1 的 E1。训练完成 `40,960`
+steps，模型 SHA-256 为
+`c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275`；482 次 reset
+全部成功，训练过程未出现 NaN/Inf。
+
+E1 只访问 diagnostic seeds `20000～20019`，结果为：
+
+```text
+success:   13/20 = 0.65
+collision:  7/20 = 0.35
+timeout:    0/20 = 0.00
+gate: success >= 0.70 and collision <= 0.30  -> failed
+```
+
+runner 按门禁停止，E2、validation 和 held-out test 均未启动。离线训练诊断显示总体
+成功率 `63.41%`，最后 100 回合提升到 `70%`；水平路线成功率 `55.88%`，垂直路线
+`70.78%`。176 次 collision 中 156 次（`88.64%`）为 LiDAR-only，说明恢复方向已经
+有效，但需要更多同难度巩固和更细的路线/速度桥接，不能通过事后降低门槛进入下一阶段。
+
+下一轮 `webots_w1_recovery_v2.yaml` 从 E1 模型的精确 SHA 迁移到隔离 variant，依次使用
+全新的 diagnostic 窗口 `20040～20059`、`20060～20079`、`20080～20099`。C1 保持
+短路线进行巩固，C2 再扩大速度与水平路线，C3 才恢复完整速度；只有三段均通过后，F1
+才允许访问一次 validation `5000～5019`。`10000～10019` 继续封存。

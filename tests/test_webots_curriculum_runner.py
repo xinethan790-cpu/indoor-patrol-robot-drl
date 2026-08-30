@@ -379,6 +379,40 @@ def test_repository_w1_recovery_config_is_predeclared_and_split_safe() -> None:
     )
 
 
+def test_repository_w1_recovery_v2_uses_fresh_diagnostics_before_validation() -> None:
+    config = load_webots_curriculum(
+        Path("configs/train/webots_w1_recovery_v2.yaml")
+    )
+
+    assert config.model_variant == "w1_recovery_v2"
+    assert config.policy_transfer_model == Path(
+        "artifacts/models/webots/seed_11/w1_recovery_v1/"
+        "ppo_webots_s11_step000040960.zip"
+    )
+    assert config.policy_transfer_model_sha256 == (
+        "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275"
+    )
+    assert [stage.stage_id for stage in config.stages] == ["C1", "C2", "C3", "F1"]
+    assert [stage.evaluation_split for stage in config.stages] == [
+        "diagnostic",
+        "diagnostic",
+        "diagnostic",
+        "validation",
+    ]
+    assert [(stage.gate.seed_start, stage.gate.episodes) for stage in config.stages] == [
+        (20_040, 20),
+        (20_060, 20),
+        (20_080, 20),
+        (5_000, 20),
+    ]
+    assert [stage.resume_from_previous_stage for stage in config.stages] == [
+        False,
+        True,
+        True,
+        True,
+    ]
+
+
 def test_recovery_stage_constraints_reject_unsafe_resume_and_seed_windows() -> None:
     with pytest.raises(ValueError, match="first stage"):
         make_config(make_stage(resume_from_previous_stage=True))
