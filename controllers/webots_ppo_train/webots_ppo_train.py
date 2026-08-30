@@ -20,7 +20,11 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 
-from indoor_patrol_rl.core import RewardConfig
+from indoor_patrol_rl.core import (
+    LidarSafetyShield,
+    RewardConfig,
+    safety_shield_config_from_env,
+)
 from indoor_patrol_rl.envs import WebotsPatrolEnv
 
 ALL_OBSTACLE_DEFS = ("TRAIN_OBSTACLE_0", "TRAIN_OBSTACLE_1", "TRAIN_OBSTACLE_2")
@@ -89,6 +93,7 @@ def main() -> None:
     segment_id = time.strftime("failed_%Y%m%dT%H%M%S")
     training_steps: int | None = None
     obstacle_count: int | None = None
+    horizontal_route_probability: float | None = None
     source_path: Path | None = None
     monitor_path: Path | None = None
     try:
@@ -96,6 +101,10 @@ def main() -> None:
         training_steps = int(os.environ.get("WEBOTS_TRAIN_STEPS", "50000"))
         obstacle_count = int(os.environ.get("WEBOTS_OBSTACLE_COUNT", "1"))
         safety_shield_enabled = environment_flag("WEBOTS_SAFETY_SHIELD")
+        safety_shield_config = safety_shield_config_from_env(
+            os.environ,
+            lidar_max_range=float(supervisor.getDevice("LDS-01").getMaxRange()),
+        )
         model_variant_value = os.environ.get("WEBOTS_MODEL_VARIANT", "").strip()
         if model_variant_value in {".", ".."} or (
             model_variant_value
@@ -148,6 +157,16 @@ def main() -> None:
         vertical_route_half_length = float(
             os.environ.get("WEBOTS_VERTICAL_ROUTE_HALF_LENGTH", "1.10")
         )
+        horizontal_route_probability = float(
+            os.environ.get("WEBOTS_HORIZONTAL_ROUTE_PROBABILITY", "0.5")
+        )
+        if (
+            not math.isfinite(horizontal_route_probability)
+            or not 0.0 <= horizontal_route_probability <= 1.0
+        ):
+            raise ValueError(
+                "WEBOTS_HORIZONTAL_ROUTE_PROBABILITY must be between zero and one."
+            )
         target_kl_value = os.environ.get("WEBOTS_PPO_TARGET_KL")
         target_kl = float(target_kl_value) if target_kl_value is not None else None
         if not 0 <= obstacle_count <= len(ALL_OBSTACLE_DEFS):
@@ -161,6 +180,7 @@ def main() -> None:
             action_repeat=4,
             max_episode_steps=300,
             enable_safety_shield=safety_shield_enabled,
+            safety_shield=LidarSafetyShield(safety_shield_config),
             obstacle_speed_range=obstacle_speed_range,
             safety_distance=reward_safety_distance,
             proximity_speed_distance=proximity_speed_distance,
@@ -168,6 +188,7 @@ def main() -> None:
             reward_config=reward_config,
             horizontal_route_half_length=horizontal_route_half_length,
             vertical_route_half_length=vertical_route_half_length,
+            horizontal_route_probability=horizontal_route_probability,
         )
         log_directory = repository_root / "artifacts/logs/webots" / f"seed_{seed}"
         if model_variant:
@@ -331,6 +352,7 @@ def main() -> None:
                 "horizontal": horizontal_route_half_length,
                 "vertical": vertical_route_half_length,
             },
+            "horizontal_route_probability": horizontal_route_probability,
             "ppo": {
                 "n_steps": model.n_steps,
                 "batch_size": model.batch_size,
@@ -404,6 +426,7 @@ def main() -> None:
                 "model_variant": model_variant or None,
                 "segment_id": segment_id,
                 "obstacle_count": obstacle_count,
+                "horizontal_route_probability": horizontal_route_probability,
                 "additional_steps_requested": training_steps,
                 "current_model_steps": (int(model.num_timesteps) if model is not None else None),
                 "source_model": str(source_path) if source_path is not None else None,

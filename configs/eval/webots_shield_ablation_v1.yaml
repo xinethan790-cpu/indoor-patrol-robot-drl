@@ -1,0 +1,40 @@
+# Diagnostic-only paired safety-shield ablation. This is not a validation gate
+# and must never be used as held-out test evidence.
+schema_version: 1
+experiment_id: webots_shield_ablation_v1
+split: diagnostic
+training_seed: 11
+model: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+model_sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+model_variant: w1_recovery_v1
+condition_id: DS2
+scenario_seed_start: 20120
+episodes: 20
+scenario:
+  obstacle_count: 1
+  obstacle_speed_range: [0.15, 0.30]
+  horizontal_route_half_length: 1.10
+  vertical_route_half_length: 1.10
+arms:
+  - id: ppo_no_shield
+    run_name: webots_diagnostic_shield_ablation_v1_noshield_seed11
+    planner_label: ppo_e1_noshield_v1
+    controller_env:
+      WEBOTS_SAFETY_SHIELD: "0"
+  - id: ppo_tuned_side_shield
+    run_name: webots_diagnostic_shield_ablation_v1_tuned_seed11
+    planner_label: ppo_e1_tuned_side_shield_v1
+    controller_env:
+      WEBOTS_SAFETY_SHIELD: "1"
+      WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE: "0.20"
+      WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE: "0.50"
+      WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: "0.0"
+primary_metrics:
+  - paired_outcome_transitions
+  - success_rate
+  - collision_rate
+  - timeout_rate
+secondary_metrics:
+  - minimum_clearance_m_mean
+  - near_collision_ratio_mean
+  - completion_time_s_mean

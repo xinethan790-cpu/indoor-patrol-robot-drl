@@ -7,7 +7,7 @@ import os
 import re
 import time
 import traceback
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +15,12 @@ import numpy as np
 import yaml
 from controller import Supervisor
 
+from indoor_patrol_rl.core import (
+    SAFETY_SHIELD_CONFIG_ENV_PREFIX,
+    LidarSafetyShield,
+    SafetyShieldConfig,
+    safety_shield_config_from_env,
+)
 from indoor_patrol_rl.envs import WebotsPatrolEnv
 from indoor_patrol_rl.evaluation import (
     FORMAL_TEST_SEEDS,
@@ -62,6 +68,7 @@ class EvaluationPlan:
     action_repeat: int
     max_episode_steps: int
     safety_shield_enabled: bool
+    safety_shield_config: SafetyShieldConfig
     static_layout: str
     formal_config: WebotsFormalConfig | None = None
 
@@ -261,6 +268,16 @@ def _resolve_formal_plan(repository_root: Path) -> EvaluationPlan:
     )
     if environment_flag("WEBOTS_SAFETY_SHIELD"):
         raise ValueError("Formal G0-G3 evaluation fixes WEBOTS_SAFETY_SHIELD=0.")
+    configured_shield_values = sorted(
+        name
+        for name in os.environ
+        if name.startswith(SAFETY_SHIELD_CONFIG_ENV_PREFIX)
+    )
+    if configured_shield_values:
+        raise ValueError(
+            "Formal G0-G3 evaluation fixes the default SafetyShieldConfig while "
+            f"WEBOTS_SAFETY_SHIELD=0; remove {configured_shield_values}."
+        )
     configured_label = os.environ.get("WEBOTS_EVAL_PLANNER_LABEL")
     if configured_label is not None and configured_label != request.planner_label:
         raise ValueError(
@@ -310,6 +327,7 @@ def _resolve_formal_plan(repository_root: Path) -> EvaluationPlan:
         action_repeat=config.control.action_repeat,
         max_episode_steps=config.control.max_episode_steps,
         safety_shield_enabled=False,
+        safety_shield_config=SafetyShieldConfig(),
         static_layout=condition.static_layout,
         formal_config=config,
     )
@@ -370,6 +388,7 @@ def _resolve_nonformal_plan(
     if not 0.0 <= obstacle_speed_range[0] <= obstacle_speed_range[1]:
         raise ValueError("Webots obstacle speeds must be non-negative and ordered.")
     shield = environment_flag("WEBOTS_SAFETY_SHIELD")
+    shield_config = safety_shield_config_from_env(os.environ)
     default_label = (
         f"ppo_seed{training_seed}{'_shield' if shield else ''}"
         if planner == "ppo"
@@ -400,6 +419,7 @@ def _resolve_nonformal_plan(
         action_repeat=4,
         max_episode_steps=300,
         safety_shield_enabled=shield,
+        safety_shield_config=shield_config,
         static_layout="train_a",
     )
 
@@ -577,6 +597,7 @@ def _provenance(
         "vertical_route_half_length": plan.vertical_route_half_length,
         "static_layout": plan.static_layout,
         "safety_shield_enabled": plan.safety_shield_enabled,
+        "safety_shield_config": asdict(plan.safety_shield_config),
         "reference_path_definition": (
             "inflated_static_map_astar"
             if plan.formal_config is not None
@@ -627,6 +648,13 @@ def main() -> None:
     scenario_seed: int | None = None
     try:
         plan = _resolve_plan(repository_root)
+        plan = replace(
+            plan,
+            safety_shield_config=replace(
+                plan.safety_shield_config,
+                lidar_max_range=float(supervisor.getDevice("LDS-01").getMaxRange()),
+            ),
+        )
         _configure_world_nodes(
             supervisor,
             obstacle_count=plan.obstacle_count,
@@ -638,6 +666,7 @@ def main() -> None:
             action_repeat=plan.action_repeat,
             max_episode_steps=plan.max_episode_steps,
             enable_safety_shield=plan.safety_shield_enabled,
+            safety_shield=LidarSafetyShield(plan.safety_shield_config),
             obstacle_speed_range=plan.obstacle_speed_range,
             horizontal_route_half_length=plan.horizontal_route_half_length,
             vertical_route_half_length=plan.vertical_route_half_length,

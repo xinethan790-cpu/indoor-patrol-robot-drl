@@ -3,7 +3,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from indoor_patrol_rl.core import LidarSafetyShield
+from indoor_patrol_rl.core import (
+    LidarSafetyShield,
+    SafetyShieldConfig,
+    safety_shield_config_from_env,
+)
 
 
 def scan_with_clearances(*, front: float, left: float, right: float) -> np.ndarray:
@@ -100,3 +104,49 @@ def test_disabled_filter_is_passthrough_but_retains_clearance_diagnostics() -> N
     assert not result.active
     assert result.intervention == pytest.approx(0.0)
     assert result.front_clearance == pytest.approx(0.15)
+
+
+def test_environment_parser_keeps_exact_defaults_without_overrides() -> None:
+    assert safety_shield_config_from_env({}) == SafetyShieldConfig()
+
+
+def test_environment_parser_resolves_auditable_conservative_thresholds() -> None:
+    config = safety_shield_config_from_env(
+        {
+            "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.05",
+            "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+            "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.72",
+            "WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE": "0.16",
+            "WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE": "0.42",
+        },
+        lidar_max_range=8.0,
+    )
+
+    assert config.lidar_max_range == pytest.approx(8.0)
+    assert config.clearance_quantile == pytest.approx(0.05)
+    assert config.front_stop_distance == pytest.approx(0.24)
+    assert config.front_slowdown_distance == pytest.approx(0.72)
+    assert config.side_stop_distance == pytest.approx(0.16)
+    assert config.side_slowdown_distance == pytest.approx(0.42)
+    assert config.turn_gain == SafetyShieldConfig().turn_gain
+
+
+@pytest.mark.parametrize(
+    ("environ", "message"),
+    [
+        ({"WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTNACE": "0.2"}, "Unsupported"),
+        ({"WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "nan"}, "finite float"),
+        (
+            {
+                "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.8",
+                "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.7",
+            },
+            "front_stop_distance",
+        ),
+    ],
+)
+def test_environment_parser_rejects_typos_nonfinite_and_invalid_geometry(
+    environ: dict[str, str], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        safety_shield_config_from_env(environ)

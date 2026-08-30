@@ -11,12 +11,17 @@ import shutil
 import socket
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from indoor_patrol_rl.core.safety_shield import (
+    SAFETY_SHIELD_CONFIG_ENV_FIELDS,
+    safety_shield_config_from_env,
+)
 
 _MODEL_STEP_PATTERN = re.compile(r"step(?P<steps>\d+)\.zip$")
 _CHECKPOINT_STEP_PATTERN = re.compile(r"_(?P<steps>\d+)_steps\.zip$")
@@ -196,6 +201,7 @@ class ModelSnapshot:
     source_model_sha256: str | None = None
     obstacle_speed_range: tuple[float, float] | None = None
     route_half_lengths: tuple[float, float] | None = None
+    horizontal_route_probability: float | None = None
     monitor_log: str | None = None
     modified_at_ns: int | None = None
 
@@ -275,12 +281,38 @@ def normalize_controller_env(raw: Mapping[str, Any]) -> dict[str, str]:
                 "model-source fields."
             )
         value = _environment_value(raw_value, name)
+        if name == "WEBOTS_SAFETY_SHIELD" and value.strip().casefold() not in {
+            "0",
+            "1",
+            "false",
+            "true",
+            "no",
+            "yes",
+            "off",
+            "on",
+        }:
+            raise ValueError(
+                "WEBOTS_SAFETY_SHIELD must be one of 1/0, true/false, "
+                "yes/no, or on/off."
+            )
         if name == "WEBOTS_EVAL_SPLIT":
             raise ValueError(
                 "controller_env must not set WEBOTS_EVAL_SPLIT; use the stage "
                 "evaluation_split field."
             )
+        if name == "WEBOTS_HORIZONTAL_ROUTE_PROBABILITY":
+            try:
+                probability = float(value)
+            except ValueError as error:
+                raise ValueError(
+                    "WEBOTS_HORIZONTAL_ROUTE_PROBABILITY must be between zero and one."
+                ) from error
+            if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+                raise ValueError(
+                    "WEBOTS_HORIZONTAL_ROUTE_PROBABILITY must be between zero and one."
+                )
         normalized[name] = value
+    safety_shield_config_from_env(normalized)
     return normalized
 
 
@@ -290,7 +322,29 @@ def evaluation_controller_env(controller_env: Mapping[str, str]) -> dict[str, st
     return {
         name: value
         for name, value in controller_env.items()
-        if name in _EVALUATION_SHARED_ENV or name.startswith("WEBOTS_EVAL_")
+        if name in _EVALUATION_SHARED_ENV
+        or name in SAFETY_SHIELD_CONFIG_ENV_FIELDS
+        or name.startswith("WEBOTS_EVAL_")
+    }
+
+
+def _safety_shield_validation_contract(
+    controller_env: Mapping[str, str],
+) -> dict[str, object]:
+    """Return strict provenance expectations only for an explicit shield experiment."""
+
+    configured = "WEBOTS_SAFETY_SHIELD" in controller_env or any(
+        name in controller_env for name in SAFETY_SHIELD_CONFIG_ENV_FIELDS
+    )
+    if not configured:
+        return {}
+    raw_enabled = controller_env.get("WEBOTS_SAFETY_SHIELD", "0").strip().casefold()
+    enabled = raw_enabled in {"1", "true", "yes", "on"}
+    return {
+        "expected_safety_shield_enabled": enabled,
+        "expected_safety_shield_config": asdict(
+            safety_shield_config_from_env(controller_env)
+        ),
     }
 
 
@@ -584,6 +638,11 @@ def discover_model_snapshots(
                 route_half_lengths=_metadata_float_pair(
                     raw, "route_half_lengths", "horizontal", "vertical"
                 ),
+                horizontal_route_probability=(
+                    float(raw["horizontal_route_probability"])
+                    if raw.get("horizontal_route_probability") is not None
+                    else None
+                ),
                 monitor_log=(str(raw["monitor_log"]) if raw.get("monitor_log") else None),
                 modified_at_ns=final_model.stat().st_mtime_ns,
             )
@@ -648,9 +707,24 @@ def snapshot_matches_stage(snapshot: ModelSnapshot, stage: WebotsStage) -> bool:
             return False
         if not all(
             math.isclose(float(expected), actual, rel_tol=0.0, abs_tol=1e-9)
-            for expected, actual in zip(expected_route, snapshot.route_half_lengths, strict=True)
+            for expected, actual in zip(
+                expected_route, snapshot.route_half_lengths, strict=True
+            )
         ):
             return False
+    expected_horizontal_probability = stage.controller_env.get(
+        "WEBOTS_HORIZONTAL_ROUTE_PROBABILITY"
+    )
+    if expected_horizontal_probability is not None and (
+        snapshot.horizontal_route_probability is None
+        or not math.isclose(
+            float(expected_horizontal_probability),
+            snapshot.horizontal_route_probability,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+    ):
+        return False
     expected_run_id = stage.controller_env.get("WEBOTS_RUN_ID")
     if expected_run_id and (
         snapshot.monitor_log is None
@@ -778,6 +852,8 @@ def load_validation_metrics(
     expected_seed_start: int | None = None,
     expected_episodes: int | None = None,
     expected_split: str = "validation",
+    expected_safety_shield_enabled: object = _EXPECTED_NOT_SET,
+    expected_safety_shield_config: object = _EXPECTED_NOT_SET,
 ) -> dict[str, float | int]:
     """Read non-test gate metrics and optionally enforce full evaluation provenance.
 
@@ -818,7 +894,14 @@ def load_validation_metrics(
             expected_seed_start,
             expected_episodes,
         )
-    ) or expected_model_variant is not _EXPECTED_NOT_SET
+    ) or any(
+        value is not _EXPECTED_NOT_SET
+        for value in (
+            expected_model_variant,
+            expected_safety_shield_enabled,
+            expected_safety_shield_config,
+        )
+    )
     if not strict_contract:
         return metrics
     required = {
@@ -891,6 +974,33 @@ def load_validation_metrics(
         )
     if provenance.get("condition_id") != expected_condition:
         raise ValueError("Validation summary condition does not match the curriculum stage.")
+    shield_contract_supplied = any(
+        value is not _EXPECTED_NOT_SET
+        for value in (
+            expected_safety_shield_enabled,
+            expected_safety_shield_config,
+        )
+    )
+    if shield_contract_supplied:
+        if (
+            expected_safety_shield_enabled is _EXPECTED_NOT_SET
+            or expected_safety_shield_config is _EXPECTED_NOT_SET
+        ):
+            raise ValueError(
+                "Strict safety-shield validation contract must include enabled and config."
+            )
+        if provenance.get("safety_shield_enabled") is not expected_safety_shield_enabled:
+            raise ValueError(
+                "Validation summary safety_shield_enabled does not match the stage."
+            )
+        provenance_shield_config = _mapping(
+            provenance.get("safety_shield_config"),
+            "evaluation_provenance.safety_shield_config",
+        )
+        if provenance_shield_config != expected_safety_shield_config:
+            raise ValueError(
+                "Validation summary safety_shield_config does not match the stage."
+            )
 
     expected_seed_values = list(
         range(
@@ -1641,6 +1751,7 @@ class WebotsCurriculumRunner:
             expected_seed_start=gate.seed_start,
             expected_episodes=gate.episodes,
             expected_split=stage.evaluation_split,
+            **_safety_shield_validation_contract(stage.controller_env),
         )
         if not gate_passed(metrics, gate):
             raise ValueError(
@@ -2117,6 +2228,7 @@ class WebotsCurriculumRunner:
                 expected_seed_start=gate.seed_start,
                 expected_episodes=gate.episodes,
                 expected_split=stage.evaluation_split,
+                **_safety_shield_validation_contract(stage.controller_env),
             )
         except (OSError, ValueError, json.JSONDecodeError) as error:
             validation["status"] = "summary_invalid"

@@ -211,6 +211,36 @@ WEBOTS_OBSTACLE_COUNT=1 \
 held-out test `10000～10019` 重叠的自定义窗口。输出 `summary.json` 与 provenance 均明确
 写入 `split: diagnostic`；此类结果只能用于排错，不能充当 checkpoint 的正式门禁证据。
 
+### 可审计 SafetyShield 配置
+
+SafetyShield 默认关闭；未提供配置变量时，其数值行为保持仓库既有默认值。开发期若要做
+开启/关闭或阈值消融，应把开关和阈值一起写入课程阶段的 `controller_env`。运行器会把同一组
+场景参数和全部 `WEBOTS_SAFETY_SHIELD_*` 配置原样传给该阶段 evaluator，训练 metadata 与
+评测 provenance 则分别记录完整的 `safety_shield_config`，避免训练、验证使用不同阈值。
+
+以下是 `configs/eval/webots_shield_ablation_v1.yaml` 中预声明、仅用于独立 diagnostic
+配对对照的侧向候选，不应直接改写正式 W0/W1/W2 配置：
+
+```yaml
+controller_env:
+  WEBOTS_SAFETY_SHIELD: "1"
+  WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE: "0.20"
+  WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE: "0.50"
+  WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: "0.0"
+```
+
+该轮只改变侧向三项：把停车线和减速区前移，并允许侧向危险单独把前进速度限制为零。
+模型、场景 seeds `20120～20139`、路线、障碍速度和其余 shield 参数均保持一致；主要比较
+同一 seed 的 `collision→success` 与 `success→collision` 数量，同时报告 timeout，不能仅凭
+总成功率挑选结论。
+
+可配置字段还包括 `FRONT_HALF_ANGLE`、`SIDE_INNER_ANGLE`、`SIDE_OUTER_ANGLE`（均为弧度）、
+`SIDE_SPEED_FLOOR`、`SIDE_TURN_WEIGHT`、`TURN_GAIN`、`TURN_BLEND`、`SIDE_DEADBAND` 和
+`INTERVENTION_EPSILON`，变量名前缀均为 `WEBOTS_SAFETY_SHIELD_`。LiDAR 最大量程始终从
+仿真传感器读取，不允许通过环境变量伪造。未知字段、非有限数和不合法的阈值顺序都会在启动
+Webots 前失败。正式 G0～G3 仍固定 `WEBOTS_SAFETY_SHIELD=0`，并拒绝任何自定义 shield
+阈值；该实现不改变 held-out 协议。
+
 ### W1 失败后的预声明恢复课程
 
 seed 11 的首次 W1 正式门禁失败后，使用

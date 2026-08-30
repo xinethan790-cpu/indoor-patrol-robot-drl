@@ -194,3 +194,19 @@ runner 按门禁停止，E2、validation 和 held-out test 均未启动。离线
 全新的 diagnostic 窗口 `20040～20059`、`20060～20079`、`20080～20099`。C1 保持
 短路线进行巩固，C2 再扩大速度与水平路线，C3 才恢复完整速度；只有三段均通过后，F1
 才允许访问一次 validation `5000～5019`。`10000～10019` 继续封存。
+
+recovery-v2 的 C1 随后完成 `40,960` steps，训练整体成功率 `63.33%`、最后 100 回合
+`71%`，但在全新 diagnostic seeds `20040～20059` 上仅取得 `10/20` success、`10/20`
+collision。runner 再次按门禁停止，C2 和 validation 均未运行。这表明继续追加同分布 PPO
+更新没有形成稳定的跨窗口改进，不能使用训练末窗指标代替独立诊断。
+
+在另一组全新 diagnostic seeds `20100～20119` 上，使用 recovery-v1 E1 的同一权重完成
+默认 SafetyShield 配对消融：纯 PPO 为 `13/20` success、默认 shield 为 `14/20`；只有
+seed `20119` 从 collision 变为 success，其余 19 个结局完全相同。该样本不足以宣称默认
+shield 显著有效，但碰撞仍主要集中在水平交叉路线，且默认侧向 stop 距离仅 `0.12 m`、
+近侧障碍仍保留 35% 最大前进速度，因此值得做一次参数最少化的侧向消融。
+
+下一组 `webots_shield_ablation_v1` 已在运行前冻结：同一模型、同一组 `20120～20139`
+场景分别运行 shield-off 与 tuned-side-shield；后者只将侧向 stop/slowdown 调为
+`0.20/0.50 m`，并把侧向最低速度比例设为 `0`。所有阈值会写入 evaluation provenance；
+正式 G0～G3 继续固定 shield 关闭，validation 与 held-out test 均不参与该诊断。

@@ -6,9 +6,45 @@ import pytest
 from indoor_patrol_rl.envs.webots_patrol import (
     WebotsPatrolEnv,
     _sample_obstacle_position,
+    _sample_route_axis,
     _webots_scan_to_policy_order,
     validate_obstacle_cross_lanes,
 )
+
+
+def test_default_route_axis_sampling_preserves_seed_semantics() -> None:
+    actual_generator = np.random.default_rng(2026)
+    expected_generator = np.random.default_rng(2026)
+
+    actual = _sample_route_axis(actual_generator, 0.5)
+    expected = str(expected_generator.choice(["horizontal", "vertical"]))
+
+    assert actual == expected
+    assert actual_generator.random() == expected_generator.random()
+
+
+@pytest.mark.parametrize(
+    ("probability", "expected_axis"),
+    [(0.0, "vertical"), (1.0, "horizontal")],
+)
+def test_route_axis_sampling_honors_training_probability(
+    probability: float,
+    expected_axis: str,
+) -> None:
+    generator = np.random.default_rng(123)
+
+    assert _sample_route_axis(generator, probability) == expected_axis
+
+
+@pytest.mark.parametrize(
+    "probability",
+    [-0.01, 1.01, float("nan"), float("inf"), -float("inf"), True, "invalid"],
+)
+def test_webots_env_rejects_invalid_horizontal_route_probability(
+    probability: object,
+) -> None:
+    with pytest.raises(ValueError, match="horizontal_route_probability"):
+        WebotsPatrolEnv(object(), horizontal_route_probability=probability)  # type: ignore[arg-type]
 
 
 class _FixedSensor:

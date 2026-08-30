@@ -4,13 +4,14 @@ import hashlib
 import json
 import os
 import subprocess
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 
+from indoor_patrol_rl.core import safety_shield_config_from_env
 from indoor_patrol_rl.evaluation.checkpoint_selection import (
     CheckpointSelectionGate,
     make_candidate_record,
@@ -94,6 +95,7 @@ def save_training_result(
     run_id: str | None = None,
     source_model: Path | None = None,
     source_model_sha256: str | None = None,
+    horizontal_route_probability: float | None = None,
 ) -> Path:
     model_directory = repository_root / "artifacts/models/webots" / f"seed_{seed}"
     if variant:
@@ -123,6 +125,8 @@ def save_training_result(
     if source_model is not None:
         metadata["source_model"] = str(source_model)
         metadata["source_model_sha256"] = source_model_sha256
+    if horizontal_route_probability is not None:
+        metadata["horizontal_route_probability"] = horizontal_route_probability
     (model_directory / f"run_metadata_step{steps:09d}.yaml").write_text(
         yaml.safe_dump(metadata), encoding="utf-8"
     )
@@ -166,6 +170,12 @@ def save_validation_result(
         "path_length_ratio_mean": 1.0,
     }
     split = environment["WEBOTS_EVAL_SPLIT"]
+    shield_enabled = environment.get("WEBOTS_SAFETY_SHIELD", "0").casefold() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     summary = {
         "schema_version": "1.0",
         "split": split,
@@ -182,6 +192,10 @@ def save_validation_result(
             "training_seed": seed,
             "split": split,
             "condition_id": condition,
+            "safety_shield_enabled": shield_enabled,
+            "safety_shield_config": asdict(
+                safety_shield_config_from_env(environment)
+            ),
             "scenario_seed_start": seed_start,
             "scenario_seed_count": episodes,
             "scenario_seeds": list(range(seed_start, seed_start + episodes)),
@@ -520,6 +534,14 @@ def test_policy_transfer_model_and_sha256_are_strictly_paired() -> None:
         ({"WEBOTS_POLICY_TRANSFER_MODEL": "base.zip"}, "structured curriculum"),
         ({"WEBOTS_RESUME_MODEL": "resume.zip"}, "structured curriculum"),
         ({"WEBOTS_TRANSFER_MODEL": "base.zip"}, "structured curriculum"),
+        (
+            {"WEBOTS_HORIZONTAL_ROUTE_PROBABILITY": "nan"},
+            "must be between zero and one",
+        ),
+        (
+            {"WEBOTS_HORIZONTAL_ROUTE_PROBABILITY": "1.01"},
+            "must be between zero and one",
+        ),
     ],
 )
 def test_controller_env_rejects_unsafe_or_non_webots_values(
@@ -571,6 +593,11 @@ def test_evaluation_receives_only_scenario_and_validation_controller_env() -> No
             "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH": "1.10",
             "WEBOTS_PPO_N_STEPS": "2048",
             "WEBOTS_REWARD_SAFETY_WEIGHT": "-0.60",
+            "WEBOTS_HORIZONTAL_ROUTE_PROBABILITY": "0.80",
+            "WEBOTS_SAFETY_SHIELD": "1",
+            "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.05",
+            "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+            "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.72",
             "WEBOTS_EVAL_PLANNER_LABEL": "ppo_v2",
         }
     )
@@ -578,8 +605,170 @@ def test_evaluation_receives_only_scenario_and_validation_controller_env() -> No
     assert shared == {
         "WEBOTS_OBSTACLE_SPEED_MIN": "0.10",
         "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH": "1.10",
+        "WEBOTS_SAFETY_SHIELD": "1",
+        "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.05",
+        "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+        "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.72",
         "WEBOTS_EVAL_PLANNER_LABEL": "ppo_v2",
     }
+
+
+def test_curriculum_rejects_unknown_or_invalid_shield_configuration() -> None:
+    with pytest.raises(ValueError, match="Unsupported"):
+        make_stage(
+            controller_env={
+                "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTNACE": "0.24",
+            }
+        )
+    with pytest.raises(ValueError, match="front_stop_distance"):
+        make_stage(
+            controller_env={
+                "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.8",
+                "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.7",
+            }
+        )
+
+
+def test_explicit_shield_config_is_shared_with_evaluator_and_strictly_gated(
+    tmp_path: Path,
+) -> None:
+    environments: list[dict[str, str]] = []
+    shield_env = {
+        "WEBOTS_SAFETY_SHIELD": "1",
+        "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.05",
+        "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+        "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.72",
+        "WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE": "0.16",
+        "WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE": "0.42",
+    }
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        environments.append(environment)
+        if command[-1].endswith("webots_ppo_train.wbt"):
+            save_training_result(tmp_path, seed=11, obstacles=0, steps=10)
+        else:
+            save_validation_result(
+                tmp_path,
+                environment=environment,
+                success_rate=1.0,
+                collision_rate=0.0,
+            )
+        return subprocess.CompletedProcess(command, 0)
+
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(make_stage(controller_env=shield_env)),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+
+    assert runner.run(start_stage=0, stop_after_stage=0) == 0
+    for name, value in shield_env.items():
+        assert environments[0][name] == value
+        assert environments[1][name] == value
+
+
+def test_explicit_shield_gate_rejects_mismatched_evaluation_provenance(
+    tmp_path: Path,
+) -> None:
+    shield_env = {
+        "WEBOTS_SAFETY_SHIELD": "1",
+        "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.05",
+    }
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        if command[-1].endswith("webots_ppo_train.wbt"):
+            save_training_result(tmp_path, seed=11, obstacles=0, steps=10)
+        else:
+            save_validation_result(
+                tmp_path,
+                environment=environment,
+                success_rate=1.0,
+                collision_rate=0.0,
+            )
+            summary_path = (
+                tmp_path
+                / "artifacts/results"
+                / environment["WEBOTS_EVAL_RUN_NAME"]
+                / "summary.json"
+            )
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            summary["evaluation_provenance"]["safety_shield_config"][
+                "clearance_quantile"
+            ] = 0.15
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0)
+
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(make_stage(controller_env=shield_env)),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+
+    assert runner.run(start_stage=0, stop_after_stage=0) != 0
+    assert "safety_shield_config" in runner.manifest["stages"][0]["validation"]["error"]
+
+
+def test_route_distribution_is_training_only_and_recorded_in_snapshot(
+    tmp_path: Path,
+) -> None:
+    environments: list[dict[str, str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        environments.append(environment)
+        if command[-1].endswith("webots_ppo_train.wbt"):
+            save_training_result(
+                tmp_path,
+                seed=11,
+                obstacles=0,
+                steps=10,
+                horizontal_route_probability=0.8,
+            )
+        else:
+            save_validation_result(
+                tmp_path,
+                environment=environment,
+                success_rate=1.0,
+                collision_rate=0.0,
+            )
+        return subprocess.CompletedProcess(command, 0)
+
+    stage = make_stage(
+        controller_env={"WEBOTS_HORIZONTAL_ROUTE_PROBABILITY": "0.8"}
+    )
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+
+    assert runner.run(start_stage=0, stop_after_stage=0) == 0
+    assert environments[0]["WEBOTS_HORIZONTAL_ROUTE_PROBABILITY"] == "0.8"
+    assert "WEBOTS_HORIZONTAL_ROUTE_PROBABILITY" not in environments[1]
+    completed = next(
+        snapshot
+        for snapshot in discover_model_snapshots(tmp_path, 11)
+        if snapshot.is_completed_run
+    )
+    assert completed.horizontal_route_probability == 0.8
+    assert snapshot_matches_stage(completed, stage)
+    assert not snapshot_matches_stage(
+        completed,
+        make_stage(
+            controller_env={"WEBOTS_HORIZONTAL_ROUTE_PROBABILITY": "0.7"}
+        ),
+    )
 
 
 def test_loader_refuses_to_automatically_run_test_split(tmp_path: Path) -> None:

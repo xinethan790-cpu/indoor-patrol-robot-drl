@@ -98,6 +98,34 @@ def _sample_obstacle_position(
     raise ValueError("obstacle_axis must be 0 or 1.")
 
 
+def _validate_horizontal_route_probability(value: object) -> float:
+    if isinstance(value, bool):
+        raise ValueError("horizontal_route_probability must be between zero and one.")
+    try:
+        probability = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "horizontal_route_probability must be between zero and one."
+        ) from error
+    if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+        raise ValueError("horizontal_route_probability must be between zero and one.")
+    return probability
+
+
+def _sample_route_axis(
+    random_generator: np.random.Generator,
+    horizontal_route_probability: float,
+) -> str:
+    if horizontal_route_probability == 0.5:
+        # Preserve the established seed-to-scenario mapping at the default.
+        return str(random_generator.choice(["horizontal", "vertical"]))
+    return (
+        "horizontal"
+        if random_generator.random() < horizontal_route_probability
+        else "vertical"
+    )
+
+
 class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
     """Continuous TurtleBot3 navigation with one Supervisor-controlled obstacle."""
 
@@ -127,6 +155,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         reward_config: RewardConfig | None = None,
         horizontal_route_half_length: float = 1.55,
         vertical_route_half_length: float = 1.10,
+        horizontal_route_probability: float = 0.5,
     ) -> None:
         super().__init__()
         if action_repeat < 1:
@@ -141,6 +170,9 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             raise ValueError("proximity_speed_weight cannot be negative.")
         if min(horizontal_route_half_length, vertical_route_half_length) <= 0.0:
             raise ValueError("Route half lengths must be positive.")
+        validated_horizontal_route_probability = (
+            _validate_horizontal_route_probability(horizontal_route_probability)
+        )
 
         self.supervisor = supervisor
         self.basic_time_step = int(supervisor.getBasicTimeStep())
@@ -193,6 +225,7 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.proximity_speed_weight = float(proximity_speed_weight)
         self.horizontal_route_half_length = float(horizontal_route_half_length)
         self.vertical_route_half_length = float(vertical_route_half_length)
+        self.horizontal_route_probability = validated_horizontal_route_probability
         self.enable_safety_shield = bool(enable_safety_shield)
         self.safety_shield = safety_shield or LidarSafetyShield(
             SafetyShieldConfig(lidar_max_range=float(self.lidar.getMaxRange()))
@@ -255,8 +288,13 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.reset_attempt_count += 1
         self._stop()
 
-        route_axis = str(
-            options.get("route_axis", self.np_random.choice(["horizontal", "vertical"]))
+        route_axis = (
+            str(options["route_axis"])
+            if "route_axis" in options
+            else _sample_route_axis(
+                self.np_random,
+                self.horizontal_route_probability,
+            )
         )
         if "start_y" in options or "goal_y" in options:
             route_axis = "horizontal"
