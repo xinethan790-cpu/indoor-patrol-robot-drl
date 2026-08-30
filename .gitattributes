@@ -1,0 +1,7 @@
+# These sealed Webots evidence directories are published byte-for-byte.  They
+# were produced on Windows with CRLF line endings, so disable text conversion
+# and treat CR as part of the line ending during whitespace checks.
+artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/* -text whitespace=cr-at-eol
+artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/* -text whitespace=cr-at-eol
+artifacts/results/webots_front_brake_paired_diagnostic_v1/* -text whitespace=cr-at-eol
+artifacts/results/webots_front_brake_v1_manipulation_reaudit_v1/* -text whitespace=cr-at-eol

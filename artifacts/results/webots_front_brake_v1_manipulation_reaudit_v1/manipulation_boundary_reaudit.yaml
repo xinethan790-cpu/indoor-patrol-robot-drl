@@ -1,0 +1,278 @@
+schema_version: 1
+audit_id: webots_front_brake_v1_manipulation_boundary_reaudit_v1
+status: passed
+generated_at_utc: '2026-08-30T14:33:36+00:00'
+audit_type: offline_post_run_checker_audit
+inputs:
+  paired_diagnostic_report_artifacts:
+    json:
+      path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.json
+      sha256: 2779e8dcb6f8ccf2216464e196dc5c5f3a5ba1c8092eb0d75cb14fb62e2cc787
+    yaml:
+      path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.yaml
+      sha256: db161fa425e25255381b60d99aece212b072fdbfa87061532e4f2a3f9289ff75
+    sha256:
+      path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.sha256
+      sha256: b255ab30a0bb0214dbaa4dd7a1b52eab02dcac441683eb6d4f3ef071a17b1427
+  source_snapshot:
+    git_revision: f957181777709cd8e064f213df1a718eb515ce84
+    bindings:
+      config:
+        path: configs/eval/webots_front_brake_paired_diagnostic_v1.yaml
+        sha256: cf3f0b27877db0fe107f5dfe18ba3127c9efb90ebd1909f8735d7db952aa66e3
+        verified_from_git_blob: true
+      runner:
+        path: scripts/run_webots_front_brake_diagnostic.py
+        sha256: 7c886fef3c021c2afe890e7891cc6ee2e26be7600fd6dddf8e9078af796c87fd
+        verified_from_git_blob: true
+      controller:
+        path: controllers/webots_ppo_evaluate/webots_ppo_evaluate.py
+        sha256: 92d6fc76e7d143e0d5ef1a4b5798274656d991fe154052c05c05ded64e60dbea
+        verified_from_git_blob: true
+      world:
+        path: worlds/webots_ppo_evaluate.wbt
+        sha256: e0ae7ac8aa2a7981f94673d656d76940166cb12ceab8dd2b17a17329985d5425
+        verified_from_git_blob: true
+      safety_shield:
+        path: src/indoor_patrol_rl/core/safety_shield.py
+        sha256: 0affe799301c11a43b5d67a9d5eb37efe89ec54406c5fbd08be80f4853b3b50b
+        verified_from_git_blob: true
+      control:
+        path: src/indoor_patrol_rl/core/control.py
+        sha256: 5e95838266364c33894992f425f9e653a5ebe370c19bc73ac4cdd6852cf8e04a
+        verified_from_git_blob: true
+      webots_patrol_environment:
+        path: src/indoor_patrol_rl/envs/webots_patrol.py
+        sha256: 9c1a17eb436c3a3591a795b0dde843a4c6b8f2f5a4a44b2b76cfd2ed5c9c413a
+        verified_from_git_blob: true
+      evaluation_exports:
+        path: src/indoor_patrol_rl/evaluation/__init__.py
+        sha256: 181825c68b116edf4e525635073de332deb93bbcb761c4c64e29f3af014897f9
+        verified_from_git_blob: true
+      evaluation_metrics:
+        path: src/indoor_patrol_rl/evaluation/metrics.py
+        sha256: 355691402123ff9a5dbd0731c0e1b41aa3db81c5ac4d00c8ab9d2a0a676306e2
+        verified_from_git_blob: true
+      webots_formal_config:
+        path: src/indoor_patrol_rl/evaluation/webots_formal_config.py
+        sha256: dea197c3a33ad7debb1b20a2a02ef8c57cd962faf83ce9cb090e47b688485af0
+        verified_from_git_blob: true
+      episode_context:
+        path: src/indoor_patrol_rl/evaluation/episode_context.py
+        sha256: 26562c242869aa3cf39f9438d8c170411d5d40605c3813fa702dfc4b682537c0
+        verified_from_git_blob: true
+      shield_evidence:
+        path: src/indoor_patrol_rl/evaluation/shield_evidence.py
+        sha256: 09f6400c653915a5966ec81fc3225e6c94762af0fb3cea202e0e62134d518e1b
+        verified_from_git_blob: true
+      webots_curriculum:
+        path: src/indoor_patrol_rl/training/webots_curriculum.py
+        sha256: 657b6f3843d4905bfce83fa640927f368c508702ef9e96bc487be0afa58d9f35
+        verified_from_git_blob: true
+  audit_implementation:
+    path: scripts/audit_front_brake_manipulation_boundary.py
+    sha256: 97fc7c982364031cffa519874b97a48ff1f010e9ca471ee8bbf4039266b2e2f8
+  model:
+    path: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+    sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+  arm_artifacts:
+    reference:
+      summary_json:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/summary.json
+        sha256: 2e6a078ae52ceb4da1424949266da6b10311a6a6eee5ad22eaecfd6499b69320
+      episodes_csv:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/episodes.csv
+        sha256: 4b8556ddc63717f7a10f133ca7f37a5f1c81d763cb157bc89411dd7a982ed2ec
+      episode_context_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/episode_context.jsonl
+        sha256: 80ea387481260271bb0c5e437f4846485d4936650e030626a7ee628d0581c976
+      shield_evidence_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/shield_evidence.jsonl
+        sha256: bb714f144545eaf32d0d58e3e55ca17ed8a5a9bf5c3a31f69b6f3b8af8bd0a57
+    candidate:
+      summary_json:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/summary.json
+        sha256: 90189b83a2aec57e4f97f0cf578eb58ab614618741fb07e3fc48bf1863a2842c
+      episodes_csv:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/episodes.csv
+        sha256: a11af45af4e7f108f97344a582d2185a4e0e59c52a5a084c018520aa44b6e95d
+      episode_context_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/episode_context.jsonl
+        sha256: cd64d754fbdccd6419dc6a13d30242238a7fdcba64404c6b5e92754e65f64c3b
+      shield_evidence_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/shield_evidence.jsonl
+        sha256: 9ab05fb389221ad0b8a41a00e667169ddc7d2b8902665ed4609c86e8d45d955d
+  hash_snapshots:
+    entry:
+      paired_report_json:
+        path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.json
+        sha256: 2779e8dcb6f8ccf2216464e196dc5c5f3a5ba1c8092eb0d75cb14fb62e2cc787
+        matches_locked_sha256: true
+      paired_report_yaml:
+        path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.yaml
+        sha256: db161fa425e25255381b60d99aece212b072fdbfa87061532e4f2a3f9289ff75
+        matches_locked_sha256: true
+      paired_report_sha256:
+        path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.sha256
+        sha256: b255ab30a0bb0214dbaa4dd7a1b52eab02dcac441683eb6d4f3ef071a17b1427
+        matches_locked_sha256: true
+      model_checkpoint:
+        path: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+        sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+        matches_locked_sha256: true
+      reference_summary_json:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/summary.json
+        sha256: 2e6a078ae52ceb4da1424949266da6b10311a6a6eee5ad22eaecfd6499b69320
+        matches_locked_sha256: true
+      reference_episodes_csv:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/episodes.csv
+        sha256: 4b8556ddc63717f7a10f133ca7f37a5f1c81d763cb157bc89411dd7a982ed2ec
+        matches_locked_sha256: true
+      reference_episode_context_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/episode_context.jsonl
+        sha256: 80ea387481260271bb0c5e437f4846485d4936650e030626a7ee628d0581c976
+        matches_locked_sha256: true
+      reference_shield_evidence_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/shield_evidence.jsonl
+        sha256: bb714f144545eaf32d0d58e3e55ca17ed8a5a9bf5c3a31f69b6f3b8af8bd0a57
+        matches_locked_sha256: true
+      candidate_summary_json:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/summary.json
+        sha256: 90189b83a2aec57e4f97f0cf578eb58ab614618741fb07e3fc48bf1863a2842c
+        matches_locked_sha256: true
+      candidate_episodes_csv:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/episodes.csv
+        sha256: a11af45af4e7f108f97344a582d2185a4e0e59c52a5a084c018520aa44b6e95d
+        matches_locked_sha256: true
+      candidate_episode_context_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/episode_context.jsonl
+        sha256: cd64d754fbdccd6419dc6a13d30242238a7fdcba64404c6b5e92754e65f64c3b
+        matches_locked_sha256: true
+      candidate_shield_evidence_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/shield_evidence.jsonl
+        sha256: 9ab05fb389221ad0b8a41a00e667169ddc7d2b8902665ed4609c86e8d45d955d
+        matches_locked_sha256: true
+    exit:
+      paired_report_json:
+        path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.json
+        sha256: 2779e8dcb6f8ccf2216464e196dc5c5f3a5ba1c8092eb0d75cb14fb62e2cc787
+        matches_locked_sha256: true
+      paired_report_yaml:
+        path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.yaml
+        sha256: db161fa425e25255381b60d99aece212b072fdbfa87061532e4f2a3f9289ff75
+        matches_locked_sha256: true
+      paired_report_sha256:
+        path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.sha256
+        sha256: b255ab30a0bb0214dbaa4dd7a1b52eab02dcac441683eb6d4f3ef071a17b1427
+        matches_locked_sha256: true
+      model_checkpoint:
+        path: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+        sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+        matches_locked_sha256: true
+      reference_summary_json:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/summary.json
+        sha256: 2e6a078ae52ceb4da1424949266da6b10311a6a6eee5ad22eaecfd6499b69320
+        matches_locked_sha256: true
+      reference_episodes_csv:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/episodes.csv
+        sha256: 4b8556ddc63717f7a10f133ca7f37a5f1c81d763cb157bc89411dd7a982ed2ec
+        matches_locked_sha256: true
+      reference_episode_context_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/episode_context.jsonl
+        sha256: 80ea387481260271bb0c5e437f4846485d4936650e030626a7ee628d0581c976
+        matches_locked_sha256: true
+      reference_shield_evidence_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/shield_evidence.jsonl
+        sha256: bb714f144545eaf32d0d58e3e55ca17ed8a5a9bf5c3a31f69b6f3b8af8bd0a57
+        matches_locked_sha256: true
+      candidate_summary_json:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/summary.json
+        sha256: 90189b83a2aec57e4f97f0cf578eb58ab614618741fb07e3fc48bf1863a2842c
+        matches_locked_sha256: true
+      candidate_episodes_csv:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/episodes.csv
+        sha256: a11af45af4e7f108f97344a582d2185a4e0e59c52a5a084c018520aa44b6e95d
+        matches_locked_sha256: true
+      candidate_episode_context_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/episode_context.jsonl
+        sha256: cd64d754fbdccd6419dc6a13d30242238a7fdcba64404c6b5e92754e65f64c3b
+        matches_locked_sha256: true
+      candidate_shield_evidence_jsonl:
+        path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/shield_evidence.jsonl
+        sha256: 9ab05fb389221ad0b8a41a00e667169ddc7d2b8902665ed4609c86e8d45d955d
+        matches_locked_sha256: true
+    unchanged: true
+original_report_facts:
+  status: invalid_manipulation
+  primary_efficacy_gate_passed: true
+  only_failed_manipulation_check: candidate_active_steps_are_exact_speed_cap_braking
+  reported_counts:
+    active_step_count: 3197
+    braking_step_count: 3197
+    speed_cap_binding_step_count: 3196
+  original_report_was_modified: false
+  original_status_is_not_rewritten: true
+operational_semantics:
+  source: LidarSafetyShield.active is reconstructed as enabled and the norm of (shielded_action
+    - policy_action) in float32 > epsilon
+  active_step_requirements:
+    angular_action: float32_bits_unchanged
+    shielded_linear: float32_bits_equal_to_normalized_cap
+    linear_action_delta: float32_delta_strictly_greater_than_epsilon
+    recorded_intervention: exactly_equals_recomputed_float32_action_norm
+    recorded_active: equals_recomputed_active
+recomputed_counts:
+  reference:
+    episode_count: 120
+    total_step_count: 9400
+    active_step_count: 0
+    active_steps_satisfying_operational_semantics: 0
+    legacy_double_cap_delta_count: 0
+    recorded_intervention_matches_float32_norm_step_count: 9400
+    boundary: null
+  candidate:
+    episode_count: 120
+    total_step_count: 12461
+    active_step_count: 3197
+    active_steps_satisfying_operational_semantics: 3197
+    legacy_double_cap_delta_count: 3196
+    recorded_intervention_matches_float32_norm_step_count: 12461
+numerical_boundary:
+  scenario_seed: 25737
+  step: 21
+  recomputed_active_from_float32_action: true
+  recorded_active_matches_recomputed: true
+  recorded_intervention_matches_float32_norm: true
+  angular_action_float32_bits_unchanged: true
+  shielded_linear_matches_cap_float32_bits: true
+  shielded_linear_matches_admitted_float32_bits: true
+  linear_float32_delta_exceeds_epsilon: true
+  legacy_double_cap_test_passed: false
+  operational_float32_action_test_passed: true
+  all_action_float32_bits_unchanged: false
+  angular_delta: 0.0
+  action_braking_delta: 1.0132789611816406e-06
+  policy_to_double_cap_delta: 9.98510554683918e-07
+  action_to_double_cap_error: 1.4768406497722708e-08
+  recorded_intervention: 1.0132789611816406e-06
+  recomputed_float32_intervention: 1.0132789611816406e-06
+  epsilon: 1.0e-06
+  classification: double_cap_vs_float32_admitted_action_threshold_boundary
+  boundary_condition_verified: true
+checker_conclusion:
+  corrected_manipulation_integrity_passed: true
+  original_paired_report_remains_invalid_manipulation: true
+  primary_efficacy_result_is_not_promoted_by_this_post_hoc_audit: true
+  next_allowed_stage: independent_diagnostic_confirmation_only
+  validation_or_test_confirmation_allowed: false
+scope:
+  webots_was_run: false
+  checkpoint_selection_was_run: false
+  validation_split_was_accessed: false
+  test_split_was_accessed: false
+  input_artifacts_were_modified: false
+  output_is_a_new_non_overwriting_directory: true
+written_artifacts:
+  json: artifacts/results/webots_front_brake_v1_manipulation_reaudit_v1/manipulation_boundary_reaudit.json
+  yaml: artifacts/results/webots_front_brake_v1_manipulation_reaudit_v1/manipulation_boundary_reaudit.yaml
+  sha256: artifacts/results/webots_front_brake_v1_manipulation_reaudit_v1/manipulation_boundary_reaudit.sha256

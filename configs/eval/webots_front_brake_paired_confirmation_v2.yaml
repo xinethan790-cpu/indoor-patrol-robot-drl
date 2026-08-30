@@ -1,0 +1,98 @@
+# Pre-registered, diagnostic-only independent confirmation of the single
+# front-sector braking candidate.  It never opens validation or held-out test.
+schema_version: 1
+experiment_id: webots_front_brake_paired_confirmation_v2
+split: diagnostic
+condition_id: DB1
+training_seed: 11
+scenario_seed_start: 54775
+episodes: 120
+prior_evidence:
+  v1_paired_report:
+    path: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.json
+    sha256: 2779e8dcb6f8ccf2216464e196dc5c5f3a5ba1c8092eb0d75cb14fb62e2cc787
+  manipulation_boundary_reaudit:
+    path: artifacts/results/webots_front_brake_v1_manipulation_reaudit_v1/manipulation_boundary_reaudit.json
+    sha256: aac1bf62e755a1868837c294adc4e2d13cf9949a4dcba484d0c0b18c4ffd16ed
+  restrictions:
+    v1_rerun: forbidden
+    v1_reinterpretation: forbidden
+    v1_report_rewrite: forbidden
+    v1_v2_pooled_fallback: forbidden
+model:
+  path: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+  sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+  variant: w1_recovery_v1
+scenario:
+  obstacle_count: 1
+  obstacle_speed_range: [0.15, 0.30]
+  horizontal_route_half_length: 1.10
+  vertical_route_half_length: 1.10
+  deterministic_policy: true
+arms:
+  - id: recovery_v1_reference_confirmation_v2
+    role: reference
+    run_name: webots_diagnostic_front_brake_v2_reference_seed11
+    planner_label: ppo_recovery_v1_front_brake_v2_reference
+    controller_env:
+      WEBOTS_SAFETY_SHIELD: "0"
+      WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: "0.0"
+      WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: "0.24"
+      WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: "0.75"
+      WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: "1.0471975511965976"
+      WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: "1.0471975511965976"
+      WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: "1.0"
+      WEBOTS_SAFETY_SHIELD_TURN_BLEND: "0.0"
+  - id: front_brake_candidate_confirmation_v2
+    role: candidate
+    run_name: webots_diagnostic_front_brake_v2_candidate_seed11
+    planner_label: ppo_recovery_v1_front_brake_v2_candidate
+    controller_env:
+      WEBOTS_SAFETY_SHIELD: "1"
+      WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: "0.0"
+      WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: "0.24"
+      WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: "0.75"
+      WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: "1.0471975511965976"
+      WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: "1.0471975511965976"
+      WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: "1.0"
+      WEBOTS_SAFETY_SHIELD_TURN_BLEND: "0.0"
+preregistration:
+  paired_same_scenarios: true
+  episode_context_schema_version: "1.1"
+  risk_trace_required: true
+  shield_evidence_schema_version: "1.0"
+  shield_evidence_required: true
+  expected_route_strata_counts:
+    horizontal:
+      non_reverse: 30
+      reverse: 30
+    vertical:
+      non_reverse: 30
+      reverse: 30
+  expected_initial_obstacle_direction_counts:
+    negative: 60
+    positive: 60
+  seed_window_selection:
+    search_start: 25848
+    rule: first_contiguous_120_balancing_route_reverse_and_obstacle_direction
+    covariates_only: [route_axis, reverse_route, initial_obstacle_direction]
+    outcome_data_used: false
+  candidate_count: 1
+  parameter_scan: forbidden
+  adaptive_extension: forbidden
+  validation_or_test: forbidden
+  primary_inference: v2_overall_only
+  subgroup_inference: descriptive_unadjusted_only
+candidate_gate:
+  require_all: true
+  minimum_relative_collision_reduction: 0.25
+  exact_one_sided_mcnemar_significance_level: 0.05
+  maximum_new_timeout_count: 2
+  maximum_median_completion_time_ratio: 1.15
+  minimum_common_success_count: 24
+  maximum_error_count_per_arm: 0
+decision:
+  pass: front_brake_independently_confirmed_in_diagnostic_v2
+  fail: front_brake_independent_diagnostic_confirmation_failed
+  invalid_manipulation: invalidate_front_brake_confirmation_v2
+  validation_or_test_access: forbidden

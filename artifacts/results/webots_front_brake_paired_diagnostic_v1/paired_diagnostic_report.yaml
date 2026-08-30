@@ -1,0 +1,1840 @@
+schema_version: 1
+experiment_id: webots_front_brake_paired_diagnostic_v1
+status: invalid_manipulation
+generated_at_utc: '2026-08-30T14:04:06+00:00'
+split: diagnostic
+validation_split_was_run: false
+test_split_was_run: false
+source_bindings:
+  git_revision: f957181777709cd8e064f213df1a718eb515ce84
+  config:
+    path: configs/eval/webots_front_brake_paired_diagnostic_v1.yaml
+    sha256: cf3f0b27877db0fe107f5dfe18ba3127c9efb90ebd1909f8735d7db952aa66e3
+  runner:
+    path: scripts/run_webots_front_brake_diagnostic.py
+    sha256: 7c886fef3c021c2afe890e7891cc6ee2e26be7600fd6dddf8e9078af796c87fd
+  controller:
+    path: controllers/webots_ppo_evaluate/webots_ppo_evaluate.py
+    sha256: 92d6fc76e7d143e0d5ef1a4b5798274656d991fe154052c05c05ded64e60dbea
+  world:
+    path: worlds/webots_ppo_evaluate.wbt
+    sha256: e0ae7ac8aa2a7981f94673d656d76940166cb12ceab8dd2b17a17329985d5425
+  safety_shield:
+    path: src/indoor_patrol_rl/core/safety_shield.py
+    sha256: 0affe799301c11a43b5d67a9d5eb37efe89ec54406c5fbd08be80f4853b3b50b
+  control:
+    path: src/indoor_patrol_rl/core/control.py
+    sha256: 5e95838266364c33894992f425f9e653a5ebe370c19bc73ac4cdd6852cf8e04a
+  webots_patrol_environment:
+    path: src/indoor_patrol_rl/envs/webots_patrol.py
+    sha256: 9c1a17eb436c3a3591a795b0dde843a4c6b8f2f5a4a44b2b76cfd2ed5c9c413a
+  evaluation_exports:
+    path: src/indoor_patrol_rl/evaluation/__init__.py
+    sha256: 181825c68b116edf4e525635073de332deb93bbcb761c4c64e29f3af014897f9
+  evaluation_metrics:
+    path: src/indoor_patrol_rl/evaluation/metrics.py
+    sha256: 355691402123ff9a5dbd0731c0e1b41aa3db81c5ac4d00c8ab9d2a0a676306e2
+  webots_formal_config:
+    path: src/indoor_patrol_rl/evaluation/webots_formal_config.py
+    sha256: dea197c3a33ad7debb1b20a2a02ef8c57cd962faf83ce9cb090e47b688485af0
+  episode_context:
+    path: src/indoor_patrol_rl/evaluation/episode_context.py
+    sha256: 26562c242869aa3cf39f9438d8c170411d5d40605c3813fa702dfc4b682537c0
+  shield_evidence:
+    path: src/indoor_patrol_rl/evaluation/shield_evidence.py
+    sha256: 09f6400c653915a5966ec81fc3225e6c94762af0fb3cea202e0e62134d518e1b
+  webots_curriculum:
+    path: src/indoor_patrol_rl/training/webots_curriculum.py
+    sha256: 657b6f3843d4905bfce83fa640927f368c508702ef9e96bc487be0afa58d9f35
+  model:
+    path: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+    sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+  webots_executable:
+    path: C:\Users\13501\Documents\Codex\2026-08-29\new-chat\work\Webots-R2025a\msys64\mingw64\bin\webots.exe
+    sha256: 34e3824b3bb1d64cea8ed58ec4089b607fb83c906d36290df8e2d4a8ee2227c0
+model:
+  path: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+  sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+  variant: w1_recovery_v1
+  training_seed: 11
+scenario:
+  condition_id: DB1
+  scenario_seed_start: 25728
+  episodes: 120
+  scenario_seeds:
+  - 25728
+  - 25729
+  - 25730
+  - 25731
+  - 25732
+  - 25733
+  - 25734
+  - 25735
+  - 25736
+  - 25737
+  - 25738
+  - 25739
+  - 25740
+  - 25741
+  - 25742
+  - 25743
+  - 25744
+  - 25745
+  - 25746
+  - 25747
+  - 25748
+  - 25749
+  - 25750
+  - 25751
+  - 25752
+  - 25753
+  - 25754
+  - 25755
+  - 25756
+  - 25757
+  - 25758
+  - 25759
+  - 25760
+  - 25761
+  - 25762
+  - 25763
+  - 25764
+  - 25765
+  - 25766
+  - 25767
+  - 25768
+  - 25769
+  - 25770
+  - 25771
+  - 25772
+  - 25773
+  - 25774
+  - 25775
+  - 25776
+  - 25777
+  - 25778
+  - 25779
+  - 25780
+  - 25781
+  - 25782
+  - 25783
+  - 25784
+  - 25785
+  - 25786
+  - 25787
+  - 25788
+  - 25789
+  - 25790
+  - 25791
+  - 25792
+  - 25793
+  - 25794
+  - 25795
+  - 25796
+  - 25797
+  - 25798
+  - 25799
+  - 25800
+  - 25801
+  - 25802
+  - 25803
+  - 25804
+  - 25805
+  - 25806
+  - 25807
+  - 25808
+  - 25809
+  - 25810
+  - 25811
+  - 25812
+  - 25813
+  - 25814
+  - 25815
+  - 25816
+  - 25817
+  - 25818
+  - 25819
+  - 25820
+  - 25821
+  - 25822
+  - 25823
+  - 25824
+  - 25825
+  - 25826
+  - 25827
+  - 25828
+  - 25829
+  - 25830
+  - 25831
+  - 25832
+  - 25833
+  - 25834
+  - 25835
+  - 25836
+  - 25837
+  - 25838
+  - 25839
+  - 25840
+  - 25841
+  - 25842
+  - 25843
+  - 25844
+  - 25845
+  - 25846
+  - 25847
+  route_strata_counts:
+    horizontal:
+      non_reverse: 30
+      reverse: 30
+    vertical:
+      non_reverse: 30
+      reverse: 30
+  initial_obstacle_direction_counts:
+    negative: 60
+    positive: 60
+  obstacle_count: 1
+  obstacle_speed_range:
+  - 0.15
+  - 0.3
+  horizontal_route_half_length: 1.1
+  vertical_route_half_length: 1.1
+  deterministic_policy: true
+preregistration:
+  paired_same_scenarios: true
+  episode_context_schema_version: '1.1'
+  risk_trace_required: true
+  shield_evidence_schema_version: '1.0'
+  shield_evidence_required: true
+  seed_window_selection:
+    search_start: 20614
+    rule: first_contiguous_120_balancing_route_reverse_and_obstacle_direction
+    covariates_only:
+    - route_axis
+    - reverse_route
+    - initial_obstacle_direction
+    outcome_data_used: false
+  candidate_count: 1
+  parameter_scan: forbidden
+  adaptive_extension: forbidden
+  validation_or_test: forbidden
+arms:
+- id: recovery_v1_reference
+  role: reference
+  run_name: webots_diagnostic_front_brake_v1_reference_seed11
+  planner_label: ppo_recovery_v1_front_brake_reference
+  model:
+    path: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+    sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+    variant: w1_recovery_v1
+    training_seed: 11
+  controller_env:
+    WEBOTS_SAFETY_SHIELD: '0'
+    WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: '0.0'
+    WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: '0.24'
+    WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: '0.75'
+    WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: '1.0471975511965976'
+    WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: '1.0471975511965976'
+    WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: '1.0'
+    WEBOTS_SAFETY_SHIELD_TURN_BLEND: '0.0'
+  resolved_safety_shield_config:
+    lidar_max_range: 3.5
+    front_stop_distance: 0.24
+    front_slowdown_distance: 0.75
+    side_stop_distance: 0.12
+    side_slowdown_distance: 0.32
+    front_half_angle: 1.0471975511965976
+    side_inner_angle: 1.0471975511965976
+    side_outer_angle: 1.8325957145940461
+    clearance_quantile: 0.0
+    side_speed_floor: 1.0
+    side_turn_weight: 0.55
+    turn_gain: 0.9
+    turn_blend: 0.0
+    side_deadband: 0.03
+    intervention_epsilon: 1.0e-06
+  shield_evidence_metrics:
+    episode_count: 120
+    enabled_episode_count: 0
+    episode_with_active_step_count: 0
+    total_step_count: 9400
+    active_step_count: 0
+    active_step_ratio: 0.0
+    intervention_sum: 0.0
+    braking_step_count: 0
+    speed_cap_binding_step_count: 0
+    maximum_absolute_angular_action_delta: 0.0
+  execution:
+    command:
+    - C:\Users\13501\Documents\Codex\2026-08-29\new-chat\work\Webots-R2025a\msys64\mingw64\bin\webots.exe
+    - --port=13680
+    - --batch
+    - --mode=fast
+    - --no-rendering
+    - --stdout
+    - --stderr
+    - C:\Users\13501\Documents\Codex\2026-08-29\new-chat\work\indoor-patrol-robot-drl\worlds\webots_ppo_evaluate.wbt
+    environment:
+      WEBOTS_PORT: '13680'
+      WEBOTS_MODEL_SEED: '11'
+      WEBOTS_EVAL_MODEL: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+      WEBOTS_EVAL_MODEL_SHA256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+      WEBOTS_MODEL_VARIANT: w1_recovery_v1
+      WEBOTS_EVAL_SPLIT: diagnostic
+      WEBOTS_EVAL_SEED_START: '25728'
+      WEBOTS_EVAL_EPISODES: '120'
+      WEBOTS_EVAL_CONDITION: DB1
+      WEBOTS_EVAL_PLANNER: ppo
+      WEBOTS_EVAL_PLANNER_LABEL: ppo_recovery_v1_front_brake_reference
+      WEBOTS_EVAL_RUN_NAME: webots_diagnostic_front_brake_v1_reference_seed11
+      WEBOTS_OBSTACLE_COUNT: '1'
+      WEBOTS_OBSTACLE_SPEED_MIN: '0.15'
+      WEBOTS_OBSTACLE_SPEED_MAX: '0.3'
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.1'
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.1'
+      WEBOTS_EVAL_DETERMINISTIC_POLICY: '1'
+      WEBOTS_EVAL_EPISODE_CONTEXT: '1'
+      WEBOTS_EVAL_SHIELD_EVIDENCE: '1'
+      WEBOTS_FRONT_BRAKE_DIAGNOSTIC_ID: webots_front_brake_paired_diagnostic_v1
+      WEBOTS_FRONT_BRAKE_DIAGNOSTIC_CONFIG: configs/eval/webots_front_brake_paired_diagnostic_v1.yaml
+      WEBOTS_FRONT_BRAKE_DIAGNOSTIC_CONFIG_SHA256: cf3f0b27877db0fe107f5dfe18ba3127c9efb90ebd1909f8735d7db952aa66e3
+      WEBOTS_SAFETY_SHIELD: '0'
+      WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: '0.0'
+      WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: '0.24'
+      WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: '0.75'
+      WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: '1.0'
+      WEBOTS_SAFETY_SHIELD_TURN_BLEND: '0.0'
+    port: 13680
+    exit_code: 0
+  metrics:
+    overall:
+      episodes: 120
+      success_count: 65
+      collision_count: 55
+      timeout_count: 0
+      error_count: 0
+    by_route_axis:
+      horizontal:
+        episodes: 60
+        success_count: 24
+        collision_count: 36
+        timeout_count: 0
+        error_count: 0
+      vertical:
+        episodes: 60
+        success_count: 41
+        collision_count: 19
+        timeout_count: 0
+        error_count: 0
+    by_route_direction:
+      non_reverse:
+        episodes: 60
+        success_count: 34
+        collision_count: 26
+        timeout_count: 0
+        error_count: 0
+      reverse:
+        episodes: 60
+        success_count: 31
+        collision_count: 29
+        timeout_count: 0
+        error_count: 0
+    by_initial_obstacle_direction:
+      negative:
+        episodes: 60
+        success_count: 30
+        collision_count: 30
+        timeout_count: 0
+        error_count: 0
+      positive:
+        episodes: 60
+        success_count: 35
+        collision_count: 25
+        timeout_count: 0
+        error_count: 0
+    by_route_axis_and_direction:
+      horizontal:
+        non_reverse:
+          episodes: 30
+          success_count: 14
+          collision_count: 16
+          timeout_count: 0
+          error_count: 0
+        reverse:
+          episodes: 30
+          success_count: 10
+          collision_count: 20
+          timeout_count: 0
+          error_count: 0
+      vertical:
+        non_reverse:
+          episodes: 30
+          success_count: 20
+          collision_count: 10
+          timeout_count: 0
+          error_count: 0
+        reverse:
+          episodes: 30
+          success_count: 21
+          collision_count: 9
+          timeout_count: 0
+          error_count: 0
+  artifacts:
+    result_directory: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11
+    summary_json:
+      path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/summary.json
+      sha256: 2e6a078ae52ceb4da1424949266da6b10311a6a6eee5ad22eaecfd6499b69320
+    episodes_csv:
+      path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/episodes.csv
+      sha256: 4b8556ddc63717f7a10f133ca7f37a5f1c81d763cb157bc89411dd7a982ed2ec
+    episode_context_jsonl:
+      path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/episode_context.jsonl
+      sha256: 80ea387481260271bb0c5e437f4846485d4936650e030626a7ee628d0581c976
+    shield_evidence_jsonl:
+      path: artifacts/results/webots_diagnostic_front_brake_v1_reference_seed11/shield_evidence.jsonl
+      sha256: bb714f144545eaf32d0d58e3e55ca17ed8a5a9bf5c3a31f69b6f3b8af8bd0a57
+- id: front_brake_candidate
+  role: candidate
+  run_name: webots_diagnostic_front_brake_v1_candidate_seed11
+  planner_label: ppo_recovery_v1_front_brake_candidate
+  model:
+    path: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+    sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+    variant: w1_recovery_v1
+    training_seed: 11
+  controller_env:
+    WEBOTS_SAFETY_SHIELD: '1'
+    WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: '0.0'
+    WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: '0.24'
+    WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: '0.75'
+    WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: '1.0471975511965976'
+    WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: '1.0471975511965976'
+    WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: '1.0'
+    WEBOTS_SAFETY_SHIELD_TURN_BLEND: '0.0'
+  resolved_safety_shield_config:
+    lidar_max_range: 3.5
+    front_stop_distance: 0.24
+    front_slowdown_distance: 0.75
+    side_stop_distance: 0.12
+    side_slowdown_distance: 0.32
+    front_half_angle: 1.0471975511965976
+    side_inner_angle: 1.0471975511965976
+    side_outer_angle: 1.8325957145940461
+    clearance_quantile: 0.0
+    side_speed_floor: 1.0
+    side_turn_weight: 0.55
+    turn_gain: 0.9
+    turn_blend: 0.0
+    side_deadband: 0.03
+    intervention_epsilon: 1.0e-06
+  shield_evidence_metrics:
+    episode_count: 120
+    enabled_episode_count: 120
+    episode_with_active_step_count: 102
+    total_step_count: 12461
+    active_step_count: 3197
+    active_step_ratio: 0.25656046866222615
+    intervention_sum: 3252.703636869788
+    braking_step_count: 3197
+    speed_cap_binding_step_count: 3196
+    maximum_absolute_angular_action_delta: 0.0
+  execution:
+    command:
+    - C:\Users\13501\Documents\Codex\2026-08-29\new-chat\work\Webots-R2025a\msys64\mingw64\bin\webots.exe
+    - --port=13681
+    - --batch
+    - --mode=fast
+    - --no-rendering
+    - --stdout
+    - --stderr
+    - C:\Users\13501\Documents\Codex\2026-08-29\new-chat\work\indoor-patrol-robot-drl\worlds\webots_ppo_evaluate.wbt
+    environment:
+      WEBOTS_PORT: '13681'
+      WEBOTS_MODEL_SEED: '11'
+      WEBOTS_EVAL_MODEL: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+      WEBOTS_EVAL_MODEL_SHA256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+      WEBOTS_MODEL_VARIANT: w1_recovery_v1
+      WEBOTS_EVAL_SPLIT: diagnostic
+      WEBOTS_EVAL_SEED_START: '25728'
+      WEBOTS_EVAL_EPISODES: '120'
+      WEBOTS_EVAL_CONDITION: DB1
+      WEBOTS_EVAL_PLANNER: ppo
+      WEBOTS_EVAL_PLANNER_LABEL: ppo_recovery_v1_front_brake_candidate
+      WEBOTS_EVAL_RUN_NAME: webots_diagnostic_front_brake_v1_candidate_seed11
+      WEBOTS_OBSTACLE_COUNT: '1'
+      WEBOTS_OBSTACLE_SPEED_MIN: '0.15'
+      WEBOTS_OBSTACLE_SPEED_MAX: '0.3'
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.1'
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.1'
+      WEBOTS_EVAL_DETERMINISTIC_POLICY: '1'
+      WEBOTS_EVAL_EPISODE_CONTEXT: '1'
+      WEBOTS_EVAL_SHIELD_EVIDENCE: '1'
+      WEBOTS_FRONT_BRAKE_DIAGNOSTIC_ID: webots_front_brake_paired_diagnostic_v1
+      WEBOTS_FRONT_BRAKE_DIAGNOSTIC_CONFIG: configs/eval/webots_front_brake_paired_diagnostic_v1.yaml
+      WEBOTS_FRONT_BRAKE_DIAGNOSTIC_CONFIG_SHA256: cf3f0b27877db0fe107f5dfe18ba3127c9efb90ebd1909f8735d7db952aa66e3
+      WEBOTS_SAFETY_SHIELD: '1'
+      WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: '0.0'
+      WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: '0.24'
+      WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: '0.75'
+      WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: '1.0'
+      WEBOTS_SAFETY_SHIELD_TURN_BLEND: '0.0'
+    port: 13681
+    exit_code: 0
+  metrics:
+    overall:
+      episodes: 120
+      success_count: 96
+      collision_count: 24
+      timeout_count: 0
+      error_count: 0
+    by_route_axis:
+      horizontal:
+        episodes: 60
+        success_count: 44
+        collision_count: 16
+        timeout_count: 0
+        error_count: 0
+      vertical:
+        episodes: 60
+        success_count: 52
+        collision_count: 8
+        timeout_count: 0
+        error_count: 0
+    by_route_direction:
+      non_reverse:
+        episodes: 60
+        success_count: 48
+        collision_count: 12
+        timeout_count: 0
+        error_count: 0
+      reverse:
+        episodes: 60
+        success_count: 48
+        collision_count: 12
+        timeout_count: 0
+        error_count: 0
+    by_initial_obstacle_direction:
+      negative:
+        episodes: 60
+        success_count: 49
+        collision_count: 11
+        timeout_count: 0
+        error_count: 0
+      positive:
+        episodes: 60
+        success_count: 47
+        collision_count: 13
+        timeout_count: 0
+        error_count: 0
+    by_route_axis_and_direction:
+      horizontal:
+        non_reverse:
+          episodes: 30
+          success_count: 22
+          collision_count: 8
+          timeout_count: 0
+          error_count: 0
+        reverse:
+          episodes: 30
+          success_count: 22
+          collision_count: 8
+          timeout_count: 0
+          error_count: 0
+      vertical:
+        non_reverse:
+          episodes: 30
+          success_count: 26
+          collision_count: 4
+          timeout_count: 0
+          error_count: 0
+        reverse:
+          episodes: 30
+          success_count: 26
+          collision_count: 4
+          timeout_count: 0
+          error_count: 0
+  artifacts:
+    result_directory: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11
+    summary_json:
+      path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/summary.json
+      sha256: 90189b83a2aec57e4f97f0cf578eb58ab614618741fb07e3fc48bf1863a2842c
+    episodes_csv:
+      path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/episodes.csv
+      sha256: a11af45af4e7f108f97344a582d2185a4e0e59c52a5a084c018520aa44b6e95d
+    episode_context_jsonl:
+      path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/episode_context.jsonl
+      sha256: cd64d754fbdccd6419dc6a13d30242238a7fdcba64404c6b5e92754e65f64c3b
+    shield_evidence_jsonl:
+      path: artifacts/results/webots_diagnostic_front_brake_v1_candidate_seed11/shield_evidence.jsonl
+      sha256: 9ab05fb389221ad0b8a41a00e667169ddc7d2b8902665ed4609c86e8d45d955d
+paired_analysis:
+  by_seed:
+  - scenario_seed: 25728
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25729
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25730
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25731
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25732
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25733
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25734
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25735
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25736
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25737
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25738
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25739
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25740
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25741
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25742
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25743
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25744
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25745
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25746
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25747
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25748
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25749
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25750
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25751
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25752
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25753
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25754
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25755
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25756
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25757
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25758
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25759
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25760
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25761
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25762
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25763
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25764
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25765
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25766
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25767
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: collision
+    transition: success_to_collision
+  - scenario_seed: 25768
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25769
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25770
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25771
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25772
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25773
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25774
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25775
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25776
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25777
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25778
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25779
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25780
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25781
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25782
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25783
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25784
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25785
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25786
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25787
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25788
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25789
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25790
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25791
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25792
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25793
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25794
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25795
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25796
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25797
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25798
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25799
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25800
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25801
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25802
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25803
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25804
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25805
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25806
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25807
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25808
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25809
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25810
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25811
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25812
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25813
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25814
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25815
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25816
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25817
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25818
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25819
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25820
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25821
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25822
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25823
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25824
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25825
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25826
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25827
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25828
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25829
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25830
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25831
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25832
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25833
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: success
+    transition: collision_to_success
+  - scenario_seed: 25834
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25835
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25836
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25837
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25838
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25839
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25840
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25841
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25842
+    route_axis: vertical
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25843
+    route_axis: horizontal
+    reverse_route: false
+    reference_outcome: success
+    candidate_outcome: collision
+    transition: success_to_collision
+  - scenario_seed: 25844
+    route_axis: horizontal
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  - scenario_seed: 25845
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25846
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: collision
+    candidate_outcome: collision
+    transition: collision_to_collision
+  - scenario_seed: 25847
+    route_axis: vertical
+    reverse_route: true
+    reference_outcome: success
+    candidate_outcome: success
+    transition: success_to_success
+  overall:
+    episodes: 120
+    outcome_transitions:
+      collision_to_collision: 22
+      collision_to_success: 33
+      success_to_collision: 2
+      success_to_success: 63
+    collision:
+      reference_count: 55
+      candidate_count: 24
+      absolute_reduction_count: 31
+      relative_reduction: 0.5636363636363636
+    paired_success_endpoint:
+      rescues_reference_non_success_to_candidate_success: 33
+      regressions_reference_success_to_candidate_non_success: 2
+      discordant_total: 35
+      exact_one_sided_mcnemar_p: 1.8364517018198967e-08
+      alternative: candidate_success_probability_is_higher
+    timeouts:
+      reference_count: 0
+      candidate_count: 0
+      new_timeout_count: 0
+      resolved_timeout_count: 0
+      net_increase_count: 0
+    errors:
+      reference_count: 0
+      candidate_count: 0
+    completion_delay_on_reference_success:
+      reference_success_count: 65
+      paired_success_count: 63
+      candidate_noncompletion_count: 2
+      eligible_transition: success_to_success
+      estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+      quantile_method: numpy_linear
+      median_ratio: 1.0108695652173914
+      ratio_q25: 1.0
+      ratio_q75: 1.1107550849818892
+      ratio_iqr: 0.11075508498188924
+      ratio_p90: 1.1543419708368161
+      median_reference_completion_time_s: 12.928
+      median_candidate_completion_time_s: 13.824
+  by_route_axis:
+    horizontal:
+      episodes: 60
+      outcome_transitions:
+        collision_to_collision: 14
+        collision_to_success: 22
+        success_to_collision: 2
+        success_to_success: 22
+      collision:
+        reference_count: 36
+        candidate_count: 16
+        absolute_reduction_count: 20
+        relative_reduction: 0.5555555555555556
+      paired_success_endpoint:
+        rescues_reference_non_success_to_candidate_success: 22
+        regressions_reference_success_to_candidate_non_success: 2
+        discordant_total: 24
+        exact_one_sided_mcnemar_p: 1.7940998077392578e-05
+        alternative: candidate_success_probability_is_higher
+      timeouts:
+        reference_count: 0
+        candidate_count: 0
+        new_timeout_count: 0
+        resolved_timeout_count: 0
+        net_increase_count: 0
+      errors:
+        reference_count: 0
+        candidate_count: 0
+      completion_delay_on_reference_success:
+        reference_success_count: 24
+        paired_success_count: 22
+        candidate_noncompletion_count: 2
+        eligible_transition: success_to_success
+        estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+        quantile_method: numpy_linear
+        median_ratio: 1.0435627081021088
+        ratio_q25: 1.0
+        ratio_q75: 1.152054947509493
+        ratio_iqr: 0.152054947509493
+        ratio_p90: 1.1713430012610342
+        median_reference_completion_time_s: 13.184
+        median_candidate_completion_time_s: 13.888
+    vertical:
+      episodes: 60
+      outcome_transitions:
+        collision_to_collision: 8
+        collision_to_success: 11
+        success_to_success: 41
+      collision:
+        reference_count: 19
+        candidate_count: 8
+        absolute_reduction_count: 11
+        relative_reduction: 0.5789473684210527
+      paired_success_endpoint:
+        rescues_reference_non_success_to_candidate_success: 11
+        regressions_reference_success_to_candidate_non_success: 0
+        discordant_total: 11
+        exact_one_sided_mcnemar_p: 0.00048828125
+        alternative: candidate_success_probability_is_higher
+      timeouts:
+        reference_count: 0
+        candidate_count: 0
+        new_timeout_count: 0
+        resolved_timeout_count: 0
+        net_increase_count: 0
+      errors:
+        reference_count: 0
+        candidate_count: 0
+      completion_delay_on_reference_success:
+        reference_success_count: 41
+        paired_success_count: 41
+        candidate_noncompletion_count: 0
+        eligible_transition: success_to_success
+        estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+        quantile_method: numpy_linear
+        median_ratio: 1.0097087378640777
+        ratio_q25: 1.0
+        ratio_q75: 1.040816326530612
+        ratio_iqr: 0.04081632653061207
+        ratio_p90: 1.1296296296296295
+        median_reference_completion_time_s: 12.8
+        median_candidate_completion_time_s: 13.44
+  by_route_direction:
+    non_reverse:
+      episodes: 60
+      outcome_transitions:
+        collision_to_collision: 11
+        collision_to_success: 15
+        success_to_collision: 1
+        success_to_success: 33
+      collision:
+        reference_count: 26
+        candidate_count: 12
+        absolute_reduction_count: 14
+        relative_reduction: 0.5384615384615384
+      paired_success_endpoint:
+        rescues_reference_non_success_to_candidate_success: 15
+        regressions_reference_success_to_candidate_non_success: 1
+        discordant_total: 16
+        exact_one_sided_mcnemar_p: 0.0002593994140625
+        alternative: candidate_success_probability_is_higher
+      timeouts:
+        reference_count: 0
+        candidate_count: 0
+        new_timeout_count: 0
+        resolved_timeout_count: 0
+        net_increase_count: 0
+      errors:
+        reference_count: 0
+        candidate_count: 0
+      completion_delay_on_reference_success:
+        reference_success_count: 34
+        paired_success_count: 33
+        candidate_noncompletion_count: 1
+        eligible_transition: success_to_success
+        estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+        quantile_method: numpy_linear
+        median_ratio: 1.010989010989011
+        ratio_q25: 1.0
+        ratio_q75: 1.1203703703703705
+        ratio_iqr: 0.12037037037037046
+        ratio_p90: 1.1602207643444755
+        median_reference_completion_time_s: 12.544
+        median_candidate_completion_time_s: 13.696
+    reverse:
+      episodes: 60
+      outcome_transitions:
+        collision_to_collision: 11
+        collision_to_success: 18
+        success_to_collision: 1
+        success_to_success: 30
+      collision:
+        reference_count: 29
+        candidate_count: 12
+        absolute_reduction_count: 17
+        relative_reduction: 0.5862068965517241
+      paired_success_endpoint:
+        rescues_reference_non_success_to_candidate_success: 18
+        regressions_reference_success_to_candidate_non_success: 1
+        discordant_total: 19
+        exact_one_sided_mcnemar_p: 3.814697265625e-05
+        alternative: candidate_success_probability_is_higher
+      timeouts:
+        reference_count: 0
+        candidate_count: 0
+        new_timeout_count: 0
+        resolved_timeout_count: 0
+        net_increase_count: 0
+      errors:
+        reference_count: 0
+        candidate_count: 0
+      completion_delay_on_reference_success:
+        reference_success_count: 31
+        paired_success_count: 30
+        candidate_noncompletion_count: 1
+        eligible_transition: success_to_success
+        estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+        quantile_method: numpy_linear
+        median_ratio: 1.0092021950189953
+        ratio_q25: 1.0
+        ratio_q75: 1.059117125110914
+        ratio_iqr: 0.05911712511091394
+        ratio_p90: 1.1491996128359767
+        median_reference_completion_time_s: 13.44
+        median_candidate_completion_time_s: 13.824
+  by_initial_obstacle_direction:
+    negative:
+      episodes: 60
+      outcome_transitions:
+        collision_to_collision: 11
+        collision_to_success: 19
+        success_to_success: 30
+      collision:
+        reference_count: 30
+        candidate_count: 11
+        absolute_reduction_count: 19
+        relative_reduction: 0.6333333333333333
+      paired_success_endpoint:
+        rescues_reference_non_success_to_candidate_success: 19
+        regressions_reference_success_to_candidate_non_success: 0
+        discordant_total: 19
+        exact_one_sided_mcnemar_p: 1.9073486328125e-06
+        alternative: candidate_success_probability_is_higher
+      timeouts:
+        reference_count: 0
+        candidate_count: 0
+        new_timeout_count: 0
+        resolved_timeout_count: 0
+        net_increase_count: 0
+      errors:
+        reference_count: 0
+        candidate_count: 0
+      completion_delay_on_reference_success:
+        reference_success_count: 30
+        paired_success_count: 30
+        candidate_noncompletion_count: 0
+        eligible_transition: success_to_success
+        estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+        quantile_method: numpy_linear
+        median_ratio: 1.0043478260869565
+        ratio_q25: 1.0
+        ratio_q75: 1.0376877165960723
+        ratio_iqr: 0.037687716596072285
+        ratio_p90: 1.145891345891346
+        median_reference_completion_time_s: 12.8
+        median_candidate_completion_time_s: 13.568
+    positive:
+      episodes: 60
+      outcome_transitions:
+        collision_to_collision: 11
+        collision_to_success: 14
+        success_to_collision: 2
+        success_to_success: 33
+      collision:
+        reference_count: 25
+        candidate_count: 13
+        absolute_reduction_count: 12
+        relative_reduction: 0.48
+      paired_success_endpoint:
+        rescues_reference_non_success_to_candidate_success: 14
+        regressions_reference_success_to_candidate_non_success: 2
+        discordant_total: 16
+        exact_one_sided_mcnemar_p: 0.0020904541015625
+        alternative: candidate_success_probability_is_higher
+      timeouts:
+        reference_count: 0
+        candidate_count: 0
+        new_timeout_count: 0
+        resolved_timeout_count: 0
+        net_increase_count: 0
+      errors:
+        reference_count: 0
+        candidate_count: 0
+      completion_delay_on_reference_success:
+        reference_success_count: 35
+        paired_success_count: 33
+        candidate_noncompletion_count: 2
+        eligible_transition: success_to_success
+        estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+        quantile_method: numpy_linear
+        median_ratio: 1.0112359550561798
+        ratio_q25: 1.0
+        ratio_q75: 1.1296296296296295
+        ratio_iqr: 0.12962962962962954
+        ratio_p90: 1.1543419708368161
+        median_reference_completion_time_s: 13.056
+        median_candidate_completion_time_s: 13.824
+  by_route_axis_and_direction:
+    horizontal:
+      non_reverse:
+        episodes: 30
+        outcome_transitions:
+          collision_to_collision: 7
+          collision_to_success: 9
+          success_to_collision: 1
+          success_to_success: 13
+        collision:
+          reference_count: 16
+          candidate_count: 8
+          absolute_reduction_count: 8
+          relative_reduction: 0.5
+        paired_success_endpoint:
+          rescues_reference_non_success_to_candidate_success: 9
+          regressions_reference_success_to_candidate_non_success: 1
+          discordant_total: 10
+          exact_one_sided_mcnemar_p: 0.0107421875
+          alternative: candidate_success_probability_is_higher
+        timeouts:
+          reference_count: 0
+          candidate_count: 0
+          new_timeout_count: 0
+          resolved_timeout_count: 0
+          net_increase_count: 0
+        errors:
+          reference_count: 0
+          candidate_count: 0
+        completion_delay_on_reference_success:
+          reference_success_count: 14
+          paired_success_count: 13
+          candidate_noncompletion_count: 1
+          eligible_transition: success_to_success
+          estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+          quantile_method: numpy_linear
+          median_ratio: 1.0588235294117647
+          ratio_q25: 1.0
+          ratio_q75: 1.1441441441441442
+          ratio_iqr: 0.14414414414414423
+          ratio_p90: 1.169389373513085
+          median_reference_completion_time_s: 12.928
+          median_candidate_completion_time_s: 13.824
+      reverse:
+        episodes: 30
+        outcome_transitions:
+          collision_to_collision: 7
+          collision_to_success: 13
+          success_to_collision: 1
+          success_to_success: 9
+        collision:
+          reference_count: 20
+          candidate_count: 8
+          absolute_reduction_count: 12
+          relative_reduction: 0.6
+        paired_success_endpoint:
+          rescues_reference_non_success_to_candidate_success: 13
+          regressions_reference_success_to_candidate_non_success: 1
+          discordant_total: 14
+          exact_one_sided_mcnemar_p: 0.00091552734375
+          alternative: candidate_success_probability_is_higher
+        timeouts:
+          reference_count: 0
+          candidate_count: 0
+          new_timeout_count: 0
+          resolved_timeout_count: 0
+          net_increase_count: 0
+        errors:
+          reference_count: 0
+          candidate_count: 0
+        completion_delay_on_reference_success:
+          reference_success_count: 10
+          paired_success_count: 9
+          candidate_noncompletion_count: 1
+          eligible_transition: success_to_success
+          estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+          quantile_method: numpy_linear
+          median_ratio: 1.028301886792453
+          ratio_q25: 1.0
+          ratio_q75: 1.1531531531531531
+          ratio_iqr: 0.15315315315315314
+          ratio_p90: 1.1611493037193723
+          median_reference_completion_time_s: 13.824
+          median_candidate_completion_time_s: 14.08
+    vertical:
+      non_reverse:
+        episodes: 30
+        outcome_transitions:
+          collision_to_collision: 4
+          collision_to_success: 6
+          success_to_success: 20
+        collision:
+          reference_count: 10
+          candidate_count: 4
+          absolute_reduction_count: 6
+          relative_reduction: 0.6
+        paired_success_endpoint:
+          rescues_reference_non_success_to_candidate_success: 6
+          regressions_reference_success_to_candidate_non_success: 0
+          discordant_total: 6
+          exact_one_sided_mcnemar_p: 0.015625
+          alternative: candidate_success_probability_is_higher
+        timeouts:
+          reference_count: 0
+          candidate_count: 0
+          new_timeout_count: 0
+          resolved_timeout_count: 0
+          net_increase_count: 0
+        errors:
+          reference_count: 0
+          candidate_count: 0
+        completion_delay_on_reference_success:
+          reference_success_count: 20
+          paired_success_count: 20
+          candidate_noncompletion_count: 0
+          eligible_transition: success_to_success
+          estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+          quantile_method: numpy_linear
+          median_ratio: 1.0109292881032013
+          ratio_q25: 1.0
+          ratio_q75: 1.1111736736736737
+          ratio_iqr: 0.1111736736736737
+          ratio_p90: 1.1328282828282827
+          median_reference_completion_time_s: 12.48
+          median_candidate_completion_time_s: 13.056000000000001
+      reverse:
+        episodes: 30
+        outcome_transitions:
+          collision_to_collision: 4
+          collision_to_success: 5
+          success_to_success: 21
+        collision:
+          reference_count: 9
+          candidate_count: 4
+          absolute_reduction_count: 5
+          relative_reduction: 0.5555555555555556
+        paired_success_endpoint:
+          rescues_reference_non_success_to_candidate_success: 5
+          regressions_reference_success_to_candidate_non_success: 0
+          discordant_total: 5
+          exact_one_sided_mcnemar_p: 0.03125
+          alternative: candidate_success_probability_is_higher
+        timeouts:
+          reference_count: 0
+          candidate_count: 0
+          new_timeout_count: 0
+          resolved_timeout_count: 0
+          net_increase_count: 0
+        errors:
+          reference_count: 0
+          candidate_count: 0
+        completion_delay_on_reference_success:
+          reference_success_count: 21
+          paired_success_count: 21
+          candidate_noncompletion_count: 0
+          eligible_transition: success_to_success
+          estimand: median_of_per_scenario_candidate_to_reference_completion_time_ratio
+          quantile_method: numpy_linear
+          median_ratio: 1.0
+          ratio_q25: 1.0
+          ratio_q75: 1.0199999999999998
+          ratio_iqr: 0.019999999999999796
+          ratio_p90: 1.1134020618556701
+          median_reference_completion_time_s: 13.184
+          median_candidate_completion_time_s: 13.44
+manipulation_integrity_check:
+  role: required_experiment_validity_check_not_primary_efficacy_gate
+  passed: false
+  checks:
+    reference_all_episodes_disabled: true
+    reference_zero_active_steps: true
+    reference_zero_intervention: true
+    candidate_all_episodes_enabled: true
+    candidate_has_active_steps: true
+    candidate_has_braking_steps: true
+    candidate_preserves_angular_action: true
+    candidate_active_steps_are_exact_speed_cap_braking: false
+  reference_metrics:
+    episode_count: 120
+    enabled_episode_count: 0
+    episode_with_active_step_count: 0
+    total_step_count: 9400
+    active_step_count: 0
+    active_step_ratio: 0.0
+    intervention_sum: 0.0
+    braking_step_count: 0
+    speed_cap_binding_step_count: 0
+    maximum_absolute_angular_action_delta: 0.0
+  candidate_metrics:
+    episode_count: 120
+    enabled_episode_count: 120
+    episode_with_active_step_count: 102
+    total_step_count: 12461
+    active_step_count: 3197
+    active_step_ratio: 0.25656046866222615
+    intervention_sum: 3252.703636869788
+    braking_step_count: 3197
+    speed_cap_binding_step_count: 3196
+    maximum_absolute_angular_action_delta: 0.0
+experiment_validity:
+  manipulation_integrity_required: true
+  manipulation_integrity_passed: false
+  primary_efficacy_gate_passed: true
+  overall_passed: false
+interpretation_scope:
+  estimand: paired_intent_to_treat_whole_closed_loop_profile_effect
+  candidate_profile: front_brake_enabled_with_admitted_action_fed_back_into_next_observation
+  only_treatment_parameter_difference: WEBOTS_SAFETY_SHIELD_enabled_0_vs_1
+  step_level_action_transformation_evidence_available: true
+  outcome_effect_remains_intent_to_treat: true
+  mechanism_evidence_scope: shield_activation_action_braking_speed_cap_and_angular_preservation
+candidate_gate:
+  require_all: true
+  checks:
+    minimum_relative_collision_reduction:
+      actual: 0.5636363636363636
+      operator: '>='
+      threshold: 0.25
+      passed: true
+    exact_one_sided_mcnemar_p:
+      actual: 1.8364517018198967e-08
+      operator: <
+      threshold: 0.05
+      passed: true
+    maximum_new_timeout_count:
+      actual: 0
+      operator: <=
+      threshold: 2
+      passed: true
+    maximum_median_completion_time_ratio:
+      actual: 1.0108695652173914
+      operator: <=
+      threshold: 1.15
+      denominator: success_to_success_scenarios
+      passed: true
+    minimum_common_success_count:
+      actual: 63
+      operator: '>='
+      threshold: 24
+      passed: true
+    maximum_reference_error_count:
+      actual: 0
+      operator: <=
+      threshold: 0
+      passed: true
+    maximum_candidate_error_count:
+      actual: 0
+      operator: <=
+      threshold: 0
+      passed: true
+  passed: true
+decision:
+  selected: invalidate_front_brake_diagnostic
+  validation_or_test_access: forbidden
+written_reports:
+  json: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.json
+  yaml: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.yaml
+  sha256_sidecar: artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.sha256

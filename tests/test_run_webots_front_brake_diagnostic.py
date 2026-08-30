@@ -23,7 +23,8 @@ from indoor_patrol_rl.evaluation import (
 
 REPOSITORY_ROOT = Path(__file__).absolute().parents[1]
 SCRIPT_PATH = REPOSITORY_ROOT / "scripts/run_webots_front_brake_diagnostic.py"
-CONFIG_PATH = REPOSITORY_ROOT / "configs/eval/webots_front_brake_paired_diagnostic_v1.yaml"
+CONFIG_PATH = REPOSITORY_ROOT / "configs/eval/webots_front_brake_paired_confirmation_v2.yaml"
+V1_CONFIG_PATH = REPOSITORY_ROOT / "configs/eval/webots_front_brake_paired_diagnostic_v1.yaml"
 
 
 def _load_runner() -> Any:
@@ -67,6 +68,10 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
     model = root / RUNNER._FIXED_MODEL
     model.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(REPOSITORY_ROOT / RUNNER._FIXED_MODEL, model)
+    for relative in (RUNNER._V1_REPORT, RUNNER._MANIPULATION_REAUDIT):
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPOSITORY_ROOT / relative, target)
     webots = root / "tools/webots.exe"
     webots.parent.mkdir(parents=True, exist_ok=True)
     webots.write_bytes(b"webots")
@@ -80,7 +85,7 @@ def test_locked_config_uses_first_balanced_covariate_window(tmp_path: Path) -> N
         Path("configs/eval/front_brake.yaml"), repository_root=root
     )
 
-    assert config.seeds == tuple(range(25_728, 25_848))
+    assert config.seeds == tuple(range(54_775, 54_895))
     assert RUNNER._strata_counts(config.seeds) == {
         "horizontal": {"non_reverse": 30, "reverse": 30},
         "vertical": {"non_reverse": 30, "reverse": 30},
@@ -89,7 +94,16 @@ def test_locked_config_uses_first_balanced_covariate_window(tmp_path: Path) -> N
         "negative": 60,
         "positive": 60,
     }
-    assert RUNNER._first_balanced_seed_window(20_614, 120) == 25_728
+    assert RUNNER._first_balanced_seed_window(25_848, 120) == 54_775
+    assert RUNNER._seed_window_is_balanced(54_775, 120)
+    assert not RUNNER._seed_window_is_balanced(54_774, 120)
+    assert RUNNER._strata_counts(tuple(range(54_774, 54_894))) == {
+        "horizontal": {"non_reverse": 29, "reverse": 31},
+        "vertical": {"non_reverse": 30, "reverse": 30},
+    }
+    assert set(config.seeds).isdisjoint(RUNNER._V1_SEEDS)
+    assert set(config.seeds).isdisjoint(RUNNER._VALIDATION_SEEDS)
+    assert set(config.seeds).isdisjoint(RUNNER._TEST_SEEDS)
     reference = config.arm_for_role("reference")
     candidate = config.arm_for_role("candidate")
     assert set(reference.controller_env) == set(candidate.controller_env)
@@ -104,6 +118,8 @@ def test_locked_config_uses_first_balanced_covariate_window(tmp_path: Path) -> N
     }
     assert reference.controller_env["WEBOTS_SAFETY_SHIELD"] == "0"
     assert candidate.controller_env["WEBOTS_SAFETY_SHIELD"] == "1"
+    assert dict(reference.controller_env) == RUNNER._REFERENCE_ENV
+    assert dict(candidate.controller_env) == RUNNER._CANDIDATE_ENV
     assert candidate.controller_env["WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE"] == (
         "1.0471975511965976"
     )
@@ -113,9 +129,9 @@ def test_config_rejects_seed_parameter_and_access_drift(tmp_path: Path) -> None:
     root, _webots = _fixture(tmp_path)
     config_path = root / "configs/eval/front_brake.yaml"
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    raw["scenario_seed_start"] = 20_614
+    raw["scenario_seed_start"] = 25_848
     config_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-    with pytest.raises(ValueError, match="25728"):
+    with pytest.raises(ValueError, match="54775"):
         RUNNER.load_diagnostic_config(config_path, repository_root=root)
 
     shutil.copyfile(CONFIG_PATH, config_path)
@@ -131,6 +147,50 @@ def test_config_rejects_seed_parameter_and_access_drift(tmp_path: Path) -> None:
     config_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
     with pytest.raises(PermissionError, match="forbid"):
         RUNNER.load_diagnostic_config(config_path, repository_root=root)
+
+
+def test_runner_rejects_sealed_v1_config(tmp_path: Path) -> None:
+    root, _webots = _fixture(tmp_path)
+    config_path = root / "configs/eval/front_brake.yaml"
+    shutil.copyfile(V1_CONFIG_PATH, config_path)
+
+    with pytest.raises(PermissionError, match="only the locked confirmation-v2"):
+        RUNNER.load_diagnostic_config(config_path, repository_root=root)
+
+
+def test_prior_evidence_hashes_restrictions_and_gate_are_locked(tmp_path: Path) -> None:
+    root, _webots = _fixture(tmp_path)
+    config_path = root / "configs/eval/front_brake.yaml"
+    config = RUNNER.load_diagnostic_config(config_path, repository_root=root)
+
+    assert config.v1_report.portable_path == RUNNER._V1_REPORT
+    assert config.v1_report.sha256 == RUNNER._V1_REPORT_SHA256
+    assert config.manipulation_reaudit.portable_path == RUNNER._MANIPULATION_REAUDIT
+    assert config.manipulation_reaudit.sha256 == RUNNER._MANIPULATION_REAUDIT_SHA256
+    assert config.prior_evidence_restrictions == RUNNER._PRIOR_EVIDENCE_RESTRICTIONS
+    assert config.gate == RUNNER.CandidateGate(True, 0.25, 0.05, 2, 1.15, 24, 0)
+
+    raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    raw["prior_evidence"]["v1_paired_report"]["sha256"] = "0" * 64
+    config_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    with pytest.raises(PermissionError, match="sealed v1 evidence binding"):
+        RUNNER.load_diagnostic_config(config_path, repository_root=root)
+
+    shutil.copyfile(CONFIG_PATH, config_path)
+    raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    raw["prior_evidence"]["restrictions"]["v1_v2_pooled_fallback"] = "allowed"
+    config_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    with pytest.raises(PermissionError, match="pooled fallback"):
+        RUNNER.load_diagnostic_config(config_path, repository_root=root)
+
+
+def test_prior_evidence_file_drift_is_rejected(tmp_path: Path) -> None:
+    root, _webots = _fixture(tmp_path)
+    reaudit = root / RUNNER._MANIPULATION_REAUDIT
+    reaudit.write_bytes(reaudit.read_bytes() + b"\n")
+
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        RUNNER.load_diagnostic_config(Path("configs/eval/front_brake.yaml"), repository_root=root)
 
 
 def test_dry_run_is_paired_diagnostic_only_and_writes_nothing(tmp_path: Path) -> None:
@@ -160,7 +220,7 @@ def test_dry_run_is_paired_diagnostic_only_and_writes_nothing(tmp_path: Path) ->
     first_env = first["environment"]
     second_env = second["environment"]
     assert first_env["WEBOTS_EVAL_SPLIT"] == second_env["WEBOTS_EVAL_SPLIT"] == ("diagnostic")
-    assert first_env["WEBOTS_EVAL_SEED_START"] == second_env["WEBOTS_EVAL_SEED_START"] == "25728"
+    assert first_env["WEBOTS_EVAL_SEED_START"] == second_env["WEBOTS_EVAL_SEED_START"] == "54775"
     differences = {name for name in first_env if first_env.get(name) != second_env.get(name)}
     assert differences == {
         "WEBOTS_PORT",
@@ -170,6 +230,32 @@ def test_dry_run_is_paired_diagnostic_only_and_writes_nothing(tmp_path: Path) ->
     }
     assert "WEBOTS_CONFIRM_TEST" not in first_env
     assert not (root / f"artifacts/results/{RUNNER._FIXED_EXPERIMENT_ID}").exists()
+    for run in plan["runs"]:
+        assert not (root / "artifacts/results" / run["run_name"]).exists()
+    assert plan["prior_evidence"]["restrictions"] == RUNNER._PRIOR_EVIDENCE_RESTRICTIONS
+    assert plan["source_bindings"]["v1_paired_report"]["sha256"] == (RUNNER._V1_REPORT_SHA256)
+    assert plan["source_bindings"]["manipulation_boundary_reaudit"]["sha256"] == (
+        RUNNER._MANIPULATION_REAUDIT_SHA256
+    )
+
+
+def test_cli_defaults_to_locked_confirmation_v2_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_execute(**kwargs: Any) -> tuple[int, dict[str, Any]]:
+        captured.update(kwargs)
+        return 0, {"dry_run": True}
+
+    monkeypatch.setattr(RUNNER, "execute_diagnostic", fake_execute)
+    exit_code = RUNNER.main(["--webots", str(tmp_path / "webots.exe"), "--dry-run"])
+
+    assert exit_code == 0
+    assert captured["config_path"] == Path(
+        "configs/eval/webots_front_brake_paired_confirmation_v2.yaml"
+    )
+    assert captured["dry_run"] is True
 
 
 def test_exact_one_sided_mcnemar_uses_success_discordances() -> None:
@@ -179,6 +265,176 @@ def test_exact_one_sided_mcnemar_uses_success_discordances() -> None:
     assert RUNNER._exact_one_sided_mcnemar_p(0, 6) == 1.0
     with pytest.raises(ValueError, match="cannot be negative"):
         RUNNER._exact_one_sided_mcnemar_p(-1, 2)
+
+
+def test_active_float32_boundary_step_still_binds_the_declared_speed_cap() -> None:
+    step = {
+        "step": 1,
+        "shield_active": True,
+        "policy_action": [1.0, 0.0],
+        "shielded_action": [0.9999989867210388, 0.0],
+        "shield_normalized_speed_limit": 0.9999990014894453,
+        "shield_intervention": 1.0132789611816406e-6,
+    }
+    intervention = 1.0132789611816406e-6
+    metrics = RUNNER._shield_evidence_metrics(
+        {
+            25_737: {
+                "steps": [step],
+                "summary": {
+                    "shield_enabled": True,
+                    "active_step_count": 1,
+                    "intervention_sum": intervention,
+                    "intervention_epsilon": 1e-6,
+                },
+            }
+        }
+    )
+
+    assert metrics["active_step_count"] == 1
+    assert metrics["braking_step_count"] == 1
+    assert metrics["speed_cap_binding_step_count"] == 1
+    assert metrics["active_operational_semantics_step_count"] == 1
+    assert metrics["recorded_active_matches_float32_norm_step_count"] == 1
+    assert metrics["recorded_intervention_matches_float32_norm_step_count"] == 1
+    assert metrics["active_angular_action_float32_bits_unchanged_step_count"] == 1
+    assert metrics["all_angular_action_float32_bits_unchanged_step_count"] == 1
+
+
+def _single_candidate_step_metrics(step: dict[str, Any]) -> dict[str, Any]:
+    return RUNNER._shield_evidence_metrics(
+        {
+            54_775: {
+                "steps": [step],
+                "summary": {
+                    "shield_enabled": True,
+                    "active_step_count": int(bool(step["shield_active"])),
+                    "intervention_sum": float(step["shield_intervention"]),
+                    "intervention_epsilon": 1e-6,
+                },
+            }
+        }
+    )
+
+
+def test_cap_binding_requires_exact_float32_bits_not_a_numeric_tolerance() -> None:
+    metrics = _single_candidate_step_metrics(
+        {
+            "step": 1,
+            "shield_active": True,
+            "policy_action": [1.0, 0.0],
+            "shielded_action": [0.5, 0.0],
+            "shield_normalized_speed_limit": float(np.nextafter(np.float32(0.5), np.float32(1.0))),
+            "shield_intervention": 0.5,
+        }
+    )
+
+    assert metrics["braking_step_count"] == 1
+    assert metrics["speed_cap_binding_step_count"] == 0
+    assert metrics["active_operational_semantics_step_count"] == 0
+
+
+def test_operational_semantics_reject_intervention_or_angular_bit_drift() -> None:
+    intervention_drift = _single_candidate_step_metrics(
+        {
+            "step": 1,
+            "shield_active": True,
+            "policy_action": [1.0, 0.0],
+            "shielded_action": [0.5, 0.0],
+            "shield_normalized_speed_limit": 0.5,
+            "shield_intervention": 0.5000001,
+        }
+    )
+    assert intervention_drift["recorded_intervention_matches_float32_norm_step_count"] == 0
+    assert intervention_drift["active_operational_semantics_step_count"] == 0
+
+    one_ulp = float(np.nextafter(np.float32(0.0), np.float32(1.0)))
+    angular_drift = _single_candidate_step_metrics(
+        {
+            "step": 1,
+            "shield_active": True,
+            "policy_action": [1.0, 0.0],
+            "shielded_action": [0.5, one_ulp],
+            "shield_normalized_speed_limit": 0.5,
+            "shield_intervention": 0.5,
+        }
+    )
+    assert angular_drift["maximum_absolute_angular_action_delta"] < 1e-6
+    assert angular_drift["active_angular_action_float32_bits_unchanged_step_count"] == 0
+    assert angular_drift["active_operational_semantics_step_count"] == 0
+
+
+def test_inactive_angular_one_ulp_drift_invalidates_turn_blend_zero_profile() -> None:
+    one_ulp = float(np.nextafter(np.float32(0.0), np.float32(1.0)))
+    candidate_metrics = RUNNER._shield_evidence_metrics(
+        {
+            54_775: {
+                "steps": [
+                    {
+                        "step": 1,
+                        "shield_active": True,
+                        "policy_action": [1.0, 0.0],
+                        "shielded_action": [0.5, 0.0],
+                        "shield_normalized_speed_limit": 0.5,
+                        "shield_intervention": 0.5,
+                    },
+                    {
+                        "step": 2,
+                        "shield_active": False,
+                        "policy_action": [0.0, 0.0],
+                        "shielded_action": [0.0, one_ulp],
+                        "shield_normalized_speed_limit": 1.0,
+                        "shield_intervention": 0.0,
+                    },
+                ],
+                "summary": {
+                    "shield_enabled": True,
+                    "active_step_count": 1,
+                    "intervention_sum": 0.5,
+                    "intervention_epsilon": 1e-6,
+                },
+            }
+        }
+    )
+    reference_metrics = RUNNER._shield_evidence_metrics(
+        {
+            54_775: {
+                "steps": [
+                    {
+                        "step": 1,
+                        "shield_active": False,
+                        "policy_action": [0.0, 0.0],
+                        "shielded_action": [0.0, 0.0],
+                        "shield_normalized_speed_limit": 1.0,
+                        "shield_intervention": 0.0,
+                    }
+                ],
+                "summary": {
+                    "shield_enabled": False,
+                    "active_step_count": 0,
+                    "intervention_sum": 0.0,
+                    "intervention_epsilon": 1e-6,
+                },
+            }
+        }
+    )
+
+    def result(role: str, metrics: dict[str, Any]) -> Any:
+        arm = RUNNER.Arm(role, role, role, role, {})
+        return RUNNER.ParsedArmResult(arm, {}, {}, {}, metrics, {}, {})
+
+    validity = RUNNER._secondary_manipulation_check(
+        result("reference", reference_metrics),
+        result("candidate", candidate_metrics),
+        expected_episodes=1,
+    )
+
+    assert candidate_metrics["maximum_absolute_angular_action_delta"] < 1e-6
+    assert candidate_metrics["active_angular_action_float32_bits_unchanged_step_count"] == 1
+    assert candidate_metrics["all_angular_action_float32_bits_unchanged_step_count"] == 1
+    assert validity["checks"]["candidate_preserves_angular_action"] is True
+    assert validity["checks"]["candidate_all_steps_preserve_angular_action_float32_bits"] is False
+    assert validity["passed"] is False
 
 
 def _gate_input(
@@ -391,10 +647,12 @@ def _shield_evidence_record(
     enabled: bool,
     intervene: bool = True,
 ) -> dict[str, Any]:
-    policy = [0.5, 0.1]
+    policy_f32 = np.asarray([0.5, 0.1], dtype=np.float32)
     active = enabled and intervene
-    shielded = [-0.2, 0.1] if active else list(policy)
-    intervention = float(np.linalg.norm(np.asarray(shielded) - np.asarray(policy)))
+    shielded_f32 = np.asarray([-0.2, 0.1], dtype=np.float32) if active else policy_f32.copy()
+    policy = policy_f32.tolist()
+    shielded = shielded_f32.tolist()
+    intervention = float(np.linalg.norm(np.subtract(shielded_f32, policy_f32, dtype=np.float32)))
     steps = [
         {
             "step_count": step,
@@ -437,7 +695,7 @@ def _fake_webots(repository_root: Path, *, candidate_intervenes: bool = True):
         planner = environment["WEBOTS_EVAL_PLANNER_LABEL"]
         run_name = environment["WEBOTS_EVAL_RUN_NAME"]
         output = repository_root / "artifacts/results" / run_name
-        seeds = range(25_728, 25_848)
+        seeds = range(54_775, 54_895)
         episodes = [_record(seed, planner) for seed in seeds]
         contexts = [_context(record) for record in episodes]
         context_binding = write_episode_context_jsonl(
@@ -480,7 +738,7 @@ def _fake_webots(repository_root: Path, *, candidate_intervenes: bool = True):
             "planner": "ppo",
             "planner_label": planner,
             "deterministic_policy": True,
-            "scenario_seed_start": 25_728,
+            "scenario_seed_start": 54_775,
             "scenario_seed_count": 120,
             "scenario_seeds": list(seeds),
             "obstacle_count": 1,
@@ -537,6 +795,12 @@ def test_full_fake_run_validates_provenance_and_reports_itt_scope(tmp_path: Path
     assert report["source_bindings"]["control"]["sha256"]
     assert report["source_bindings"]["webots_patrol_environment"]["sha256"]
     assert report["source_bindings"]["shield_evidence"]["sha256"]
+    assert report["source_bindings"]["v1_paired_report"]["sha256"] == (RUNNER._V1_REPORT_SHA256)
+    assert report["source_bindings"]["manipulation_boundary_reaudit"]["sha256"] == (
+        RUNNER._MANIPULATION_REAUDIT_SHA256
+    )
+    assert report["prior_evidence"]["restrictions"] == RUNNER._PRIOR_EVIDENCE_RESTRICTIONS
+    assert report["prior_evidence"]["v1_status_remains"] == "invalid_manipulation"
     assert (
         report["arms"][0]["resolved_safety_shield_config"]
         == report["arms"][1]["resolved_safety_shield_config"]
@@ -602,7 +866,7 @@ def test_failed_manipulation_integrity_invalidates_the_experiment(tmp_path: Path
     assert report["status"] == "invalid_manipulation"
     assert report["manipulation_integrity_check"]["passed"] is False
     assert report["experiment_validity"]["overall_passed"] is False
-    assert report["decision"]["selected"] == "invalidate_front_brake_diagnostic"
+    assert report["decision"]["selected"] == "invalidate_front_brake_confirmation_v2"
 
 
 def test_paired_analysis_rejects_initial_context_mismatch() -> None:

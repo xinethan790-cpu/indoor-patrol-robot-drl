@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the pre-registered paired front-brake diagnostic in Webots.
+"""Run the pre-registered paired front-brake confirmation-v2 diagnostic.
 
 The protocol has exactly one reference and one candidate.  It binds source,
 model, simulator, scenario seeds, and controller parameters by SHA-256; records
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import functools
 import hashlib
 import json
 import math
@@ -55,11 +56,13 @@ _GIT_REVISION = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 _SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 _VALIDATION_SEEDS = frozenset(range(5_000, 5_020))
 _TEST_SEEDS = frozenset(range(10_000, 10_020))
-_FIXED_EXPERIMENT_ID = "webots_front_brake_paired_diagnostic_v1"
+_FIXED_EXPERIMENT_ID = "webots_front_brake_paired_confirmation_v2"
 _FIXED_CONDITION_ID = "DB1"
 _FIXED_TRAINING_SEED = 11
-_FIXED_SEED_START = 25_728
+_FIXED_SEED_SEARCH_START = 25_848
+_FIXED_SEED_START = 54_775
 _FIXED_EPISODES = 120
+_V1_SEEDS = frozenset(range(25_728, 25_848))
 _FIXED_MODEL = "artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip"
 _FIXED_MODEL_SHA256 = "c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275"
 _FIXED_MODEL_VARIANT = "w1_recovery_v1"
@@ -70,14 +73,27 @@ _CONTROL_IMPLEMENTATION = "src/indoor_patrol_rl/core/control.py"
 _ENVIRONMENT_IMPLEMENTATION = "src/indoor_patrol_rl/envs/webots_patrol.py"
 _EVALUATION_EXPORTS = "src/indoor_patrol_rl/evaluation/__init__.py"
 _METRICS_IMPLEMENTATION = "src/indoor_patrol_rl/evaluation/metrics.py"
-_FORMAL_CONFIG_IMPLEMENTATION = (
-    "src/indoor_patrol_rl/evaluation/webots_formal_config.py"
-)
+_FORMAL_CONFIG_IMPLEMENTATION = "src/indoor_patrol_rl/evaluation/webots_formal_config.py"
 _CONTEXT_IMPLEMENTATION = "src/indoor_patrol_rl/evaluation/episode_context.py"
 _SHIELD_EVIDENCE_IMPLEMENTATION = "src/indoor_patrol_rl/evaluation/shield_evidence.py"
 _CURRICULUM_IMPLEMENTATION = "src/indoor_patrol_rl/training/webots_curriculum.py"
 _RUNNER = "scripts/run_webots_front_brake_diagnostic.py"
 _REPORT_DIRECTORY = "artifacts/results/{experiment_id}"
+_V1_REPORT = (
+    "artifacts/results/webots_front_brake_paired_diagnostic_v1/paired_diagnostic_report.json"
+)
+_V1_REPORT_SHA256 = "2779e8dcb6f8ccf2216464e196dc5c5f3a5ba1c8092eb0d75cb14fb62e2cc787"
+_MANIPULATION_REAUDIT = (
+    "artifacts/results/webots_front_brake_v1_manipulation_reaudit_v1/"
+    "manipulation_boundary_reaudit.json"
+)
+_MANIPULATION_REAUDIT_SHA256 = "aac1bf62e755a1868837c294adc4e2d13cf9949a4dcba484d0c0b18c4ffd16ed"
+_PRIOR_EVIDENCE_RESTRICTIONS = {
+    "v1_rerun": "forbidden",
+    "v1_reinterpretation": "forbidden",
+    "v1_report_rewrite": "forbidden",
+    "v1_v2_pooled_fallback": "forbidden",
+}
 _EPISODE_FIELDS = tuple(EpisodeRecord.__dataclass_fields__)
 _LOCKED_SHIELD_PARAMETERS = {
     "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.0",
@@ -127,6 +143,13 @@ class ModelBinding:
 
 
 @dataclass(frozen=True)
+class PriorArtifactBinding:
+    portable_path: str
+    path: Path
+    sha256: str
+
+
+@dataclass(frozen=True)
 class Scenario:
     obstacle_count: int
     obstacle_speed_range: tuple[float, float]
@@ -165,6 +188,9 @@ class DiagnosticConfig:
     training_seed: int
     scenario_seed_start: int
     episodes: int
+    v1_report: PriorArtifactBinding
+    manipulation_reaudit: PriorArtifactBinding
+    prior_evidence_restrictions: Mapping[str, str]
     model: ModelBinding
     scenario: Scenario
     arms: tuple[Arm, Arm]
@@ -300,6 +326,78 @@ def _verify_file(path: Path, expected_sha256: str, label: str) -> None:
         raise ValueError(f"{label} SHA-256 mismatch: expected {expected_sha256}, actual {actual}.")
 
 
+def _load_prior_artifact(
+    repository_root: Path,
+    value: Any,
+    *,
+    label: str,
+    expected_path: str,
+    expected_sha256: str,
+) -> PriorArtifactBinding:
+    raw = _mapping(value, label)
+    _exact_keys(raw, {"path", "sha256"}, label)
+    portable, path = _inside_repository(repository_root, raw["path"], f"{label}.path")
+    sha256 = _text(raw["sha256"], f"{label}.sha256")
+    if _SHA256.fullmatch(sha256) is None:
+        raise ValueError(f"{label}.sha256 must be a lowercase SHA-256 digest.")
+    if (portable, sha256) != (expected_path, expected_sha256):
+        raise PermissionError(f"{label} differs from the sealed v1 evidence binding.")
+    _verify_file(path, sha256, label)
+    return PriorArtifactBinding(portable, path, sha256)
+
+
+def _validate_prior_evidence_contents(
+    v1_report: PriorArtifactBinding,
+    manipulation_reaudit: PriorArtifactBinding,
+) -> None:
+    v1 = _mapping(
+        json.loads(v1_report.path.read_text(encoding="utf-8")),
+        "prior v1 paired report",
+    )
+    validity = _mapping(v1.get("experiment_validity"), "v1 experiment_validity")
+    decision = _mapping(v1.get("decision"), "v1 decision")
+    if not (
+        v1.get("experiment_id") == "webots_front_brake_paired_diagnostic_v1"
+        and v1.get("status") == "invalid_manipulation"
+        and v1.get("split") == "diagnostic"
+        and v1.get("validation_split_was_run") is False
+        and v1.get("test_split_was_run") is False
+        and validity.get("primary_efficacy_gate_passed") is True
+        and validity.get("manipulation_integrity_passed") is False
+        and decision.get("selected") == "invalidate_front_brake_diagnostic"
+    ):
+        raise PermissionError("The sealed v1 report no longer has its locked original status.")
+
+    reaudit = _mapping(
+        json.loads(manipulation_reaudit.path.read_text(encoding="utf-8")),
+        "prior manipulation boundary reaudit",
+    )
+    inputs = _mapping(reaudit.get("inputs"), "reaudit inputs")
+    report_artifacts = _mapping(
+        inputs.get("paired_diagnostic_report_artifacts"),
+        "reaudit report artifacts",
+    )
+    report_input = _mapping(report_artifacts.get("json"), "reaudit JSON report input")
+    original_facts = _mapping(reaudit.get("original_report_facts"), "reaudit original report facts")
+    conclusion = _mapping(reaudit.get("checker_conclusion"), "reaudit conclusion")
+    if not (
+        reaudit.get("audit_id") == "webots_front_brake_v1_manipulation_boundary_reaudit_v1"
+        and reaudit.get("status") == "passed"
+        and report_input.get("path") == v1_report.portable_path
+        and report_input.get("sha256") == v1_report.sha256
+        and original_facts.get("status") == "invalid_manipulation"
+        and original_facts.get("original_report_was_modified") is False
+        and original_facts.get("original_status_is_not_rewritten") is True
+        and conclusion.get("corrected_manipulation_integrity_passed") is True
+        and conclusion.get("original_paired_report_remains_invalid_manipulation") is True
+        and conclusion.get("primary_efficacy_result_is_not_promoted_by_this_post_hoc_audit") is True
+        and conclusion.get("next_allowed_stage") == "independent_diagnostic_confirmation_only"
+        and conclusion.get("validation_or_test_confirmation_allowed") is False
+    ):
+        raise PermissionError("The sealed manipulation-boundary reaudit is not the locked input.")
+
+
+@functools.cache
 def _scenario_covariates_for_seed(seed: int) -> tuple[str, bool, float]:
     """Reproduce pre-treatment route and obstacle-direction RNG draws."""
 
@@ -342,6 +440,15 @@ def _obstacle_direction_counts(seeds: Sequence[int]) -> dict[str, int]:
     return {"negative": counts[-1.0], "positive": counts[1.0]}
 
 
+def _seed_window_is_balanced(start: int, episodes: int) -> bool:
+    seeds = tuple(range(start, start + episodes))
+    return _strata_counts(seeds) == _FIXED_STRATA and _obstacle_direction_counts(seeds) == {
+        "negative": 60,
+        "positive": 60,
+    }
+
+
+@functools.cache
 def _first_balanced_seed_window(search_start: int, episodes: int) -> int:
     """Find the first window using only deterministic pre-treatment covariates."""
 
@@ -402,6 +509,11 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
         yaml.load(source.read_text(encoding="utf-8"), Loader=_UniqueKeyLoader),
         "config",
     )
+    if raw.get("experiment_id") != _FIXED_EXPERIMENT_ID:
+        raise PermissionError(
+            "This runner accepts only the locked confirmation-v2 protocol; "
+            "the sealed v1 protocol cannot be rerun or reinterpreted."
+        )
     _exact_keys(
         raw,
         {
@@ -412,6 +524,7 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
             "training_seed",
             "scenario_seed_start",
             "episodes",
+            "prior_evidence",
             "model",
             "scenario",
             "arms",
@@ -445,7 +558,7 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
     ):
         raise ValueError(
             "Protocol identity is fixed to DB1, training seed 11, and diagnostic seeds "
-            "25728..25847 (120 episodes)."
+            "54775..54894 (120 episodes)."
         )
     seeds = tuple(range(seed_start, seed_start + episodes))
     validation_overlap = sorted(set(seeds) & _VALIDATION_SEEDS)
@@ -455,6 +568,9 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
             "Diagnostic seeds overlap reserved splits: "
             f"validation={validation_overlap}, held_out_test={test_overlap}."
         )
+    v1_overlap = sorted(set(seeds) & _V1_SEEDS)
+    if v1_overlap:
+        raise PermissionError(f"Confirmation-v2 seeds overlap sealed v1 seeds: {v1_overlap}.")
     observed_strata = _strata_counts(seeds)
     if observed_strata != _FIXED_STRATA:
         raise ValueError(
@@ -463,6 +579,43 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
         )
     if _obstacle_direction_counts(seeds) != {"negative": 60, "positive": 60}:
         raise ValueError("Fixed seed window no longer balances initial obstacle direction 60/60.")
+    if not _seed_window_is_balanced(_FIXED_SEED_START, _FIXED_EPISODES):
+        raise RuntimeError("The locked confirmation-v2 seed window is no longer balanced.")
+    if _seed_window_is_balanced(_FIXED_SEED_START - 1, _FIXED_EPISODES):
+        raise RuntimeError("The window immediately before confirmation-v2 is also balanced.")
+
+    prior = _mapping(raw["prior_evidence"], "prior_evidence")
+    _exact_keys(
+        prior,
+        {"v1_paired_report", "manipulation_boundary_reaudit", "restrictions"},
+        "prior_evidence",
+    )
+    v1_report = _load_prior_artifact(
+        root,
+        prior["v1_paired_report"],
+        label="prior_evidence.v1_paired_report",
+        expected_path=_V1_REPORT,
+        expected_sha256=_V1_REPORT_SHA256,
+    )
+    manipulation_reaudit = _load_prior_artifact(
+        root,
+        prior["manipulation_boundary_reaudit"],
+        label="prior_evidence.manipulation_boundary_reaudit",
+        expected_path=_MANIPULATION_REAUDIT,
+        expected_sha256=_MANIPULATION_REAUDIT_SHA256,
+    )
+    restrictions = _mapping(prior["restrictions"], "prior_evidence.restrictions")
+    _exact_keys(
+        restrictions,
+        set(_PRIOR_EVIDENCE_RESTRICTIONS),
+        "prior_evidence.restrictions",
+    )
+    if restrictions != _PRIOR_EVIDENCE_RESTRICTIONS:
+        raise PermissionError(
+            "v1 rerun, reinterpretation, report rewrite, and v1/v2 pooled fallback "
+            "must all remain forbidden."
+        )
+    _validate_prior_evidence_contents(v1_report, manipulation_reaudit)
 
     model_raw = _mapping(raw["model"], "model")
     _exact_keys(model_raw, {"path", "sha256", "variant"}, "model")
@@ -532,15 +685,15 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
         raise ValueError("arms must contain exactly one reference and one candidate.")
     expected_arms = {
         "reference": {
-            "id": "recovery_v1_reference",
-            "run_name": "webots_diagnostic_front_brake_v1_reference_seed11",
-            "planner_label": "ppo_recovery_v1_front_brake_reference",
+            "id": "recovery_v1_reference_confirmation_v2",
+            "run_name": "webots_diagnostic_front_brake_v2_reference_seed11",
+            "planner_label": "ppo_recovery_v1_front_brake_v2_reference",
             "controller_env": _REFERENCE_ENV,
         },
         "candidate": {
-            "id": "front_brake_candidate",
-            "run_name": "webots_diagnostic_front_brake_v1_candidate_seed11",
-            "planner_label": "ppo_recovery_v1_front_brake_candidate",
+            "id": "front_brake_candidate_confirmation_v2",
+            "run_name": "webots_diagnostic_front_brake_v2_candidate_seed11",
+            "planner_label": "ppo_recovery_v1_front_brake_v2_candidate",
             "controller_env": _CANDIDATE_ENV,
         },
     }
@@ -594,6 +747,8 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
             "parameter_scan",
             "adaptive_extension",
             "validation_or_test",
+            "primary_inference",
+            "subgroup_inference",
         },
         "preregistration",
     )
@@ -615,7 +770,7 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
         "seed_window_selection",
     )
     if selection != {
-        "search_start": 20_614,
+        "search_start": _FIXED_SEED_SEARCH_START,
         "rule": "first_contiguous_120_balancing_route_reverse_and_obstacle_direction",
         "covariates_only": [
             "route_axis",
@@ -625,8 +780,8 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
         "outcome_data_used": False,
     }:
         raise PermissionError("Seed-window selection must use only the locked covariate rule.")
-    if _first_balanced_seed_window(20_614, 120) != _FIXED_SEED_START:
-        raise RuntimeError("Pre-treatment seed-window search no longer selects seed 25728.")
+    if _first_balanced_seed_window(_FIXED_SEED_SEARCH_START, _FIXED_EPISODES) != _FIXED_SEED_START:
+        raise RuntimeError("Pre-treatment seed-window search no longer selects seed 54775.")
     locked_preregistration = (
         preregistration["paired_same_scenarios"] is True
         and preregistration["episode_context_schema_version"] == "1.1"
@@ -637,6 +792,8 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
         and preregistration["parameter_scan"] == "forbidden"
         and preregistration["adaptive_extension"] == "forbidden"
         and preregistration["validation_or_test"] == "forbidden"
+        and preregistration["primary_inference"] == "v2_overall_only"
+        and preregistration["subgroup_inference"] == "descriptive_unadjusted_only"
     )
     if not locked_preregistration:
         raise PermissionError(
@@ -698,9 +855,9 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
     )
     decision = {name: _safe_name(value, f"decision.{name}") for name, value in decision_raw.items()}
     if decision != {
-        "pass": "retain_front_brake_candidate_for_independent_confirmation",
-        "fail": "reject_front_brake_candidate",
-        "invalid_manipulation": "invalidate_front_brake_diagnostic",
+        "pass": "front_brake_independently_confirmed_in_diagnostic_v2",
+        "fail": "front_brake_independent_diagnostic_confirmation_failed",
+        "invalid_manipulation": "invalidate_front_brake_confirmation_v2",
         "validation_or_test_access": "forbidden",
     }:
         raise PermissionError("decision must preserve the diagnostic-only fixed outcomes.")
@@ -714,6 +871,9 @@ def load_diagnostic_config(path: Path, *, repository_root: Path) -> DiagnosticCo
         training_seed=training_seed,
         scenario_seed_start=seed_start,
         episodes=episodes,
+        v1_report=v1_report,
+        manipulation_reaudit=manipulation_reaudit,
+        prior_evidence_restrictions=dict(restrictions),
         model=model,
         scenario=scenario,
         arms=(arms[0], arms[1]),
@@ -754,6 +914,8 @@ def _source_bindings(
         "shield_evidence": _portable_binding(root / _SHIELD_EVIDENCE_IMPLEMENTATION, root),
         "webots_curriculum": _portable_binding(root / _CURRICULUM_IMPLEMENTATION, root),
         "model": _portable_binding(config.model.path, root),
+        "v1_paired_report": _portable_binding(config.v1_report.path, root),
+        "manipulation_boundary_reaudit": _portable_binding(config.manipulation_reaudit.path, root),
         "webots_executable": {
             "path": str(webots_executable.resolve()),
             "sha256": _sha256_file(webots_executable.resolve()),
@@ -763,6 +925,10 @@ def _source_bindings(
         raise RuntimeError("Config changed during preflight.")
     if bindings["model"]["sha256"] != config.model.sha256:
         raise RuntimeError("Model changed during preflight.")
+    if bindings["v1_paired_report"]["sha256"] != config.v1_report.sha256:
+        raise RuntimeError("Sealed v1 report changed during preflight.")
+    if bindings["manipulation_boundary_reaudit"]["sha256"] != config.manipulation_reaudit.sha256:
+        raise RuntimeError("Sealed manipulation-boundary reaudit changed during preflight.")
     return bindings
 
 
@@ -785,6 +951,8 @@ def _verify_source_bindings(
         "shield_evidence",
         "webots_curriculum",
         "model",
+        "v1_paired_report",
+        "manipulation_boundary_reaudit",
     ):
         binding = _mapping(bindings[label], f"source_bindings.{label}")
         _verify_file(root / str(binding["path"]), str(binding["sha256"]), label)
@@ -1147,31 +1315,90 @@ def _read_shield_evidence(
     return by_seed
 
 
+def _exact_float32_action(value: Any, label: str) -> np.ndarray:
+    if not isinstance(value, list) or len(value) != 2:
+        raise ValueError(f"{label} must be a two-value action.")
+    source = np.asarray(value, dtype=np.float64)
+    result = source.astype(np.float32)
+    if not np.isfinite(result).all():
+        raise ValueError(f"{label} must remain finite after float32 reconstruction.")
+    if not np.array_equal(result.astype(np.float64), source):
+        raise ValueError(f"{label} is not an exact serialization of a float32 action.")
+    return result
+
+
+def _same_float32_bits(left: np.float32, right: np.float32) -> bool:
+    return bool(left.tobytes() == right.tobytes())
+
+
+def _shield_step_operational_semantics(
+    step: Mapping[str, Any], *, enabled: bool, epsilon: float, label: str
+) -> dict[str, Any]:
+    policy = _exact_float32_action(step["policy_action"], f"{label}.policy_action")
+    shielded = _exact_float32_action(step["shielded_action"], f"{label}.shielded_action")
+    recorded_intervention = float(step["shield_intervention"])
+    recorded_active = step["shield_active"]
+    if type(recorded_active) is not bool:
+        raise ValueError(f"{label}.shield_active must be a boolean.")
+
+    delta = np.subtract(shielded, policy, dtype=np.float32)
+    recomputed_intervention = float(np.linalg.norm(delta))
+    recomputed_active = bool(enabled and recomputed_intervention > epsilon)
+    braking_delta = np.subtract(policy[0], shielded[0], dtype=np.float32)
+    cap = float(step["shield_normalized_speed_limit"])
+    cap_f32 = np.float32(cap)
+    admitted_linear = np.float32(min(float(policy[0]), cap))
+    angular_bits_equal = _same_float32_bits(shielded[1], policy[1])
+    cap_bits_equal = _same_float32_bits(shielded[0], cap_f32)
+    admitted_bits_equal = _same_float32_bits(shielded[0], admitted_linear)
+    intervention_matches = recorded_intervention == recomputed_intervention
+    active_matches = recorded_active is recomputed_active
+    braking = bool(float(braking_delta) > epsilon)
+    operational = bool(
+        recomputed_active
+        and active_matches
+        and intervention_matches
+        and angular_bits_equal
+        and cap_bits_equal
+        and admitted_bits_equal
+        and braking
+    )
+    return {
+        "recorded_active": recorded_active,
+        "recomputed_active": recomputed_active,
+        "active_matches": active_matches,
+        "intervention_matches": intervention_matches,
+        "angular_bits_equal": angular_bits_equal,
+        "cap_bits_equal": cap_bits_equal,
+        "admitted_bits_equal": admitted_bits_equal,
+        "braking": braking,
+        "operational": operational,
+        "all_action_bits_equal": policy.tobytes() == shielded.tobytes(),
+        "angular_delta": abs(float(shielded[1]) - float(policy[1])),
+        "intervention_error": abs(recorded_intervention - recomputed_intervention),
+    }
+
+
 def _shield_evidence_metrics(
     records: Mapping[int, Mapping[str, Any]],
 ) -> dict[str, Any]:
-    steps = [step for record in records.values() for step in record["steps"]]
     summaries = [record["summary"] for record in records.values()]
-    total_steps = len(steps)
-    active_steps = sum(bool(step["shield_active"]) for step in steps)
-    braking_steps = 0
-    speed_cap_binding_steps = 0
-    maximum_angular_delta = 0.0
-    for step in steps:
-        policy = step["policy_action"]
-        shielded = step["shielded_action"]
-        epsilon = 1e-6
-        if float(shielded[0]) < float(policy[0]) - epsilon:
-            braking_steps += 1
-        speed_cap = float(step["shield_normalized_speed_limit"])
-        if float(policy[0]) > speed_cap + epsilon and math.isclose(
-            float(shielded[0]), speed_cap, rel_tol=0.0, abs_tol=1e-6
-        ):
-            speed_cap_binding_steps += 1
-        maximum_angular_delta = max(
-            maximum_angular_delta,
-            abs(float(shielded[1]) - float(policy[1])),
-        )
+    semantics: list[dict[str, Any]] = []
+    for seed, record in records.items():
+        summary = record["summary"]
+        enabled = bool(summary["shield_enabled"])
+        epsilon = float(summary["intervention_epsilon"])
+        for step in record["steps"]:
+            semantics.append(
+                _shield_step_operational_semantics(
+                    step,
+                    enabled=enabled,
+                    epsilon=epsilon,
+                    label=f"shield_evidence seed {seed} step {step['step']}",
+                )
+            )
+    total_steps = len(semantics)
+    active_steps = sum(bool(value["recorded_active"]) for value in semantics)
     return {
         "episode_count": len(records),
         "enabled_episode_count": sum(bool(summary["shield_enabled"]) for summary in summaries),
@@ -1182,9 +1409,36 @@ def _shield_evidence_metrics(
         "active_step_count": active_steps,
         "active_step_ratio": active_steps / total_steps,
         "intervention_sum": math.fsum(float(summary["intervention_sum"]) for summary in summaries),
-        "braking_step_count": braking_steps,
-        "speed_cap_binding_step_count": speed_cap_binding_steps,
-        "maximum_absolute_angular_action_delta": maximum_angular_delta,
+        "braking_step_count": sum(
+            bool(value["recorded_active"] and value["braking"]) for value in semantics
+        ),
+        "speed_cap_binding_step_count": sum(
+            bool(value["recorded_active"] and value["cap_bits_equal"]) for value in semantics
+        ),
+        "active_operational_semantics_step_count": sum(
+            bool(value["operational"]) for value in semantics
+        ),
+        "recorded_active_matches_float32_norm_step_count": sum(
+            bool(value["active_matches"]) for value in semantics
+        ),
+        "recorded_intervention_matches_float32_norm_step_count": sum(
+            bool(value["intervention_matches"]) for value in semantics
+        ),
+        "active_angular_action_float32_bits_unchanged_step_count": sum(
+            bool(value["recorded_active"] and value["angular_bits_equal"]) for value in semantics
+        ),
+        "all_angular_action_float32_bits_unchanged_step_count": sum(
+            bool(value["angular_bits_equal"]) for value in semantics
+        ),
+        "all_action_float32_bits_unchanged_step_count": sum(
+            bool(value["all_action_bits_equal"]) for value in semantics
+        ),
+        "maximum_absolute_angular_action_delta": max(
+            (float(value["angular_delta"]) for value in semantics), default=0.0
+        ),
+        "maximum_recorded_vs_recomputed_intervention_error": max(
+            (float(value["intervention_error"]) for value in semantics), default=0.0
+        ),
     }
 
 
@@ -1804,6 +2058,15 @@ def _secondary_manipulation_check(
             rel_tol=0.0,
             abs_tol=1e-12,
         ),
+        "reference_disabled_preserves_float32_action_bits": (
+            reference_metrics["all_action_float32_bits_unchanged_step_count"]
+            == reference_metrics["total_step_count"]
+        ),
+        "reference_all_steps_match_float32_intervention_semantics": (
+            reference_metrics["recorded_active_matches_float32_norm_step_count"]
+            == reference_metrics["recorded_intervention_matches_float32_norm_step_count"]
+            == reference_metrics["total_step_count"]
+        ),
         "candidate_all_episodes_enabled": (
             candidate_metrics["enabled_episode_count"] == expected_episodes
         ),
@@ -1812,10 +2075,21 @@ def _secondary_manipulation_check(
         "candidate_preserves_angular_action": (
             candidate_metrics["maximum_absolute_angular_action_delta"] <= 1e-6
         ),
+        "candidate_all_steps_preserve_angular_action_float32_bits": (
+            candidate_metrics["all_angular_action_float32_bits_unchanged_step_count"]
+            == candidate_metrics["total_step_count"]
+        ),
+        "candidate_all_steps_match_float32_intervention_semantics": (
+            candidate_metrics["recorded_active_matches_float32_norm_step_count"]
+            == candidate_metrics["recorded_intervention_matches_float32_norm_step_count"]
+            == candidate_metrics["total_step_count"]
+        ),
         "candidate_active_steps_are_exact_speed_cap_braking": (
             candidate_metrics["active_step_count"]
             == candidate_metrics["braking_step_count"]
             == candidate_metrics["speed_cap_binding_step_count"]
+            == candidate_metrics["active_operational_semantics_step_count"]
+            == candidate_metrics["active_angular_action_float32_bits_unchanged_step_count"]
         ),
     }
     return {
@@ -1943,11 +2217,22 @@ def execute_diagnostic(
         "route_strata_counts": _strata_counts(config.seeds),
         "initial_obstacle_direction_counts": _obstacle_direction_counts(config.seeds),
         "seed_window_selection": {
-            "search_start": 20_614,
+            "search_start": _FIXED_SEED_SEARCH_START,
             "selected_start": config.scenario_seed_start,
             "rule": "first_contiguous_120_balancing_route_reverse_and_obstacle_direction",
             "uses_pre_treatment_covariates_only": True,
             "outcome_data_used": False,
+        },
+        "prior_evidence": {
+            "v1_paired_report": {
+                "path": config.v1_report.portable_path,
+                "sha256": config.v1_report.sha256,
+            },
+            "manipulation_boundary_reaudit": {
+                "path": config.manipulation_reaudit.portable_path,
+                "sha256": config.manipulation_reaudit.sha256,
+            },
+            "restrictions": dict(config.prior_evidence_restrictions),
         },
         "paired_same_scenarios": True,
         "shield_evidence_schema_version": "1.0",
@@ -2030,6 +2315,19 @@ def execute_diagnostic(
         "validation_split_was_run": False,
         "test_split_was_run": False,
         "source_bindings": bindings,
+        "prior_evidence": {
+            "v1_paired_report": {
+                "path": config.v1_report.portable_path,
+                "sha256": config.v1_report.sha256,
+            },
+            "manipulation_boundary_reaudit": {
+                "path": config.manipulation_reaudit.portable_path,
+                "sha256": config.manipulation_reaudit.sha256,
+            },
+            "restrictions": dict(config.prior_evidence_restrictions),
+            "v1_status_remains": "invalid_manipulation",
+            "confirmation_uses_v2_overall_only": True,
+        },
         "model": {
             "path": config.model.portable_path,
             "sha256": config.model.sha256,
@@ -2056,7 +2354,7 @@ def execute_diagnostic(
             "shield_evidence_schema_version": "1.0",
             "shield_evidence_required": True,
             "seed_window_selection": {
-                "search_start": 20_614,
+                "search_start": _FIXED_SEED_SEARCH_START,
                 "rule": ("first_contiguous_120_balancing_route_reverse_and_obstacle_direction"),
                 "covariates_only": [
                     "route_axis",
@@ -2069,6 +2367,8 @@ def execute_diagnostic(
             "parameter_scan": "forbidden",
             "adaptive_extension": "forbidden",
             "validation_or_test": "forbidden",
+            "primary_inference": "v2_overall_only",
+            "subgroup_inference": "descriptive_unadjusted_only",
         },
         "arms": [
             {
@@ -2143,7 +2443,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("configs/eval/webots_front_brake_paired_diagnostic_v1.yaml"),
+        default=Path("configs/eval/webots_front_brake_paired_confirmation_v2.yaml"),
     )
     parser.add_argument("--webots", type=Path, required=True)
     parser.add_argument("--port-base", type=int, default=13_680)
@@ -2173,9 +2473,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         labels = {
             0: "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_OK",
             EXIT_CANDIDATE_GATE_FAILED: "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_GATE_FAILED",
-            EXIT_INVALID_MANIPULATION: (
-                "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_INVALID_MANIPULATION"
-            ),
+            EXIT_INVALID_MANIPULATION: ("WEBOTS_FRONT_BRAKE_DIAGNOSTIC_INVALID_MANIPULATION"),
         }
         print(
             labels.get(exit_code, "WEBOTS_FRONT_BRAKE_DIAGNOSTIC_FAILED"),
