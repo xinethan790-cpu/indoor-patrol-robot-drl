@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 from indoor_patrol_rl.evaluation import (
+    RISK_TRACE_COORDINATE_SEMANTICS,
     EpisodeRecord,
     write_benchmark_outputs,
     write_episode_context_jsonl,
@@ -201,6 +202,44 @@ def _episode(seed: int, planner: str, outcome: str = "success") -> EpisodeRecord
     )
 
 
+def _risk_trace() -> dict[str, Any]:
+    sample = {
+        "step": 10,
+        "post_elapsed_s": 1.28,
+        "post_robot_root_xy": [1.03, 0.0],
+        "post_robot_gps_xy": [1.0, 0.0],
+        "post_robot_yaw": 0.0,
+        "post_goal_distance": 0.1,
+        "post_global_clearance": 0.3,
+        "pre_action_front_clearance": 0.4,
+        "pre_action_left_clearance": 0.5,
+        "pre_action_right_clearance": 0.6,
+        "post_lidar_argmin": {"range_m": 0.4, "bearing_rad": 0.0},
+        "post_obstacle_xy": [[0.0, 0.2]],
+        "post_obstacle_motion": [
+            {"motion_axis": "y", "speed_mps": 0.2, "direction": 1.0}
+        ],
+        "interval_policy_action": [0.1, 0.0],
+        "interval_executed_action": [0.05, 0.0],
+        "interval_commanded_linear": 0.12,
+        "interval_commanded_angular": 0.0,
+        "post_contact_collision": False,
+        "post_lidar_collision": False,
+    }
+    return {
+        "sample_period_s": 0.128,
+        "sample_semantics": (
+            "pre_action_sector_and_interval_action_with_post_control_state_v1"
+        ),
+        "coordinate_semantics": RISK_TRACE_COORDINATE_SEMANTICS,
+        "lidar_min_range_m": 0.12,
+        "lidar_max_range_m": 3.5,
+        "window_steps": 16,
+        "terminal_window": [sample],
+        "minimum_clearance_window": [sample],
+    }
+
+
 def _fake_webots(repository_root: Path):
     def run(command: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
         environment = kwargs["env"]
@@ -215,7 +254,7 @@ def _fake_webots(repository_root: Path):
         episodes = [_episode(seed, planner) for seed in seeds]
         contexts = [
             {
-                "schema_version": "1.0",
+                "schema_version": "1.1",
                 "identity": {
                     "episode_id": record.episode_id,
                     "split": "diagnostic",
@@ -248,6 +287,7 @@ def _fake_webots(repository_root: Path):
                     "lidar_collision": False,
                     "terminal_step": 10,
                 },
+                "risk_trace": _risk_trace(),
             }
             for record in episodes
         ]

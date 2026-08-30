@@ -27,6 +27,10 @@ from typing import Any
 import numpy as np
 import yaml
 
+from indoor_patrol_rl.evaluation.episode_context import (
+    EPISODE_CONTEXT_SCHEMA_VERSION,
+    validate_risk_trace,
+)
 from indoor_patrol_rl.evaluation.metrics import EpisodeRecord
 from indoor_patrol_rl.training.webots_curriculum import (
     choose_available_port,
@@ -692,7 +696,7 @@ def _read_contexts(
     contexts: dict[int, dict[str, Any]] = {}
     for index, value in enumerate(records):
         record = _mapping(value, f"episode_context row {index}")
-        if record.get("schema_version") != "1.0":
+        if record.get("schema_version") != EPISODE_CONTEXT_SCHEMA_VERSION:
             raise ValueError(f"episode_context row {index} has an invalid schema_version.")
         identity = _mapping(record.get("identity"), f"episode_context row {index}.identity")
         _exact_keys(
@@ -718,8 +722,18 @@ def _read_contexts(
             raise ValueError(
                 f"episode_context seed {seed} route_axis {axis!r} != expected {expected_axis!r}."
             )
-        if not isinstance(record.get("termination"), dict):
+        termination = record.get("termination")
+        if not isinstance(termination, dict):
             raise ValueError(f"episode_context row {index} termination must be an object.")
+        validate_risk_trace(
+            record.get("risk_trace"),
+            field=f"episode_context row {index}.risk_trace",
+        )
+        terminal_window = record["risk_trace"]["terminal_window"]
+        if terminal_window[-1]["step"] != termination.get("terminal_step"):
+            raise ValueError(
+                f"episode_context row {index} risk trace does not end at termination."
+            )
         contexts[seed] = record
     if set(contexts) != set(config.seeds):
         raise ValueError("episode_context.jsonl does not contain the exact audit seed set.")
@@ -820,7 +834,7 @@ def _check_summary(
     ).as_posix()
     expected_context = {
         "path": expected_context_path,
-        "schema_version": "1.0",
+        "schema_version": EPISODE_CONTEXT_SCHEMA_VERSION,
         "count": config.episodes,
         "sha256": context_sha256,
     }

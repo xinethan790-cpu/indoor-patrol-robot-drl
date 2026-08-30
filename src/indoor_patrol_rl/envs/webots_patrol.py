@@ -8,6 +8,7 @@ controller, so pure Python tests and GitHub CI can still import this package.
 from __future__ import annotations
 
 import math
+from collections import deque
 from collections.abc import Sequence
 from typing import Any
 
@@ -46,6 +47,17 @@ def _webots_scan_to_policy_order(raw_scan: np.ndarray) -> np.ndarray:
     centre = raw_scan.size // 2
     indices = (centre - np.arange(raw_scan.size)) % raw_scan.size
     return raw_scan[indices]
+
+
+def _lidar_argmin(scan: np.ndarray) -> tuple[float, float]:
+    """Return raw minimum range and bearing using the shield's angle convention."""
+
+    values = np.asarray(scan, dtype=np.float64).reshape(-1)
+    if values.size == 0 or not np.isfinite(values).all():
+        raise RuntimeError("The policy-order LiDAR scan must be non-empty and finite.")
+    index = int(np.argmin(values))
+    bearing = _wrap_angle(index * (2.0 * math.pi / values.size))
+    return float(values[index]), bearing
 
 
 def validate_obstacle_cross_lanes(
@@ -270,6 +282,13 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.current_start_yaw = 0.0
         self.last_contact_collision = False
         self.last_lidar_collision = False
+        self.last_lidar_argmin_range = 0.0
+        self.last_lidar_argmin_bearing = 0.0
+        self._diagnostic_risk_window: deque[dict[str, Any]] | None = None
+        self._diagnostic_minimum_clearance_window: list[dict[str, Any]] = []
+        self._diagnostic_trace_minimum_clearance = math.inf
+        self._diagnostic_risk_sample_semantics = ""
+        self._diagnostic_risk_coordinate_semantics = ""
         self.sensor_sample_tick = 0
         self.reset_attempt_count = 0
         self.successful_reset_count = 0
@@ -393,9 +412,18 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.current_clearance = math.inf
         self.last_contact_collision = False
         self.last_lidar_collision = False
+        self._diagnostic_risk_window = None
+        self._diagnostic_minimum_clearance_window = []
+        self._diagnostic_trace_minimum_clearance = math.inf
+        self._diagnostic_risk_sample_semantics = ""
+        self._diagnostic_risk_coordinate_semantics = ""
         self.previous_position = self._position()
         self.previous_goal_distance = self._goal_distance()
         scan = self._range_image()
+        (
+            self.last_lidar_argmin_range,
+            self.last_lidar_argmin_bearing,
+        ) = _lidar_argmin(scan)
         self.current_clearance = max(0.0, float(scan.min()) - 0.10)
         self.minimum_clearance = self.current_clearance
         self.observation_builder.reset(scan)
@@ -474,6 +502,10 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
         self.previous_position = position
 
         scan = self._range_image()
+        (
+            self.last_lidar_argmin_range,
+            self.last_lidar_argmin_bearing,
+        ) = _lidar_argmin(scan)
         finite_scan = scan[np.isfinite(scan)]
         lidar_minimum = float(finite_scan.min()) if finite_scan.size else math.inf
         contact_collision = bool(contact_collision or self._has_contact_collision())
@@ -799,6 +831,178 @@ class WebotsPatrolEnv(gym.Env[np.ndarray, np.ndarray]):
             "goal_xy": self.goal_position.tolist(),
             "start_yaw": self.current_start_yaw,
             "dynamic_obstacles": dynamic_obstacles,
+        }
+
+    def start_diagnostic_risk_trace(
+        self,
+        *,
+        window_steps: int = 16,
+        sample_semantics: str = (
+            "pre_action_sector_and_interval_action_with_post_control_state_v1"
+        ),
+        coordinate_semantics: str = (
+            "world_xy__robot_root=supervisor_root__robot_gps=gps_sensor__"
+            "obstacle=supervisor_root_v1"
+        ),
+    ) -> None:
+        """Enable a bounded risk trace for one explicitly diagnostic episode."""
+
+        if self.current_scenario_seed is None or self.step_count != 0:
+            raise RuntimeError("Diagnostic risk tracing must start immediately after reset.")
+        if type(window_steps) is not int or window_steps < 1:
+            raise ValueError("Diagnostic risk trace window_steps must be positive.")
+        if not isinstance(sample_semantics, str) or not sample_semantics:
+            raise ValueError("Diagnostic risk trace sample_semantics must be non-empty.")
+        if not isinstance(coordinate_semantics, str) or not coordinate_semantics:
+            raise ValueError("Diagnostic risk trace coordinate_semantics must be non-empty.")
+        self._diagnostic_risk_window = deque(maxlen=window_steps)
+        self._diagnostic_minimum_clearance_window = []
+        self._diagnostic_trace_minimum_clearance = math.inf
+        self._diagnostic_risk_sample_semantics = sample_semantics
+        self._diagnostic_risk_coordinate_semantics = coordinate_semantics
+
+    def record_diagnostic_risk_sample(self, info: dict[str, Any]) -> None:
+        """Capture one post-control sample without affecting non-diagnostic runs."""
+
+        if self._diagnostic_risk_window is None:
+            raise RuntimeError("Diagnostic risk tracing is not active.")
+        required = {
+            "step_count",
+            "elapsed_sim_time",
+            "distance_to_goal",
+            "clearance",
+            "policy_action",
+            "executed_action",
+            "contact_collision",
+            "lidar_collision",
+        }
+        missing = required - info.keys()
+        if missing:
+            raise ValueError(f"Diagnostic risk sample is missing fields: {sorted(missing)}")
+        step = info["step_count"]
+        if type(step) is not int or step != self.step_count or step < 1:
+            raise RuntimeError("Diagnostic risk sample step disagrees with environment state.")
+        gps_position = np.asarray(self._position(), dtype=np.float64)
+        root_position = np.asarray(self.robot_node.getPosition(), dtype=np.float64)
+        yaw = float(self._roll_pitch_yaw()[2])
+        obstacle_xy: list[list[float]] = []
+        obstacle_motion: list[dict[str, Any]] = []
+        for index, translation in enumerate(self.obstacle_translations):
+            obstacle_position = np.asarray(translation.getSFVec3f(), dtype=np.float64)
+            if obstacle_position.shape != (3,) or not np.isfinite(obstacle_position).all():
+                raise RuntimeError("Diagnostic risk trace observed an invalid obstacle pose.")
+            direction = float(self.obstacle_directions[index])
+            speed = float(self.obstacle_speeds[index])
+            axis = int(self.obstacle_axes[index])
+            if direction not in {-1.0, 1.0} or not math.isfinite(speed) or axis not in {0, 1}:
+                raise RuntimeError("Diagnostic risk trace observed invalid obstacle motion.")
+            obstacle_xy.append(obstacle_position[:2].tolist())
+            obstacle_motion.append(
+                {
+                    "motion_axis": "x" if axis == 0 else "y",
+                    "speed_mps": speed,
+                    "direction": direction,
+                }
+            )
+        policy_action = np.asarray(info["policy_action"], dtype=np.float64)
+        executed_action = np.asarray(info["executed_action"], dtype=np.float64)
+        shield_result = self.last_shield_result
+        scalar_values = np.asarray(
+            [
+                info["elapsed_sim_time"],
+                yaw,
+                info["distance_to_goal"],
+                info["clearance"],
+                self.commanded_linear,
+                self.commanded_angular,
+                self.last_lidar_argmin_range,
+                self.last_lidar_argmin_bearing,
+            ],
+            dtype=np.float64,
+        )
+        if (
+            gps_position.shape != (2,)
+            or root_position.shape != (3,)
+            or policy_action.shape != (2,)
+            or executed_action.shape != (2,)
+            or shield_result is None
+            or not np.isfinite(gps_position).all()
+            or not np.isfinite(root_position).all()
+            or not np.isfinite(policy_action).all()
+            or not np.isfinite(executed_action).all()
+            or not np.isfinite(scalar_values).all()
+        ):
+            raise RuntimeError("Diagnostic risk trace contains non-finite state.")
+        sector_clearances = np.asarray(
+            [
+                shield_result.front_clearance,
+                shield_result.left_clearance,
+                shield_result.right_clearance,
+            ],
+            dtype=np.float64,
+        )
+        if not np.isfinite(sector_clearances).all():
+            raise RuntimeError("Diagnostic risk trace contains non-finite sector clearance.")
+        sample = {
+            "step": step,
+            "post_elapsed_s": float(info["elapsed_sim_time"]),
+            "post_robot_root_xy": root_position[:2].tolist(),
+            "post_robot_gps_xy": gps_position.tolist(),
+            "post_robot_yaw": yaw,
+            "post_goal_distance": float(info["distance_to_goal"]),
+            "post_global_clearance": float(info["clearance"]),
+            "pre_action_front_clearance": float(shield_result.front_clearance),
+            "pre_action_left_clearance": float(shield_result.left_clearance),
+            "pre_action_right_clearance": float(shield_result.right_clearance),
+            "post_lidar_argmin": {
+                "range_m": self.last_lidar_argmin_range,
+                "bearing_rad": self.last_lidar_argmin_bearing,
+            },
+            "post_obstacle_xy": obstacle_xy,
+            "post_obstacle_motion": obstacle_motion,
+            "interval_policy_action": policy_action.tolist(),
+            "interval_executed_action": executed_action.tolist(),
+            "interval_commanded_linear": float(self.commanded_linear),
+            "interval_commanded_angular": float(self.commanded_angular),
+            "post_contact_collision": bool(info["contact_collision"]),
+            "post_lidar_collision": bool(info["lidar_collision"]),
+        }
+        self._diagnostic_risk_window.append(sample)
+        clearance = float(info["clearance"])
+        if clearance < self._diagnostic_trace_minimum_clearance:
+            self._diagnostic_trace_minimum_clearance = clearance
+            self._diagnostic_minimum_clearance_window = list(self._diagnostic_risk_window)
+
+    def diagnostic_risk_trace(self) -> dict[str, Any]:
+        """Return the two finite, bounded windows for the active diagnostic episode."""
+
+        if self._diagnostic_risk_window is None or not self._diagnostic_risk_window:
+            raise RuntimeError("Diagnostic risk trace has no samples.")
+        if not self._diagnostic_minimum_clearance_window:
+            raise RuntimeError("Diagnostic risk trace has no minimum-clearance window.")
+        lidar_minimum = float(self.lidar.getMinRange())
+        lidar_maximum = float(self.lidar.getMaxRange())
+        if (
+            not math.isfinite(lidar_minimum)
+            or not math.isfinite(lidar_maximum)
+            or lidar_minimum < 0.0
+            or lidar_minimum >= lidar_maximum
+        ):
+            raise RuntimeError("Diagnostic risk trace observed invalid LiDAR range bounds.")
+        window_steps = self._diagnostic_risk_window.maxlen
+        if window_steps is None:
+            raise RuntimeError("Diagnostic risk trace window must be bounded.")
+        return {
+            "sample_period_s": self.basic_time_step * self.action_repeat / 1000.0,
+            "sample_semantics": self._diagnostic_risk_sample_semantics,
+            "coordinate_semantics": self._diagnostic_risk_coordinate_semantics,
+            "lidar_min_range_m": lidar_minimum,
+            "lidar_max_range_m": lidar_maximum,
+            "window_steps": window_steps,
+            "terminal_window": list(self._diagnostic_risk_window),
+            "minimum_clearance_window": list(
+                self._diagnostic_minimum_clearance_window
+            ),
         }
 
     def episode_context_at_terminal(self, info: dict[str, Any]) -> dict[str, Any]:

@@ -1,0 +1,34 @@
+# Diagnostic-only risk-trajectory collection for the immutable recovery-v1 model.
+# This protocol is not a model-selection gate and must never access validation or test seeds.
+schema_version: 1
+experiment_id: webots_recovery_v1_risk_trajectory_v1
+split: diagnostic
+condition_id: DR1
+training_seed: 11
+scenario_seed_start: 20494
+episodes: 120
+model:
+  path: artifacts/models/webots/seed_11/w1_recovery_v1/ppo_webots_s11_step000040960.zip
+  sha256: c5e7c3de42c7664477097b2734975660fec840ad5b7f45425098158c27cb7275
+  variant: w1_recovery_v1
+  run_name: webots_diagnostic_recovery_v1_risk_trajectory_v1_seed11
+  planner_label: ppo_recovery_v1_risk_trace
+scenario:
+  obstacle_count: 1
+  obstacle_speed_range: [0.15, 0.30]
+  horizontal_route_half_length: 1.10
+  vertical_route_half_length: 1.10
+  safety_shield: false
+  deterministic_policy: true
+collection:
+  episode_context_schema_version: "1.1"
+  risk_trace_required: true
+  required_episodes: 120
+  expected_route_axis_counts:
+    horizontal: 60
+    vertical: 60
+  completion_rule: complete_artifact_collection_only
+  performance_gate: none
+  adaptive_extension: forbidden
+access:
+  validation_or_test: forbidden

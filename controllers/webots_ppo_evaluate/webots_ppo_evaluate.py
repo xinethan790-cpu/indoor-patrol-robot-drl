@@ -27,6 +27,9 @@ from indoor_patrol_rl.evaluation import (
     EPISODE_CONTEXT_SCHEMA_VERSION,
     FORMAL_TEST_SEEDS,
     FORMAL_VALIDATION_SEEDS,
+    RISK_TRACE_COORDINATE_SEMANTICS,
+    RISK_TRACE_SAMPLE_SEMANTICS,
+    RISK_TRACE_WINDOW_STEPS,
     EpisodeAccumulator,
     write_benchmark_outputs,
     write_episode_context_jsonl,
@@ -580,6 +583,7 @@ def _diagnostic_episode_context_record(
     *,
     initial_context: dict[str, Any],
     terminal_context: dict[str, Any],
+    risk_trace: dict[str, Any],
 ) -> dict[str, Any]:
     if plan.split != "diagnostic" or record.split != "diagnostic":
         raise ValueError("episode_context.jsonl is restricted to diagnostic evaluations.")
@@ -594,6 +598,7 @@ def _diagnostic_episode_context_record(
         },
         **initial_context,
         "termination": terminal_context,
+        "risk_trace": risk_trace,
     }
 
 
@@ -811,6 +816,12 @@ def main() -> None:
             initial_episode_context = (
                 env.episode_context_at_reset() if plan.split == "diagnostic" else None
             )
+            if initial_episode_context is not None:
+                env.start_diagnostic_risk_trace(
+                    window_steps=RISK_TRACE_WINDOW_STEPS,
+                    sample_semantics=RISK_TRACE_SAMPLE_SEMANTICS,
+                    coordinate_semantics=RISK_TRACE_COORDINATE_SEMANTICS,
+                )
             if plan.formal_config is not None:
                 start_values = env.robot_translation.getSFVec3f()
                 start = (round(float(start_values[0]), 6), round(float(start_values[1]), 6))
@@ -846,6 +857,8 @@ def main() -> None:
                     info=info,
                     inference_latency_s=latency,
                 )
+                if initial_episode_context is not None:
+                    env.record_diagnostic_risk_sample(info)
             record = accumulator.finalize()
             records.append(record)
             provenance["reset_health"] = env.reset_health_diagnostics()
@@ -856,6 +869,7 @@ def main() -> None:
                         record,
                         initial_context=initial_episode_context,
                         terminal_context=env.episode_context_at_terminal(info),
+                        risk_trace=env.diagnostic_risk_trace(),
                     )
                 )
             _bind_episode_context_artifact(

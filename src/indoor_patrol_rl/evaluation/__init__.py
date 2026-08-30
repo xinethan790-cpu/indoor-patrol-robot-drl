@@ -23,6 +23,11 @@ from indoor_patrol_rl.evaluation.checkpoint_selection import (
 from indoor_patrol_rl.evaluation.episode_context import (
     EPISODE_CONTEXT_FILENAME,
     EPISODE_CONTEXT_SCHEMA_VERSION,
+    RISK_TRACE_COORDINATE_SEMANTICS,
+    RISK_TRACE_SAMPLE_FIELDS,
+    RISK_TRACE_SAMPLE_SEMANTICS,
+    RISK_TRACE_WINDOW_STEPS,
+    validate_risk_trace,
     write_episode_context_jsonl,
 )
 from indoor_patrol_rl.evaluation.formal_protocol import (
@@ -88,6 +93,10 @@ __all__ = [
     "PatrolModelSelection",
     "PatrolRunSummary",
     "PatrolTrajectorySample",
+    "RISK_TRACE_COORDINATE_SEMANTICS",
+    "RISK_TRACE_SAMPLE_FIELDS",
+    "RISK_TRACE_SAMPLE_SEMANTICS",
+    "RISK_TRACE_WINDOW_STEPS",
     "SeedSet",
     "SplitSpec",
     "TrainingEpisode",
@@ -117,6 +126,7 @@ __all__ = [
     "training_diagnostic_report",
     "source_bundle_sha256",
     "validate_model_manifest",
+    "validate_risk_trace",
     "write_benchmark_outputs",
     "write_checkpoint_selection",
     "write_episode_context_jsonl",

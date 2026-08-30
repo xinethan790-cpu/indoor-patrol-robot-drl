@@ -10,12 +10,221 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 EPISODE_CONTEXT_FILENAME = "episode_context.jsonl"
-EPISODE_CONTEXT_SCHEMA_VERSION = "1.0"
+EPISODE_CONTEXT_SCHEMA_VERSION = "1.1"
+RISK_TRACE_WINDOW_STEPS = 16
+RISK_TRACE_SAMPLE_SEMANTICS = (
+    "pre_action_sector_and_interval_action_with_post_control_state_v1"
+)
+RISK_TRACE_COORDINATE_SEMANTICS = (
+    "world_xy__robot_root=supervisor_root__robot_gps=gps_sensor__"
+    "obstacle=supervisor_root_v1"
+)
+RISK_TRACE_SAMPLE_FIELDS = frozenset(
+    {
+        "step",
+        "post_elapsed_s",
+        "post_robot_root_xy",
+        "post_robot_gps_xy",
+        "post_robot_yaw",
+        "post_goal_distance",
+        "post_global_clearance",
+        "pre_action_front_clearance",
+        "pre_action_left_clearance",
+        "pre_action_right_clearance",
+        "post_lidar_argmin",
+        "post_obstacle_xy",
+        "post_obstacle_motion",
+        "interval_policy_action",
+        "interval_executed_action",
+        "interval_commanded_linear",
+        "interval_commanded_angular",
+        "post_contact_collision",
+        "post_lidar_collision",
+    }
+)
+
+
+def _finite_number(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field} must be a finite number.")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{field} must be a finite number.")
+    return result
+
+
+def _numeric_vector(value: Any, field: str, *, length: int) -> list[Any]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, list) or len(value) != length:
+        raise ValueError(f"{field} must be a {length}-value array.")
+    for index, item in enumerate(value):
+        _finite_number(item, f"{field}[{index}]")
+    return value
+
+
+def _validate_trace_sample(value: Any, field: str) -> None:
+    if not isinstance(value, dict) or set(value) != RISK_TRACE_SAMPLE_FIELDS:
+        raise ValueError(
+            f"{field} must be an object with exactly the risk-trace sample fields."
+        )
+    step = value["step"]
+    if type(step) is not int or step < 1:
+        raise ValueError(f"{field}.step must be a positive integer.")
+    for name in (
+        "post_elapsed_s",
+        "post_robot_yaw",
+        "post_goal_distance",
+        "post_global_clearance",
+        "pre_action_front_clearance",
+        "pre_action_left_clearance",
+        "pre_action_right_clearance",
+        "interval_commanded_linear",
+        "interval_commanded_angular",
+    ):
+        number = _finite_number(value[name], f"{field}.{name}")
+        if name not in {
+            "post_robot_yaw",
+            "interval_commanded_linear",
+            "interval_commanded_angular",
+        } and number < 0.0:
+            raise ValueError(f"{field}.{name} cannot be negative.")
+    _numeric_vector(
+        value["post_robot_root_xy"], f"{field}.post_robot_root_xy", length=2
+    )
+    _numeric_vector(
+        value["post_robot_gps_xy"], f"{field}.post_robot_gps_xy", length=2
+    )
+    _numeric_vector(
+        value["interval_policy_action"], f"{field}.interval_policy_action", length=2
+    )
+    _numeric_vector(
+        value["interval_executed_action"],
+        f"{field}.interval_executed_action",
+        length=2,
+    )
+
+    lidar_argmin = value["post_lidar_argmin"]
+    if not isinstance(lidar_argmin, dict) or set(lidar_argmin) != {
+        "range_m",
+        "bearing_rad",
+    }:
+        raise ValueError(
+            f"{field}.post_lidar_argmin must contain range_m and bearing_rad."
+        )
+    if (
+        _finite_number(
+            lidar_argmin["range_m"], f"{field}.post_lidar_argmin.range_m"
+        )
+        < 0.0
+    ):
+        raise ValueError(f"{field}.post_lidar_argmin.range_m cannot be negative.")
+    _finite_number(
+        lidar_argmin["bearing_rad"], f"{field}.post_lidar_argmin.bearing_rad"
+    )
+
+    obstacle_xy = value["post_obstacle_xy"]
+    if not isinstance(obstacle_xy, list):
+        raise ValueError(f"{field}.post_obstacle_xy must be an array.")
+    for index, position in enumerate(obstacle_xy):
+        _numeric_vector(position, f"{field}.post_obstacle_xy[{index}]", length=2)
+    obstacle_motion = value["post_obstacle_motion"]
+    if not isinstance(obstacle_motion, list) or len(obstacle_motion) != len(obstacle_xy):
+        raise ValueError(
+            f"{field}.post_obstacle_motion must align one-to-one with post_obstacle_xy."
+        )
+    for index, motion in enumerate(obstacle_motion):
+        motion_field = f"{field}.post_obstacle_motion[{index}]"
+        if not isinstance(motion, dict) or set(motion) != {
+            "motion_axis",
+            "speed_mps",
+            "direction",
+        }:
+            raise ValueError(f"{motion_field} has an invalid structure.")
+        if motion["motion_axis"] not in {"x", "y"}:
+            raise ValueError(f"{motion_field}.motion_axis must be 'x' or 'y'.")
+        if _finite_number(motion["speed_mps"], f"{motion_field}.speed_mps") < 0.0:
+            raise ValueError(f"{motion_field}.speed_mps cannot be negative.")
+        direction = _finite_number(motion["direction"], f"{motion_field}.direction")
+        if direction not in {-1.0, 1.0}:
+            raise ValueError(f"{motion_field}.direction must be -1 or 1.")
+    for name in ("post_contact_collision", "post_lidar_collision"):
+        if type(value[name]) is not bool:
+            raise ValueError(f"{field}.{name} must be a boolean.")
+
+
+def validate_risk_trace(value: Any, *, field: str = "risk_trace") -> None:
+    """Strictly validate one bounded diagnostic risk trace."""
+
+    if not isinstance(value, dict) or set(value) != {
+        "sample_period_s",
+        "sample_semantics",
+        "coordinate_semantics",
+        "lidar_min_range_m",
+        "lidar_max_range_m",
+        "window_steps",
+        "terminal_window",
+        "minimum_clearance_window",
+    }:
+        raise ValueError(f"{field} has an invalid structure.")
+    if value["sample_semantics"] != RISK_TRACE_SAMPLE_SEMANTICS:
+        raise ValueError(f"{field}.sample_semantics is invalid.")
+    if value["coordinate_semantics"] != RISK_TRACE_COORDINATE_SEMANTICS:
+        raise ValueError(f"{field}.coordinate_semantics is invalid.")
+    if _finite_number(value["sample_period_s"], f"{field}.sample_period_s") <= 0.0:
+        raise ValueError(f"{field}.sample_period_s must be positive.")
+    lidar_minimum = _finite_number(
+        value["lidar_min_range_m"], f"{field}.lidar_min_range_m"
+    )
+    lidar_maximum = _finite_number(
+        value["lidar_max_range_m"], f"{field}.lidar_max_range_m"
+    )
+    if lidar_minimum < 0.0 or lidar_minimum >= lidar_maximum:
+        raise ValueError(
+            f"{field} LiDAR range bounds must satisfy 0 <= minimum < maximum."
+        )
+    if type(value["window_steps"]) is not int or value["window_steps"] != (
+        RISK_TRACE_WINDOW_STEPS
+    ):
+        raise ValueError(
+            f"{field}.window_steps must equal {RISK_TRACE_WINDOW_STEPS}."
+        )
+    for window_name in ("terminal_window", "minimum_clearance_window"):
+        window = value[window_name]
+        window_field = f"{field}.{window_name}"
+        if (
+            not isinstance(window, list)
+            or not window
+            or len(window) > value["window_steps"]
+        ):
+            raise ValueError(
+                f"{window_field} must contain 1-{RISK_TRACE_WINDOW_STEPS} samples."
+            )
+        previous_step = 0
+        previous_elapsed = -1.0
+        for index, sample in enumerate(window):
+            sample_field = f"{window_field}[{index}]"
+            _validate_trace_sample(sample, sample_field)
+            if sample["step"] <= previous_step:
+                raise ValueError(f"{window_field} steps must be strictly increasing.")
+            elapsed = float(sample["post_elapsed_s"])
+            if elapsed <= previous_elapsed:
+                raise ValueError(
+                    f"{window_field} post_elapsed_s values must be strictly increasing."
+                )
+            previous_step = sample["step"]
+            previous_elapsed = elapsed
+    minimum_window = value["minimum_clearance_window"]
+    if minimum_window[-1]["post_global_clearance"] != min(
+        sample["post_global_clearance"] for sample in minimum_window
+    ):
+        raise ValueError(
+            f"{field}.minimum_clearance_window must end at its minimum clearance sample."
+        )
 
 
 def _sha256_file(path: Path) -> str:
@@ -45,6 +254,7 @@ def _validated_record(record: Mapping[str, Any], index: int) -> dict[str, Any]:
         raise ValueError(
             f"Episode context row {index} identity.episode_id must be non-empty."
         )
+    validate_risk_trace(result.get("risk_trace"), field=f"Episode context row {index}.risk_trace")
     return result
 
 
@@ -102,5 +312,10 @@ def write_episode_context_jsonl(
 __all__ = [
     "EPISODE_CONTEXT_FILENAME",
     "EPISODE_CONTEXT_SCHEMA_VERSION",
+    "RISK_TRACE_COORDINATE_SEMANTICS",
+    "RISK_TRACE_SAMPLE_FIELDS",
+    "RISK_TRACE_SAMPLE_SEMANTICS",
+    "RISK_TRACE_WINDOW_STEPS",
+    "validate_risk_trace",
     "write_episode_context_jsonl",
 ]
