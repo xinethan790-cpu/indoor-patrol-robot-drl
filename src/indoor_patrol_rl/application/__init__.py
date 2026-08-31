@@ -34,6 +34,14 @@ from indoor_patrol_rl.application.emergency_guard import (
     PatrolTTCEscapeGuardConfig,
     PatrolTTCEscapeMode,
 )
+from indoor_patrol_rl.application.frame_capture import (
+    PATROL_FRAME_CAPTURE_SCHEMA_VERSION,
+    PATROL_FRAME_FILENAME_PATTERN,
+    PATROL_FRAME_METADATA_FILENAME,
+    PatrolFrameCapture,
+    PatrolFrameCaptureConfig,
+    SimulationFrameCadence,
+)
 from indoor_patrol_rl.application.live_status import (
     LIVE_STATUS_SCHEMA_VERSION,
     PatrolLiveAlert,
@@ -49,6 +57,7 @@ from indoor_patrol_rl.application.proximity import (
     CriticalProximityAssessment,
     CriticalProximityConfig,
     CriticalProximityMonitor,
+    policy_lidar_sector_clearance,
 )
 from indoor_patrol_rl.application.scenario import (
     DEFAULT_OPERATIONAL_PATROL_SCENARIO_PATH,
@@ -87,16 +96,23 @@ __all__ = [
     "OPERATIONAL_OBSTACLE_SPEED_MAX_MPS",
     "OPERATIONAL_OBSTACLE_SPEED_MIN_MPS",
     "PATROL_SCENARIO_SCHEMA_VERSION",
+    "PATROL_FRAME_CAPTURE_SCHEMA_VERSION",
+    "PATROL_FRAME_FILENAME_PATTERN",
+    "PATROL_FRAME_METADATA_FILENAME",
     "PATROL_TTC_ESCAPE_GUARD_ID",
     "PATROL_TTC_ESCAPE_GUARD_SCHEMA_VERSION",
     "CriticalProximityAssessment",
     "CriticalProximityConfig",
     "CriticalProximityMonitor",
+    "policy_lidar_sector_clearance",
     "PatrolActionPipeline",
     "PatrolActionResult",
     "PatrolControlMode",
+    "PatrolFrameCapture",
+    "PatrolFrameCaptureConfig",
     "next_patrol_policy_control_step",
     "SYSTEM_DEPLOYMENT_PROFILE_SCHEMA_VERSION",
+    "SimulationFrameCadence",
     "DeploymentArtifactBinding",
     "DeploymentIntegrityError",
     "DeploymentProfileError",

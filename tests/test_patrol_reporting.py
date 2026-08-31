@@ -12,14 +12,33 @@ import pytest
 from indoor_patrol_rl.evaluation import (
     PatrolCheckpointRecord,
     PatrolCollisionRecord,
+    PatrolCriticalProximityEdgeTracker,
     PatrolCriticalProximityRecord,
     PatrolRunSummary,
     PatrolTrajectorySample,
+    PatrolTTCEscapeGuardEventRecord,
     portable_model_path,
     select_patrol_model,
     write_patrol_outputs,
 )
-from indoor_patrol_rl.evaluation.patrol import PatrolTTCEscapeGuardEventRecord
+
+
+def test_critical_proximity_edge_tracker_records_one_event_per_interval() -> None:
+    tracker = PatrolCriticalProximityEdgeTracker()
+
+    assert [
+        tracker.update(critical)
+        for critical in (False, True, True, True, False, False, True, True)
+    ] == [False, True, False, False, False, False, True, False]
+
+
+def test_critical_proximity_edge_tracker_rejects_non_boolean_state() -> None:
+    with pytest.raises(ValueError, match="active must be a boolean"):
+        PatrolCriticalProximityEdgeTracker(active=1)
+
+    tracker = PatrolCriticalProximityEdgeTracker()
+    with pytest.raises(ValueError, match="critical must be a boolean"):
+        tracker.update(1)
 
 
 def _touch(root: Path, relative: str) -> Path:
@@ -385,7 +404,7 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
         dynamic_obstacle_count=2,
         dynamic_obstacle_speed_max_mps=0.31,
         ttc_escape_guard_enabled=True,
-        ttc_escape_guard_id="patrol-ttc-escape-guard-v1",
+        ttc_escape_guard_id="patrol-ttc-escape-guard-v2",
         ttc_escape_guard_evidence_scope="unqualified_patrol_application_escape_guard",
         ttc_escape_guard_intervention_steps=2,
         ttc_escape_guard_activation_count=1,
@@ -720,7 +739,7 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
     assert payload["dynamic_obstacle_count"] == 2
     assert payload["dynamic_obstacle_speed_max_mps"] == pytest.approx(0.31)
     assert payload["ttc_escape_guard_enabled"] is True
-    assert payload["ttc_escape_guard_id"] == "patrol-ttc-escape-guard-v1"
+    assert payload["ttc_escape_guard_id"] == "patrol-ttc-escape-guard-v2"
     assert payload["ttc_escape_guard_evidence_scope"] == (
         "unqualified_patrol_application_escape_guard"
     )
@@ -835,6 +854,43 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
     assert float(proximity_row["estimated_ttc_s"]) == 0.0
     assert int(proximity_row["minimum_lidar_beam_index"]) == 11
     assert float(proximity_row["dynamic_obstacle_1_x_m"]) == pytest.approx(-0.10)
+
+    recovered_summary = replace(
+        safety_summary,
+        run_id="webots-patrol-recovered-seed7000",
+        outcome="completed",
+        failure_reason=None,
+    )
+    recovered_paths = write_patrol_outputs(
+        tmp_path / "recovered-after-critical-proximity",
+        trajectory=critical_trajectory,
+        checkpoints=checkpoints,
+        collisions=[],
+        summary=recovered_summary,
+        critical_proximities=critical_proximities,
+        ttc_escape_guard_events=guard_events,
+    )
+    recovered_payload = json.loads(
+        recovered_paths["summary"].read_text(encoding="utf-8")
+    )
+    assert recovered_payload["outcome"] == "completed"
+    assert recovered_payload["critical_proximity_count"] == 1
+
+    guard_timeout_only = replace(
+        critical_proximities[0],
+        detection_source="ttc_escape_guard_timeout",
+        consecutive_frames=0,
+    )
+    with pytest.raises(ValueError, match="lidar_threshold proximity event"):
+        write_patrol_outputs(
+            tmp_path / "missing-threshold-edge",
+            trajectory=critical_trajectory,
+            checkpoints=checkpoints,
+            collisions=[],
+            summary=safety_summary,
+            critical_proximities=[guard_timeout_only],
+            ttc_escape_guard_events=guard_events,
+        )
 
     with pytest.raises(ValueError, match="critical_proximity_count"):
         write_patrol_outputs(

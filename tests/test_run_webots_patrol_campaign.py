@@ -312,6 +312,33 @@ def test_campaign_binds_identity_sources_and_artifact_hashes(tmp_path: Path) -> 
     assert json.loads((output / "summary.json").read_text()) == summary
 
 
+def test_campaign_accepts_completed_run_with_recovered_proximity_event(
+    tmp_path: Path,
+) -> None:
+    root = _repository(tmp_path)
+    output = tmp_path / "recovered-proximity"
+
+    def runner(command: Sequence[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        summary_path = _write_run_summary(
+            root,
+            command,
+            outcome="completed",
+            overrides={"critical_proximity_count": 1},
+        )
+        _write_csv(summary_path.parent / "proximity_events.csv", 1)
+        return subprocess.CompletedProcess(command, 0)
+
+    summary = run_patrol_campaign(
+        _request(root, output, episodes=1),
+        process_runner=runner,
+    )
+
+    assert summary["completed_count"] == 1
+    with (output / "episodes.csv").open(encoding="utf-8", newline="") as stream:
+        episode = next(csv.DictReader(stream))
+    assert int(episode["critical_proximity_count"]) == 1
+
+
 def test_stress_scenario_is_forwarded_and_bound(tmp_path: Path) -> None:
     root = _repository(tmp_path)
     output = tmp_path / "stress-campaign"

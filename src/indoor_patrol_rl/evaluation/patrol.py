@@ -340,10 +340,12 @@ class PatrolCollisionRecord:
 
 @dataclass(frozen=True)
 class PatrolCriticalProximityRecord:
-    """A proximity-related safety stop before physical contact.
+    """One audited proximity event before physical contact.
 
-    ``lidar_threshold`` records a stop at the monitor's hard critical boundary
-    and therefore requires at least one consecutive critical frame.
+    ``lidar_threshold`` records the rising edge of an interval at the monitor's
+    hard critical boundary and therefore requires at least one consecutive
+    critical frame.  The robot may subsequently recover, so this event is not
+    necessarily terminal.
     ``ttc_escape_guard_timeout`` records a bounded application escape attempt
     that could not establish its release clearance; it may stop before the hard
     boundary and must retain the observed (possibly zero) critical-frame count.
@@ -416,6 +418,26 @@ class PatrolCriticalProximityRecord:
             dynamic_obstacle_2_x_m=self.dynamic_obstacle_2_x_m,
             dynamic_obstacle_2_y_m=self.dynamic_obstacle_2_y_m,
         )
+
+
+@dataclass
+class PatrolCriticalProximityEdgeTracker:
+    """Latch one audit event per continuous hard-critical LiDAR interval."""
+
+    active: bool = False
+
+    def __post_init__(self) -> None:
+        if type(self.active) is not bool:
+            raise ValueError("active must be a boolean.")
+
+    def update(self, critical: bool) -> bool:
+        """Return true only on a false-to-true transition and update the latch."""
+
+        if type(critical) is not bool:
+            raise ValueError("critical must be a boolean.")
+        rising_edge = critical and not self.active
+        self.active = critical
+        return rising_edge
 
 
 @dataclass(frozen=True)
@@ -570,19 +592,15 @@ class PatrolRunSummary:
             raise ValueError("Patrol output CSV filenames must be mutually distinct.")
 
         if self.outcome == "collision":
-            if self.collision_count < 1 or self.critical_proximity_count != 0:
-                raise ValueError(
-                    "A collision outcome requires contact records and no proximity stop."
-                )
+            if self.collision_count < 1:
+                raise ValueError("A collision outcome requires contact records.")
         elif self.outcome == "safety_stop":
             if self.collision_count != 0 or self.critical_proximity_count < 1:
                 raise ValueError(
                     "A safety_stop outcome requires proximity records and no contact collision."
                 )
-        elif self.collision_count != 0 or self.critical_proximity_count != 0:
-            raise ValueError(
-                "Only collision or safety_stop outcomes may contain terminal safety events."
-            )
+        elif self.collision_count != 0:
+            raise ValueError("Only a collision outcome may contain contact records.")
 
         scenario_identity = (
             self.patrol_scenario_id,
@@ -1067,6 +1085,7 @@ def write_patrol_outputs(
             "summary.critical_proximity_count must match the critical proximity records."
         )
     _validate_trajectory_audit(summary, trajectory)
+    _validate_proximity_event_audit(trajectory, proximity_records)
     _validate_guard_event_audit(
         summary,
         trajectory,
@@ -1183,6 +1202,27 @@ def _validate_trajectory_audit(
         raise ValueError(
             "summary.safety_shield_intervention_rate must equal active shield samples divided "
             "by control_step_count."
+        )
+
+
+def _validate_proximity_event_audit(
+    trajectory: list[PatrolTrajectorySample],
+    records: list[PatrolCriticalProximityRecord],
+) -> None:
+    """Require enough threshold events to cover trajectory critical rising edges."""
+
+    previous_critical = False
+    trajectory_rising_edges = 0
+    for sample in trajectory:
+        trajectory_rising_edges += int(sample.critical_proximity and not previous_critical)
+        previous_critical = sample.critical_proximity
+    threshold_events = sum(
+        record.detection_source == "lidar_threshold" for record in records
+    )
+    if threshold_events < trajectory_rising_edges:
+        raise ValueError(
+            "Every critical-proximity rising edge in trajectory evidence requires a "
+            "lidar_threshold proximity event record."
         )
 
 

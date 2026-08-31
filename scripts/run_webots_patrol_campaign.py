@@ -527,13 +527,13 @@ def _validated_episode(
         minimum=0,
     )
     if outcome == "collision":
-        if collision_count < 1 or critical_proximity_count != 0:
-            raise ValueError("A collision run requires collision evidence only.")
+        if collision_count < 1:
+            raise ValueError("A collision run requires collision evidence.")
     elif outcome == "safety_stop":
         if collision_count != 0 or critical_proximity_count < 1:
             raise ValueError("A safety_stop run requires proximity evidence only.")
-    elif collision_count != 0 or critical_proximity_count != 0:
-        raise ValueError("Non-safety outcomes cannot carry terminal safety records.")
+    elif collision_count != 0:
+        raise ValueError("Only a collision outcome may carry collision evidence.")
     control_step_count = _integer(
         _required(summary, "control_step_count"),
         "control_step_count",

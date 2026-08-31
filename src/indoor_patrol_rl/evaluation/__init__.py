@@ -51,6 +51,7 @@ from indoor_patrol_rl.evaluation.metrics import (
 from indoor_patrol_rl.evaluation.patrol import (
     PatrolCheckpointRecord,
     PatrolCollisionRecord,
+    PatrolCriticalProximityEdgeTracker,
     PatrolCriticalProximityRecord,
     PatrolModelSelection,
     PatrolOutcome,
@@ -76,6 +77,7 @@ __all__ = [
     "FormalSourceArtifact",
     "PatrolCheckpointRecord",
     "PatrolCollisionRecord",
+    "PatrolCriticalProximityEdgeTracker",
     "PatrolCriticalProximityRecord",
     "PatrolModelSelection",
     "PatrolOutcome",

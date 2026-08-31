@@ -18,7 +18,7 @@ from typing import Literal
 from indoor_patrol_rl.application.proximity import CriticalProximityAssessment
 
 PATROL_TTC_ESCAPE_GUARD_SCHEMA_VERSION = 1
-PATROL_TTC_ESCAPE_GUARD_ID = "patrol-ttc-escape-guard-v1"
+PATROL_TTC_ESCAPE_GUARD_ID = "patrol-ttc-escape-guard-v2"
 UNQUALIFIED_PATROL_TTC_ESCAPE_GUARD_SCOPE = "unqualified_patrol_application_escape_guard"
 
 PatrolTTCEscapeMode = Literal[
@@ -45,12 +45,13 @@ class PatrolTTCEscapeGuardConfig:
     release_distance_m: float = 0.42
     release_confirmation_s: float = 0.20
     rear_escape_front_clearance_m: float = 0.40
-    reverse_linear_mps: float = -0.10
+    front_threat_rear_clearance_m: float = 0.40
+    reverse_linear_mps: float = -0.20
     forward_linear_mps: float = 0.20
     rotation_angular_radps: float = 0.80
-    forward_watchdog_s: float = 0.50
-    forward_required_improvement_m: float = 0.03
-    maximum_active_duration_s: float = 4.0
+    forward_watchdog_s: float = 2.00
+    forward_maximum_regression_m: float = 0.03
+    maximum_active_duration_s: float = 5.5
 
     def __post_init__(self) -> None:
         for name in (
@@ -60,11 +61,12 @@ class PatrolTTCEscapeGuardConfig:
             "release_distance_m",
             "release_confirmation_s",
             "rear_escape_front_clearance_m",
+            "front_threat_rear_clearance_m",
             "reverse_linear_mps",
             "forward_linear_mps",
             "rotation_angular_radps",
             "forward_watchdog_s",
-            "forward_required_improvement_m",
+            "forward_maximum_regression_m",
             "maximum_active_duration_s",
         ):
             object.__setattr__(self, name, _finite_float(getattr(self, name), label=name))
@@ -73,15 +75,15 @@ class PatrolTTCEscapeGuardConfig:
         if self.distance_activation_m <= 0.0:
             raise ValueError("distance_activation_m must be positive.")
         if self.ttc_activation_max_distance_m <= self.distance_activation_m:
-            raise ValueError(
-                "ttc_activation_max_distance_m must exceed distance_activation_m."
-            )
+            raise ValueError("ttc_activation_max_distance_m must exceed distance_activation_m.")
         if self.release_distance_m <= self.distance_activation_m:
             raise ValueError("release_distance_m must exceed distance_activation_m.")
         if self.release_confirmation_s <= 0.0:
             raise ValueError("release_confirmation_s must be positive.")
         if self.rear_escape_front_clearance_m <= 0.0:
             raise ValueError("rear_escape_front_clearance_m must be positive.")
+        if self.front_threat_rear_clearance_m <= 0.0:
+            raise ValueError("front_threat_rear_clearance_m must be positive.")
         if self.reverse_linear_mps >= 0.0:
             raise ValueError("reverse_linear_mps must be negative.")
         if self.forward_linear_mps <= 0.0:
@@ -90,8 +92,8 @@ class PatrolTTCEscapeGuardConfig:
             raise ValueError("rotation_angular_radps must be positive.")
         if self.forward_watchdog_s <= 0.0:
             raise ValueError("forward_watchdog_s must be positive.")
-        if self.forward_required_improvement_m <= 0.0:
-            raise ValueError("forward_required_improvement_m must be positive.")
+        if self.forward_maximum_regression_m <= 0.0:
+            raise ValueError("forward_maximum_regression_m must be positive.")
         if self.maximum_active_duration_s <= 0.0:
             raise ValueError("maximum_active_duration_s must be positive.")
 
@@ -187,6 +189,8 @@ class PatrolTTCEscapeGuard:
         self._forward_watchdog_elapsed_s = 0.0
         self._forward_baseline_distance_m: float | None = None
         self._force_rotate = False
+        self._latched_rotation_angular_radps: float | None = None
+        self._latched_translation_mode: Literal["forward", "reverse"] | None = None
 
     @property
     def active(self) -> bool:
@@ -211,12 +215,15 @@ class PatrolTTCEscapeGuard:
         self._forward_watchdog_elapsed_s = 0.0
         self._forward_baseline_distance_m = None
         self._force_rotate = False
+        self._latched_rotation_angular_radps = None
+        self._latched_translation_mode = None
 
     def update(
         self,
         assessment: CriticalProximityAssessment,
         *,
         front_clearance_m: float,
+        rear_clearance_m: float,
         dt_s: float,
     ) -> PatrolTTCEscapeDecision:
         """Advance the guard and return one bounded target-velocity decision."""
@@ -226,6 +233,9 @@ class PatrolTTCEscapeGuard:
         front_clearance = _finite_float(front_clearance_m, label="front_clearance_m")
         if front_clearance < 0.0:
             raise ValueError("front_clearance_m cannot be negative.")
+        rear_clearance = _finite_float(rear_clearance_m, label="rear_clearance_m")
+        if rear_clearance < 0.0:
+            raise ValueError("rear_clearance_m cannot be negative.")
         dt = _finite_float(dt_s, label="dt_s")
         if dt <= 0.0:
             raise ValueError("dt_s must be positive.")
@@ -244,20 +254,21 @@ class PatrolTTCEscapeGuard:
             self._forward_watchdog_elapsed_s = 0.0
             self._forward_baseline_distance_m = None
             self._force_rotate = False
+            self._latched_rotation_angular_radps = None
+            self._latched_translation_mode = None
             if self._active_duration_s >= self.config.maximum_active_duration_s:
                 self._active_duration_s = self.config.maximum_active_duration_s
                 self._unrecoverable = True
                 return self._unrecoverable_decision()
         else:
-            if (
-                assessment.minimum_distance_m >= self.config.release_distance_m
-                and not assessment.approaching
-            ):
+            release_clearance_m = self._release_clearance_m(
+                assessment,
+                front_clearance_m=front_clearance,
+                rear_clearance_m=rear_clearance,
+            )
+            if release_clearance_m >= self.config.release_distance_m and not assessment.approaching:
                 self._release_confirmation_elapsed_s += dt
-                if (
-                    self._release_confirmation_elapsed_s
-                    >= self.config.release_confirmation_s
-                ):
+                if self._release_confirmation_elapsed_s >= self.config.release_confirmation_s:
                     self.reset()
                     return self._inactive_decision()
             else:
@@ -269,7 +280,12 @@ class PatrolTTCEscapeGuard:
                 return self._unrecoverable_decision()
             self._active_duration_s = next_duration
 
-        return self._escape_decision(assessment, front_clearance, dt_s=dt)
+        return self._escape_decision(
+            assessment,
+            front_clearance,
+            rear_clearance,
+            dt_s=dt,
+        )
 
     def _activation_trigger(
         self,
@@ -280,8 +296,7 @@ class PatrolTTCEscapeGuard:
             assessment.approaching
             and assessment.ttc_s is not None
             and assessment.ttc_s <= self.config.ttc_activation_s
-            and assessment.minimum_distance_m
-            <= self.config.ttc_activation_max_distance_m
+            and assessment.minimum_distance_m <= self.config.ttc_activation_max_distance_m
         )
         if distance_triggered and ttc_triggered:
             return "distance_and_ttc"
@@ -295,6 +310,7 @@ class PatrolTTCEscapeGuard:
         self,
         assessment: CriticalProximityAssessment,
         front_clearance_m: float,
+        rear_clearance_m: float,
         *,
         dt_s: float,
     ) -> PatrolTTCEscapeDecision:
@@ -303,19 +319,50 @@ class PatrolTTCEscapeGuard:
         if self._force_rotate:
             mode: PatrolTTCEscapeMode = "rotate"
             target_linear = 0.0
-            target_angular = self._rotation_away_from(angle)
-        elif abs(angle) <= math.pi / 2.0:
-            mode: PatrolTTCEscapeMode = "reverse"
+            target_angular = self._latched_rotation_away_from(angle)
+        elif self._latched_translation_mode == "reverse":
+            if rear_clearance_m >= self.config.front_threat_rear_clearance_m:
+                mode = "reverse"
+                target_linear = self.config.reverse_linear_mps
+                target_angular = 0.0
+            else:
+                self._force_rotate = True
+                mode = "rotate"
+                target_linear = 0.0
+                target_angular = self._latched_rotation_away_from(angle)
+        elif self._latched_translation_mode == "forward":
+            if front_clearance_m >= self.config.rear_escape_front_clearance_m:
+                mode = "forward"
+                target_linear = self.config.forward_linear_mps
+                target_angular = 0.0
+            else:
+                self._force_rotate = True
+                mode = "rotate"
+                target_linear = 0.0
+                target_angular = self._latched_rotation_away_from(angle)
+        elif (
+            abs(angle) <= math.pi / 2.0
+            and rear_clearance_m >= self.config.front_threat_rear_clearance_m
+        ):
+            self._latched_translation_mode = "reverse"
+            mode = "reverse"
             target_linear = self.config.reverse_linear_mps
             target_angular = 0.0
+        elif abs(angle) <= math.pi / 2.0:
+            self._force_rotate = True
+            mode = "rotate"
+            target_linear = 0.0
+            target_angular = self._latched_rotation_away_from(angle)
         elif front_clearance_m >= self.config.rear_escape_front_clearance_m:
+            self._latched_translation_mode = "forward"
             mode = "forward"
             target_linear = self.config.forward_linear_mps
             target_angular = 0.0
         else:
+            self._force_rotate = True
             mode = "rotate"
             target_linear = 0.0
-            target_angular = self._rotation_away_from(angle)
+            target_angular = self._latched_rotation_away_from(angle)
 
         if mode == "forward":
             threat_distance = (
@@ -328,22 +375,16 @@ class PatrolTTCEscapeGuard:
                 self._forward_watchdog_elapsed_s = 0.0
             else:
                 self._forward_watchdog_elapsed_s += dt_s
-                if (
-                    self._forward_watchdog_elapsed_s
-                    >= self.config.forward_watchdog_s
-                ):
-                    improvement = (
-                        threat_distance - self._forward_baseline_distance_m
-                    )
+                if self._forward_watchdog_elapsed_s >= self.config.forward_watchdog_s:
+                    regression = self._forward_baseline_distance_m - threat_distance
                     if (
-                        improvement
-                        < self.config.forward_required_improvement_m
+                        regression > self.config.forward_maximum_regression_m
                         or assessment.approaching
                     ):
                         self._force_rotate = True
                         mode = "rotate"
                         target_linear = 0.0
-                        target_angular = self._rotation_away_from(angle)
+                        target_angular = self._latched_rotation_away_from(angle)
                     else:
                         self._forward_baseline_distance_m = threat_distance
                         self._forward_watchdog_elapsed_s = 0.0
@@ -359,9 +400,28 @@ class PatrolTTCEscapeGuard:
             active_duration_s=self._active_duration_s,
         )
 
+    def _release_clearance_m(
+        self,
+        assessment: CriticalProximityAssessment,
+        *,
+        front_clearance_m: float,
+        rear_clearance_m: float,
+    ) -> float:
+        if not self._force_rotate:
+            if self._latched_translation_mode == "forward":
+                return front_clearance_m
+            if self._latched_translation_mode == "reverse":
+                return rear_clearance_m
+        return assessment.minimum_distance_m
+
     def _rotation_away_from(self, threat_angle_rad: float) -> float:
         threat_sign = 1.0 if threat_angle_rad >= 0.0 else -1.0
         return -threat_sign * self.config.rotation_angular_radps
+
+    def _latched_rotation_away_from(self, threat_angle_rad: float) -> float:
+        if self._latched_rotation_angular_radps is None:
+            self._latched_rotation_angular_radps = self._rotation_away_from(threat_angle_rad)
+        return self._latched_rotation_angular_radps
 
     @staticmethod
     def _inactive_decision() -> PatrolTTCEscapeDecision:

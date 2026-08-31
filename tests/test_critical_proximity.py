@@ -9,6 +9,7 @@ import pytest
 from indoor_patrol_rl.application import (
     CriticalProximityConfig,
     CriticalProximityMonitor,
+    policy_lidar_sector_clearance,
 )
 
 
@@ -357,3 +358,64 @@ def test_beam_count_change_requires_reset() -> None:
     assert assessment.closing_rate_mps is None
     assert assessment.consecutive_critical_frames == 0
     assert assessment.threat_association_valid is False
+
+
+def test_rear_sector_clearance_wraps_across_pi_and_ignores_front() -> None:
+    scan = np.full(360, 2.0, dtype=np.float64)
+    scan[150:211] = 0.80
+    scan[0] = 0.10
+
+    rear = policy_lidar_sector_clearance(
+        scan,
+        center_angle_rad=math.pi,
+        half_angle_rad=math.radians(30.0),
+    )
+    equivalent_rear = policy_lidar_sector_clearance(
+        scan,
+        center_angle_rad=-math.pi,
+        half_angle_rad=math.radians(30.0),
+    )
+
+    assert rear == pytest.approx(0.80)
+    assert equivalent_rear == pytest.approx(rear)
+
+
+def test_sector_clearance_uses_a_low_quantile_not_one_isolated_beam() -> None:
+    scan = np.full(360, 1.20, dtype=np.float64)
+    scan[180] = 0.05
+
+    rear = policy_lidar_sector_clearance(
+        scan,
+        center_angle_rad=math.pi,
+        half_angle_rad=math.radians(30.0),
+        clearance_quantile=0.15,
+    )
+
+    assert rear == pytest.approx(1.20)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "error_type", "message"),
+    [
+        ({"center_angle_rad": float("nan")}, ValueError, "center_angle_rad"),
+        ({"half_angle_rad": 0.0}, ValueError, "half_angle_rad"),
+        ({"clearance_quantile": 0.6}, ValueError, "clearance_quantile"),
+        ({"lidar_max_range_m": 0.0}, ValueError, "lidar_max_range_m"),
+        ({"half_angle_rad": True}, TypeError, "half_angle_rad"),
+    ],
+)
+def test_sector_clearance_rejects_invalid_parameters(
+    overrides: dict[str, float],
+    error_type: type[Exception],
+    message: str,
+) -> None:
+    parameters: dict[str, float] = {
+        "center_angle_rad": math.pi,
+        "half_angle_rad": math.radians(30.0),
+        "clearance_quantile": 0.15,
+        "lidar_max_range_m": 3.5,
+    }
+    parameters.update(overrides)
+
+    with pytest.raises(error_type, match=message):
+        policy_lidar_sector_clearance(np.ones(360), **parameters)

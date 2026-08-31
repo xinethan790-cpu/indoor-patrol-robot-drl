@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import shutil
 import subprocess
@@ -61,6 +62,20 @@ def parse_args() -> argparse.Namespace:
         help="Run in batch fast mode, write results, and exit automatically.",
     )
     parser.add_argument(
+        "--capture-frames-dir",
+        type=Path,
+        help=(
+            "New directory for rendered JPEG frames. Enables batch realtime rendering "
+            "and automatic exit; it is intentionally separate from --headless fast mode."
+        ),
+    )
+    parser.add_argument(
+        "--capture-fps",
+        type=float,
+        default=10.0,
+        help="Simulation-time frame rate used with --capture-frames-dir (default: 10).",
+    )
+    parser.add_argument(
         "--webots",
         type=Path,
         help="Webots executable; normally discovered automatically on macOS.",
@@ -88,10 +103,17 @@ def main() -> int:
         raise ValueError("--max-steps must be positive.")
     if args.timeout_s is not None and args.timeout_s <= 0.0:
         raise ValueError("--timeout-s must be positive.")
+    if not math.isfinite(args.capture_fps) or args.capture_fps <= 0.0:
+        raise ValueError("--capture-fps must be positive and finite.")
     if not 1 <= args.port <= 65535:
         raise ValueError("--port must be between 1 and 65535.")
     if args.model and not args.allow_unvalidated_model:
         raise ValueError("--model requires --allow-unvalidated-model.")
+    if args.headless and args.capture_frames_dir is not None:
+        raise ValueError(
+            "--headless fast mode and --capture-frames-dir realtime rendering "
+            "are mutually exclusive."
+        )
 
     repository_root = Path(__file__).absolute().parents[1]
     run_id = args.run_id or (
@@ -103,10 +125,26 @@ def main() -> int:
     output_directory = Path(output_value).expanduser()
     if not output_directory.is_absolute():
         output_directory = repository_root / output_directory
+    output_directory = output_directory.resolve()
     if output_directory.exists():
         raise FileExistsError(
             f"Patrol output directory already exists; choose a new run: {output_directory}"
         )
+    capture_frames_directory: Path | None = None
+    if args.capture_frames_dir is not None:
+        capture_frames_directory = args.capture_frames_dir.expanduser()
+        if not capture_frames_directory.is_absolute():
+            capture_frames_directory = repository_root / capture_frames_directory
+        capture_frames_directory = capture_frames_directory.resolve()
+        if capture_frames_directory.exists():
+            raise FileExistsError(
+                "Frame capture directory already exists; choose a new directory: "
+                f"{capture_frames_directory}"
+            )
+        if capture_frames_directory == output_directory:
+            raise ValueError("--capture-frames-dir must differ from --output-dir.")
+        if output_directory.is_relative_to(capture_frames_directory):
+            raise ValueError("--capture-frames-dir cannot contain --output-dir.")
     webots = discover_webots(args.webots)
     subprocess.run(
         [sys.executable, str(repository_root / "scripts/configure_webots_python.py")],
@@ -127,11 +165,17 @@ def main() -> int:
         environment["WEBOTS_PATROL_ALLOW_UNVALIDATED_MODEL"] = "1"
     if args.timeout_s is not None:
         environment["WEBOTS_PATROL_TIMEOUT_S"] = str(args.timeout_s)
-    if args.headless:
+    if capture_frames_directory is not None:
+        environment["WEBOTS_PATROL_CAPTURE_FRAMES_DIR"] = str(capture_frames_directory)
+        environment["WEBOTS_PATROL_CAPTURE_FPS"] = f"{args.capture_fps:g}"
+        environment["WEBOTS_AUTO_QUIT"] = "1"
+    elif args.headless:
         environment["WEBOTS_AUTO_QUIT"] = "1"
 
     command = [str(webots), f"--port={args.port}", "--stdout", "--stderr"]
-    if args.headless:
+    if capture_frames_directory is not None:
+        command.extend(["--batch", "--mode=realtime"])
+    elif args.headless:
         command.extend(["--batch", "--mode=fast", "--no-rendering"])
     command.append(str(repository_root / "worlds/patrol_route_ppo.wbt"))
     completed = subprocess.run(command, cwd=repository_root, env=environment, check=False)

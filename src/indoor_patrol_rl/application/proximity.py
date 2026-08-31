@@ -468,6 +468,48 @@ class CriticalProximityMonitor:
         return assessment
 
 
+def policy_lidar_sector_clearance(
+    policy_order_lidar: np.ndarray | list[float],
+    *,
+    center_angle_rad: float,
+    half_angle_rad: float,
+    clearance_quantile: float = 0.15,
+    lidar_max_range_m: float = 3.5,
+) -> float:
+    """Return a robust clearance for one circular policy-order LiDAR sector.
+
+    Beam zero points forward and positive angles turn left. Circular angular
+    distance keeps rear sectors centred at ``pi`` continuous across the
+    ``-pi``/``pi`` boundary. A low quantile avoids authorizing reverse motion
+    from one isolated beam while remaining sensitive to compact obstacles.
+    """
+
+    scan = _validated_scan(policy_order_lidar, minimum_beam_count=8)
+    center = _finite_float(center_angle_rad, label="center_angle_rad")
+    half_angle = _finite_float(half_angle_rad, label="half_angle_rad")
+    quantile = _finite_float(clearance_quantile, label="clearance_quantile")
+    maximum = _finite_float(lidar_max_range_m, label="lidar_max_range_m")
+    if not 0.0 < half_angle <= math.pi:
+        raise ValueError("half_angle_rad must be in the interval (0, pi].")
+    if not 0.0 <= quantile <= 0.5:
+        raise ValueError("clearance_quantile must be between zero and 0.5.")
+    if maximum <= 0.0:
+        raise ValueError("lidar_max_range_m must be positive.")
+
+    center = (center + math.pi) % (2.0 * math.pi) - math.pi
+    angles = np.arange(scan.size, dtype=np.float64) * (
+        2.0 * math.pi / scan.size
+    )
+    angles = (angles + math.pi) % (2.0 * math.pi) - math.pi
+    angular_distance = np.abs(
+        (angles - center + math.pi) % (2.0 * math.pi) - math.pi
+    )
+    sector = np.clip(scan[angular_distance <= half_angle], 0.0, maximum)
+    if sector.size == 0:
+        raise ValueError("The LiDAR scan is too sparse for the requested sector.")
+    return float(np.quantile(sector, quantile))
+
+
 def _validated_scan(
     policy_order_lidar: np.ndarray | list[float],
     *,

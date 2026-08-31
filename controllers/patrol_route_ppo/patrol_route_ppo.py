@@ -31,6 +31,8 @@ from indoor_patrol_rl.application import (
     PatrolActionPipeline,
     PatrolControlMode,
     PatrolDynamicObstacle,
+    PatrolFrameCapture,
+    PatrolFrameCaptureConfig,
     PatrolLiveAlert,
     PatrolLiveOutcome,
     PatrolLiveReadings,
@@ -45,6 +47,7 @@ from indoor_patrol_rl.application import (
     load_patrol_scenario_config,
     load_r2a_system_deployment_profile,
     next_patrol_policy_control_step,
+    policy_lidar_sector_clearance,
     validate_checkpoint_layout,
 )
 from indoor_patrol_rl.core import (
@@ -58,6 +61,7 @@ from indoor_patrol_rl.envs.webots_patrol import _webots_scan_to_policy_order
 from indoor_patrol_rl.evaluation import (
     PatrolCheckpointRecord,
     PatrolCollisionRecord,
+    PatrolCriticalProximityEdgeTracker,
     PatrolCriticalProximityRecord,
     PatrolModelSelection,
     PatrolRunSummary,
@@ -333,6 +337,13 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             "Patrol output directory already contains files; choose a new run: "
             f"{output_directory}"
         )
+    frame_capture = _initialize_frame_capture(
+        supervisor,
+        repository_root=repository_root,
+        output_directory=output_directory,
+        run_id=run_id,
+        physics_step_s=physics_dt,
+    )
 
     print(
         f"PATROL_MODEL path={portable_model_path(model_selection.path, repository_root)} "
@@ -418,11 +429,14 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
     minimum_clearance = max(0.0, minimum_lidar_range - 0.10)
     segment_minimum_clearance = minimum_clearance
     physics_step_count = 0
+    if frame_capture is not None:
+        frame_capture.capture_if_due(0.0)
     segment_start_step = 0
     trajectory: list[PatrolTrajectorySample] = []
     checkpoint_records: list[PatrolCheckpointRecord] = []
     collision_records: list[PatrolCollisionRecord] = []
     critical_proximity_records: list[PatrolCriticalProximityRecord] = []
+    critical_proximity_edge_tracker = PatrolCriticalProximityEdgeTracker()
     ttc_escape_guard_events: list[PatrolTTCEscapeGuardEventRecord] = []
     inference_latencies_ms: list[float] = []
     live_writer = PatrolLiveStatusWriter(output_directory, run_id=run_id)
@@ -450,8 +464,44 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
     ttc_escape_guard_recovery_count = 0
     ttc_escape_guard_unrecoverable_count = 0
 
+    def record_lidar_critical_rising_edge(
+        *,
+        proximity: Any,
+        contact_collision: bool,
+        control_step: int,
+        simulation_time_s: float,
+        current_position: tuple[float, float],
+        obstacle_positions: tuple[tuple[float, float], tuple[float, float]],
+    ) -> None:
+        """Record one event when a non-contact hard-critical interval begins."""
+
+        critical = bool(proximity.critical and not contact_collision)
+        if not critical_proximity_edge_tracker.update(critical):
+            return
+        critical_proximity_records.append(
+            PatrolCriticalProximityRecord(
+                proximity_index=len(critical_proximity_records) + 1,
+                control_step=control_step,
+                simulation_time_s=simulation_time_s,
+                position_x_m=current_position[0],
+                position_y_m=current_position[1],
+                detection_source="lidar_threshold",
+                minimum_lidar_range_m=proximity.minimum_distance_m,
+                consecutive_frames=proximity.consecutive_critical_frames,
+                closing_rate_mps=proximity.closing_rate_mps,
+                estimated_ttc_s=proximity.ttc_s,
+                minimum_lidar_beam_index=proximity.minimum_beam_index,
+                minimum_lidar_angle_rad=proximity.minimum_angle_rad,
+                dynamic_obstacle_1_x_m=obstacle_positions[0][0],
+                dynamic_obstacle_1_y_m=obstacle_positions[0][1],
+                dynamic_obstacle_2_x_m=obstacle_positions[1][0],
+                dynamic_obstacle_2_y_m=obstacle_positions[1][1],
+            )
+        )
+
     def update_ttc_escape_guard(
         *,
+        policy_order_lidar: np.ndarray,
         front_clearance_m: float,
         dt_s: float,
         phase: Literal["navigation", "dwell"],
@@ -467,9 +517,17 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         nonlocal ttc_escape_guard_unrecoverable_count
         was_active = ttc_escape_guard.active
         was_unrecoverable = ttc_escape_guard.unrecoverable
+        rear_clearance_m = policy_lidar_sector_clearance(
+            policy_order_lidar,
+            center_angle_rad=math.pi,
+            half_angle_rad=safety_shield.config.front_half_angle,
+            clearance_quantile=safety_shield.config.clearance_quantile,
+            lidar_max_range_m=safety_shield.config.lidar_max_range,
+        )
         decision = ttc_escape_guard.update(
             latest_proximity,
             front_clearance_m=front_clearance_m,
+            rear_clearance_m=rear_clearance_m,
             dt_s=dt_s,
         )
         if not was_active and decision.active:
@@ -748,6 +806,11 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 ttc_escape_guard_unrecoverable_count
             ),
         )
+        capture_metadata_path = None
+        if frame_capture is not None:
+            capture_metadata_path = frame_capture.finalize(
+                simulation_duration_s=physics_step_count * physics_dt,
+            )
         try:
             paths = write_patrol_outputs(
                 output_directory,
@@ -787,14 +850,15 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         print(
             f"WEBOTS_PATROL_FINISHED outcome={outcome} visited={visited}/{len(checkpoints)} "
             f"collisions={len(collision_records)} "
-            f"safety_stops={len(critical_proximity_records)} "
+            f"critical_proximity_events={len(critical_proximity_records)} "
             f"ttc_guard_steps={ttc_escape_guard_intervention_steps} "
             f"ttc_guard_activations={ttc_escape_guard_activation_count} "
             f"ttc_guard_recoveries={ttc_escape_guard_recovery_count} "
             f"ttc_guard_unrecoverable={ttc_escape_guard_unrecoverable_count} "
             f"path={total_path_length:.3f} "
             f"samples={len(inspection.samples)} alarms={len(inspection.events)} "
-            f"results={inspection_paths['summary'].parent}",
+            f"results={inspection_paths['summary'].parent} "
+            f"capture_metadata={capture_metadata_path}",
             flush=True,
         )
         supervisor.step(basic_time_step)
@@ -885,6 +949,7 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                     enabled=False,
                 )
                 guard_decision = update_ttc_escape_guard(
+                    policy_order_lidar=dwell_scan,
                     front_clearance_m=dwell_shield_diagnostics.front_clearance,
                     dt_s=physics_dt,
                     phase="dwell",
@@ -1079,6 +1144,8 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 if supervisor.step(basic_time_step) == -1:
                     raise RuntimeError("Webots ended during checkpoint inspection dwell.")
                 physics_step_count += 1
+                if frame_capture is not None:
+                    frame_capture.capture_if_due(physics_step_count * physics_dt)
                 dwell_position = np.asarray(position(), dtype=np.float64)
                 traveled = float(np.linalg.norm(dwell_position - previous_position))
                 total_path_length += traveled
@@ -1101,6 +1168,17 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 minimum_clearance = min(minimum_clearance, clearance)
                 segment_minimum_clearance = min(segment_minimum_clearance, clearance)
                 simulation_time_s = physics_step_count * basic_time_step / 1000.0
+                record_lidar_critical_rising_edge(
+                    proximity=latest_proximity,
+                    contact_collision=contact_collision,
+                    control_step=completed_actions,
+                    simulation_time_s=simulation_time_s,
+                    current_position=(
+                        float(dwell_position[0]),
+                        float(dwell_position[1]),
+                    ),
+                    obstacle_positions=obstacle_positions,
+                )
                 if contact_collision:
                     _stop_robot(supervisor)
                     task_machine.update(
@@ -1318,6 +1396,7 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         requested_linear = action_result.requested_linear_mps
         requested_angular = action_result.requested_angular_radps
         guard_decision = update_ttc_escape_guard(
+            policy_order_lidar=scan,
             front_clearance_m=shield_result.front_clearance,
             dt_s=control_dt,
             phase="navigation",
@@ -1354,6 +1433,8 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             if supervisor.step(basic_time_step) == -1:
                 raise RuntimeError("Webots ended before the patrol run was finalized.")
             physics_step_count += 1
+            if frame_capture is not None:
+                frame_capture.capture_if_due(physics_step_count * physics_dt)
             contact_collision = contact_collision or _has_contact_collision(robot_node)
             post_scan = _range_image(lidar)
             latest_proximity = proximity_monitor.update(post_scan, dt_s=physics_dt)
@@ -1441,6 +1522,14 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 ),
             )
         )
+        record_lidar_critical_rising_edge(
+            proximity=proximity,
+            contact_collision=contact_collision,
+            control_step=control_step,
+            simulation_time_s=physics_step_count * basic_time_step / 1000.0,
+            current_position=(float(new_position[0]), float(new_position[1])),
+            obstacle_positions=obstacle_positions,
+        )
         if contact_collision:
             task_machine.update(
                 position=(float(new_position[0]), float(new_position[1])),
@@ -1518,6 +1607,49 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         exit_code=3,
         failure_reason="maximum control-step budget reached",
     )
+
+
+def _initialize_frame_capture(
+    supervisor: Supervisor,
+    *,
+    repository_root: Path,
+    output_directory: Path,
+    run_id: str,
+    physics_step_s: float,
+) -> PatrolFrameCapture | None:
+    """Build the optional rendered-frame recorder from strict environment inputs."""
+
+    capture_value = os.environ.get("WEBOTS_PATROL_CAPTURE_FRAMES_DIR")
+    if capture_value is None:
+        return None
+    if not capture_value.strip():
+        raise ValueError("WEBOTS_PATROL_CAPTURE_FRAMES_DIR must be non-empty when set.")
+    capture_directory = Path(capture_value).expanduser()
+    if not capture_directory.is_absolute():
+        capture_directory = repository_root / capture_directory
+    capture_directory = capture_directory.resolve()
+    if capture_directory == output_directory:
+        raise ValueError("Frame capture directory must differ from the patrol output directory.")
+    if output_directory.is_relative_to(capture_directory):
+        raise ValueError("Frame capture directory cannot contain the patrol output directory.")
+
+    fps_value = os.environ.get("WEBOTS_PATROL_CAPTURE_FPS", "10")
+    try:
+        fps = float(fps_value)
+    except ValueError as error:
+        raise ValueError("WEBOTS_PATROL_CAPTURE_FPS must be numeric.") from error
+    recorder = PatrolFrameCapture(
+        PatrolFrameCaptureConfig(directory=capture_directory, fps=fps),
+        run_id=run_id,
+        physics_step_s=physics_step_s,
+        exporter=supervisor.exportImage,
+    )
+    print(
+        f"PATROL_FRAME_CAPTURE_ENABLED directory={capture_directory} fps={fps:g} "
+        "mode=rendered-jpeg",
+        flush=True,
+    )
+    return recorder
 
 
 def _initialize_obstacles(
@@ -1683,7 +1815,10 @@ def _stop_robot(supervisor: Supervisor) -> None:
 
 
 def _finish_simulation(supervisor: Supervisor, exit_code: int) -> None:
-    if os.environ.get("WEBOTS_AUTO_QUIT") == "1":
+    capture_enabled = bool(
+        os.environ.get("WEBOTS_PATROL_CAPTURE_FRAMES_DIR", "").strip()
+    )
+    if os.environ.get("WEBOTS_AUTO_QUIT") == "1" or capture_enabled:
         supervisor.simulationQuit(exit_code)
     else:
         supervisor.simulationSetMode(Supervisor.SIMULATION_MODE_PAUSE)

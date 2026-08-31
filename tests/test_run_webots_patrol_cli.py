@@ -227,12 +227,76 @@ def test_stress_scenario_is_forwarded_to_controller(
     )
 
 
+def test_frame_capture_uses_rendered_realtime_batch_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    launches = _capture_launches(monkeypatch)
+    output = tmp_path / "video-run"
+    frames = output / "frames"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(RUNNER_PATH),
+            "--run-id",
+            "video-run",
+            "--output-dir",
+            str(output),
+            "--capture-frames-dir",
+            str(frames),
+            "--capture-fps",
+            "12.5",
+        ],
+    )
+
+    assert RUNNER.main() == 0
+
+    command, launch = launches[0]
+    environment = launch["env"]
+    assert environment["WEBOTS_PATROL_CAPTURE_FRAMES_DIR"] == str(frames)
+    assert environment["WEBOTS_PATROL_CAPTURE_FPS"] == "12.5"
+    assert environment["WEBOTS_AUTO_QUIT"] == "1"
+    assert command[-3:-1] == ["--batch", "--mode=realtime"]
+    assert "--no-rendering" not in command
+    assert command[-1] == str(REPOSITORY_ROOT / "worlds/patrol_route_ppo.wbt")
+
+
+def test_existing_frame_capture_directory_is_rejected_before_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    frames = tmp_path / "frames"
+    frames.mkdir()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(RUNNER_PATH),
+            "--output-dir",
+            str(tmp_path / "result"),
+            "--capture-frames-dir",
+            str(frames),
+        ],
+    )
+
+    with pytest.raises(FileExistsError, match="Frame capture directory already exists"):
+        RUNNER.main()
+
+
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
         (["--timeout-s", "0"], "--timeout-s must be positive"),
         (["--max-steps", "0"], "--max-steps must be positive"),
         (["--run-id", "nested/run"], "cannot contain path separators"),
+        (["--capture-fps", "nan"], "--capture-fps must be positive and finite"),
+        (
+            ["--headless", "--capture-frames-dir", "new-frames"],
+            "mutually exclusive",
+        ),
     ],
 )
 def test_invalid_launch_arguments_are_rejected(
