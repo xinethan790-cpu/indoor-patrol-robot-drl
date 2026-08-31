@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-31T02:52:34+00:00",
+  "selection_status": "no_candidate_passed_gate",
+  "model_variant": "r2a_targeted_v2",
+  "selection_rule": [
+    "success_rate_desc",
+    "collision_rate_asc",
+    "path_length_ratio_mean_asc",
+    "completion_time_s_mean_asc"
+  ],
+  "deterministic_tie_breakers": [
+    "step_asc",
+    "kind_asc"
+  ],
+  "source_globs": [
+    "artifacts/results/webots_validation_r2a2_checkpoint*_seed11/summary.json"
+  ],
+  "validation_contract": {
+    "split": "validation",
+    "seed": 11,
+    "condition": "R2A2",
+    "episodes": 100,
+    "model_variant": "r2a_targeted_v2",
+    "planner_template": "ppo_r2a2_step{step}"
+  },
+  "gate": {
+    "min_success_rate": 0.75,
+    "max_collision_rate": 0.25,
+    "requires_model_file": true
+  },
+  "candidate_count": 4,
+  "available_model_count": 4,
+  "gate_passed_count": 0,
+  "ranking_winner": {
+    "rank": 1,
+    "kind": "checkpoint",
+    "step": 10240,
+    "planner": "ppo_r2a2_step10240",
+    "model_variant": "r2a_targeted_v2",
+    "model_path": "artifacts/models/webots/seed_11/r2a_targeted_v2/checkpoints/ppo_webots_s11_r2a_targeted_v2_10240_steps.zip",
+    "model_sha256": "051d1e2f07bb147d247c91ded821e58af5b87987bedc2cee4e287fdbdfcdcbe0",
+    "episodes": 100,
+    "success_rate": 0.64,
+    "collision_rate": 0.36,
+    "gate_passed": false
+  },
+  "formal_selected": null,
+  "candidates": [
+    {
+      "kind": "checkpoint",
+      "step": 10240,
+      "seed": 11,
+      "condition": "R2A2",
+      "model_variant": "r2a_targeted_v2",
+      "planner": "ppo_r2a2_step10240",
+      "summary_path": "artifacts/results/webots_validation_r2a2_checkpoint10240_seed11/summary.json",
+      "summary_sha256": "bf427aa0adee21012cea9d2274ea1755dec3688a3834313fa52cce1f8c81d4c5",
+      "model_path": "artifacts/models/webots/seed_11/r2a_targeted_v2/checkpoints/ppo_webots_s11_r2a_targeted_v2_10240_steps.zip",
+      "model_resolution": "checkpoint_filename",
+      "model_exists": true,
+      "model_sha256": "051d1e2f07bb147d247c91ded821e58af5b87987bedc2cee4e287fdbdfcdcbe0",
+      "evaluation_model_sha256": "051d1e2f07bb147d247c91ded821e58af5b87987bedc2cee4e287fdbdfcdcbe0",
+      "episodes": 100,
+      "success_count": 64,
+      "collision_count": 36,
+      "timeout_count": 0,
+      "error_count": 0,
+      "success_rate": 0.64,
+      "collision_rate": 0.36,
+      "path_length_ratio_mean": 1.0112779934618454,
+      "completion_time_s_mean": 13.893999999999998,
+      "metric_gate_passed": false,
+      "gate_passed": false,
+      "gate_failures": [
+        "success_rate_below_minimum",
+        "collision_rate_above_maximum"
+      ],
+      "rank": 1
+    },
+    {
+      "kind": "checkpoint",
+      "step": 20480,
+      "seed": 11,
+      "condition": "R2A2",
+      "model_variant": "r2a_targeted_v2",
+      "planner": "ppo_r2a2_step20480",
+      "summary_path": "artifacts/results/webots_validation_r2a2_checkpoint20480_seed11/summary.json",
+      "summary_sha256": "ed8875435840f69ee263b8cb2264c8e837dd7c0c51a6a665db9b73b7ab1f1497",
+      "model_path": "artifacts/models/webots/seed_11/r2a_targeted_v2/checkpoints/ppo_webots_s11_r2a_targeted_v2_20480_steps.zip",
+      "model_resolution": "checkpoint_filename",
+      "model_exists": true,
+      "model_sha256": "72b3d39191b50422cd3e53cd7fae41ac4712cac07bb108542e0e9ea726f98450",
+      "evaluation_model_sha256": "72b3d39191b50422cd3e53cd7fae41ac4712cac07bb108542e0e9ea726f98450",
+      "episodes": 100,
+      "success_count": 63,
+      "collision_count": 37,
+      "timeout_count": 0,
+      "error_count": 0,
+      "success_rate": 0.63,
+      "collision_rate": 0.37,
+      "path_length_ratio_mean": 1.0098320910069676,
+      "completion_time_s_mean": 13.821968253968256,
+      "metric_gate_passed": false,
+      "gate_passed": false,
+      "gate_failures": [
+        "success_rate_below_minimum",
+        "collision_rate_above_maximum"
+      ],
+      "rank": 2
+    },
+    {
+      "kind": "checkpoint",
+      "step": 40960,
+      "seed": 11,
+      "condition": "R2A2",
+      "model_variant": "r2a_targeted_v2",
+      "planner": "ppo_r2a2_step40960",
+      "summary_path": "artifacts/results/webots_validation_r2a2_checkpoint40960_seed11/summary.json",
+      "summary_sha256": "5b14fc6c96321b5455001edbd71d4fdcb7e45d686fc42001c938070f5bd904a8",
+      "model_path": "artifacts/models/webots/seed_11/r2a_targeted_v2/checkpoints/ppo_webots_s11_r2a_targeted_v2_40960_steps.zip",
+      "model_resolution": "checkpoint_filename",
+      "model_exists": true,
+      "model_sha256": "8e61c159bc0cbc3bf26eebce6af43f9f8ae6abb4db54b86b8b9de35187eb341d",
+      "evaluation_model_sha256": "8e61c159bc0cbc3bf26eebce6af43f9f8ae6abb4db54b86b8b9de35187eb341d",
+      "episodes": 100,
+      "success_count": 62,
+      "collision_count": 38,
+      "timeout_count": 0,
+      "error_count": 0,
+      "success_rate": 0.62,
+      "collision_rate": 0.38,
+      "path_length_ratio_mean": 1.010427127364679,
+      "completion_time_s_mean": 13.62374193548387,
+      "metric_gate_passed": false,
+      "gate_passed": false,
+      "gate_failures": [
+        "success_rate_below_minimum",
+        "collision_rate_above_maximum"
+      ],
+      "rank": 3
+    },
+    {
+      "kind": "checkpoint",
+      "step": 30720,
+      "seed": 11,
+      "condition": "R2A2",
+      "model_variant": "r2a_targeted_v2",
+      "planner": "ppo_r2a2_step30720",
+      "summary_path": "artifacts/results/webots_validation_r2a2_checkpoint30720_seed11/summary.json",
+      "summary_sha256": "53a6e7d20409f0d4aaddc5e4e0f000e6bd95f7c6e8f6c51cdabe09149a4b9e4e",
+      "model_path": "artifacts/models/webots/seed_11/r2a_targeted_v2/checkpoints/ppo_webots_s11_r2a_targeted_v2_30720_steps.zip",
+      "model_resolution": "checkpoint_filename",
+      "model_exists": true,
+      "model_sha256": "2328f1065574c88b30fb750569b12c0be99549e3077cd7f09eca95d8818042e3",
+      "evaluation_model_sha256": "2328f1065574c88b30fb750569b12c0be99549e3077cd7f09eca95d8818042e3",
+      "episodes": 100,
+      "success_count": 62,
+      "collision_count": 38,
+      "timeout_count": 0,
+      "error_count": 0,
+      "success_rate": 0.62,
+      "collision_rate": 0.38,
+      "path_length_ratio_mean": 1.0117318150841814,
+      "completion_time_s_mean": 13.871483870967742,
+      "metric_gate_passed": false,
+      "gate_passed": false,
+      "gate_failures": [
+        "success_rate_below_minimum",
+        "collision_rate_above_maximum"
+      ],
+      "rank": 4
+    }
+  ],
+  "copy_selected": {
+    "requested": true,
+    "performed": false,
+    "alias_path": null,
+    "alias_sha256": null,
+    "reason": "no_gate_passing_formal_selection"
+  }
+}
