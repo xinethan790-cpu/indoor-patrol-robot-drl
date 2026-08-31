@@ -18,11 +18,16 @@ import yaml
 _RESULT_DIRECTORY_PATTERN = re.compile(
     r"^webots_validation_(?P<condition>[a-z0-9]+)_"
     r"(?:(?P<checkpoint>checkpoint)(?P<checkpoint_step>\d+)"
-    r"|(?P<final>final)_step(?P<final_step>\d+))_seed(?P<seed>\d+)$",
+    r"|(?P<final>final)_step(?P<final_step>\d+))_seed(?P<seed>\d+)"
+    r"(?:_shield-(?P<shield_profile_token>"
+    r"[a-z0-9][a-z0-9_.-]{0,63}-[0-9a-f]{12}))?$",
     re.IGNORECASE,
 )
 _FINAL_MODEL_PATTERN = re.compile(r"_step0*(?P<steps>\d+)\.zip$")
 _MODEL_VARIANT_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
+_SHIELD_PROFILE_TOKEN_PATTERN = re.compile(
+    r"[a-z0-9][a-z0-9_.-]{0,63}-[0-9a-f]{12}"
+)
 
 
 def _validate_model_variant(value: str | None) -> str | None:
@@ -46,6 +51,22 @@ def _validate_model_variant(value: str | None) -> str | None:
     return value
 
 
+def _validate_shield_profile_token(value: str | None) -> str | None:
+    """Validate an optional profile identity encoded in a result directory."""
+
+    if value is None:
+        return None
+    if (
+        not isinstance(value, str)
+        or _SHIELD_PROFILE_TOKEN_PATTERN.fullmatch(value) is None
+    ):
+        raise ValueError(
+            "shield_profile_token must contain a lowercase path-safe profile id "
+            "and a 12-character lowercase semantic SHA-256 prefix."
+        )
+    return value
+
+
 @dataclass(frozen=True)
 class CheckpointSelectionGate:
     """Validation contract and the minimum acceptable safety/performance gate."""
@@ -57,6 +78,7 @@ class CheckpointSelectionGate:
     max_collision_rate: float
     split: str = "validation"
     model_variant: str | None = None
+    shield_profile_token: str | None = None
 
     def __post_init__(self) -> None:
         if self.seed < 0:
@@ -72,6 +94,7 @@ class CheckpointSelectionGate:
         if not 0.0 <= self.max_collision_rate <= 1.0:
             raise ValueError("max_collision_rate must be between zero and one.")
         _validate_model_variant(self.model_variant)
+        _validate_shield_profile_token(self.shield_profile_token)
 
 
 @dataclass(frozen=True)
@@ -82,6 +105,7 @@ class ResultIdentity:
     kind: str
     step: int
     seed: int
+    shield_profile_token: str | None = None
 
     @property
     def expected_planner(self) -> str:
@@ -148,11 +172,14 @@ def parse_result_identity(summary_path: Path) -> ResultIdentity:
         )
     kind = "checkpoint" if match.group("checkpoint") else "final"
     step_value = match.group("checkpoint_step") or match.group("final_step")
+    shield_profile_token = match.group("shield_profile_token")
+    _validate_shield_profile_token(shield_profile_token)
     return ResultIdentity(
         condition=match.group("condition").upper(),
         kind=kind,
         step=int(step_value),
         seed=int(match.group("seed")),
+        shield_profile_token=shield_profile_token,
     )
 
 
@@ -244,6 +271,11 @@ def load_strict_candidate_summary(
             f"Result condition {identity.condition!r} does not match "
             f"{gate.condition!r}: {summary_path}"
         )
+    if identity.shield_profile_token != gate.shield_profile_token:
+        raise ValueError(
+            "Result shield profile does not match the selection gate: "
+            f"{identity.shield_profile_token!r} != {gate.shield_profile_token!r}."
+        )
     split = str(raw.get("split", ""))
     if split != gate.split:
         raise ValueError(
@@ -259,6 +291,15 @@ def load_strict_candidate_summary(
     )
     if provenance.get("schema_version") != 1:
         raise ValueError("summary.evaluation_provenance.schema_version must be 1.")
+    declared_shield_enabled = provenance.get("safety_shield_enabled")
+    if (
+        gate.shield_profile_token is None
+        and declared_shield_enabled is not None
+        and declared_shield_enabled is not False
+    ):
+        raise ValueError(
+            "Default checkpoint selection requires safety_shield_enabled=false."
+        )
     provenance_seed = _integer(
         provenance.get("training_seed"),
         "summary.evaluation_provenance.training_seed",
@@ -490,6 +531,7 @@ def make_candidate_record(
         "seed": identity.seed,
         "condition": gate.condition,
         "model_variant": gate.model_variant,
+        "shield_profile_token": identity.shield_profile_token,
         "planner": metrics["planner"],
         "summary_path": _portable_path(summary_path, repository_root),
         "summary_sha256": sha256_file(summary_path),
@@ -566,6 +608,7 @@ def build_checkpoint_selection(
             "step": candidate["step"],
             "planner": candidate["planner"],
             "model_variant": candidate["model_variant"],
+            "shield_profile_token": candidate["shield_profile_token"],
             "model_path": candidate["model_path"],
             "model_sha256": candidate["model_sha256"],
             "episodes": candidate["episodes"],
@@ -579,6 +622,7 @@ def build_checkpoint_selection(
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "selection_status": status,
         "model_variant": gate.model_variant,
+        "shield_profile_token": gate.shield_profile_token,
         "selection_rule": [
             "success_rate_desc",
             "collision_rate_asc",
@@ -593,6 +637,7 @@ def build_checkpoint_selection(
             "condition": gate.condition,
             "episodes": gate.episodes,
             "model_variant": gate.model_variant,
+            "shield_profile_token": gate.shield_profile_token,
             "planner_template": f"ppo_{gate.condition.casefold()}_step{{step}}",
         },
         "gate": {
@@ -630,7 +675,12 @@ def write_checkpoint_selection(
     copy_record["requested"] = copy_selected
     if copy_selected:
         selected = selection.get("formal_selected")
-        if selected is None:
+        shield_profile_token = selection.get("validation_contract", {}).get(
+            "shield_profile_token"
+        )
+        if shield_profile_token is not None:
+            copy_record["reason"] = "shield_profile_requires_deployment_profile"
+        elif selected is None:
             copy_record["reason"] = "no_gate_passing_formal_selection"
         else:
             source = Path(str(selected["model_path"]))

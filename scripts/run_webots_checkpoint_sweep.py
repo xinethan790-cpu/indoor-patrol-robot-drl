@@ -10,10 +10,30 @@ from pathlib import Path
 
 from indoor_patrol_rl.evaluation.checkpoint_sweep import (
     WebotsCheckpointSweepRequest,
+    WebotsSafetyShieldProfile,
+    load_safety_shield_profile,
     run_checkpoint_sweep,
     sweep_exit_code,
 )
 from indoor_patrol_rl.training.webots_curriculum import resolve_webots_executable
+
+
+def _default_output_directory(
+    repository_root: Path,
+    *,
+    condition: str,
+    seed: int,
+    model_variant: str | None,
+    shield_profile: WebotsSafetyShieldProfile | None,
+) -> Path:
+    variant_suffix = f"_{model_variant}" if model_variant else ""
+    shield_suffix = (
+        f"_shield-{shield_profile.result_token}" if shield_profile is not None else ""
+    )
+    return repository_root / "artifacts/results" / (
+        f"webots_validation_{condition.casefold()}_checkpoint_sweep_"
+        f"seed{seed}{variant_suffix}{shield_suffix}"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,6 +60,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-seconds", type=float, default=3600.0)
     parser.add_argument("--webots", type=Path)
     parser.add_argument("--output-dir", type=Path)
+    parser.add_argument(
+        "--shield-profile",
+        type=Path,
+        help=(
+            "Repository-local YAML file containing one complete validation-only "
+            "safety-shield profile."
+        ),
+    )
     return parser
 
 
@@ -48,18 +76,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     repository_root = Path(__file__).absolute().parents[1].resolve()
     condition = args.condition.upper()
-    variant_suffix = f"_{args.model_variant}" if args.model_variant else ""
-    output_directory = args.output_dir or (
-        repository_root
-        / "artifacts/results"
-        / (
-            f"webots_validation_{condition.casefold()}_checkpoint_sweep_"
-            f"seed{args.seed}{variant_suffix}"
-        )
-    )
-    if not output_directory.is_absolute():
-        output_directory = repository_root / output_directory
     try:
+        shield_profile = (
+            load_safety_shield_profile(
+                args.shield_profile,
+                repository_root=repository_root,
+            )
+            if args.shield_profile is not None
+            else None
+        )
+        output_directory = args.output_dir or _default_output_directory(
+            repository_root,
+            condition=condition,
+            seed=args.seed,
+            model_variant=args.model_variant,
+            shield_profile=shield_profile,
+        )
+        if not output_directory.is_absolute():
+            output_directory = repository_root / output_directory
         request = WebotsCheckpointSweepRequest(
             repository_root=repository_root,
             webots_executable=resolve_webots_executable(args.webots),
@@ -77,6 +111,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             port_base=args.port_base,
             workers=args.workers,
             timeout_seconds=args.timeout_seconds,
+            shield_profile=shield_profile,
         )
         manifest = run_checkpoint_sweep(
             request,

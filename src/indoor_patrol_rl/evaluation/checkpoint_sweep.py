@@ -6,6 +6,7 @@ ranking and copying remain the responsibility of ``select_webots_checkpoint.py``
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -13,13 +14,18 @@ import re
 import subprocess
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from indoor_patrol_rl.core import (
+    SAFETY_SHIELD_CONFIG_ENV_FIELDS,
+    SafetyShieldConfig,
+    safety_shield_config_from_env,
+)
 from indoor_patrol_rl.evaluation.checkpoint_selection import (
     CheckpointSelectionGate,
     make_candidate_record,
@@ -36,6 +42,7 @@ PortAllocator = Callable[[int, set[int]], int]
 
 _CONDITION_PATTERN = re.compile(r"[A-Za-z0-9]+")
 _MODEL_VARIANT_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
+_SHIELD_PROFILE_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9_.-]{0,63}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _EVALUATION_WORLD = "worlds/webots_ppo_evaluate.wbt"
 _EVALUATOR_CONTROLLER = (
@@ -75,6 +82,96 @@ def _positive_finite(value: float, label: str, *, allow_zero: bool = False) -> f
 
 
 @dataclass(frozen=True)
+class WebotsSafetyShieldProfile:
+    """One source-bound, complete non-hardware safety-shield configuration."""
+
+    source_path: Path
+    source_sha256: str
+    profile_id: str
+    enabled: bool
+    config: SafetyShieldConfig
+
+    def __post_init__(self) -> None:
+        try:
+            source_path = Path(self.source_path).resolve()
+        except TypeError as error:
+            raise ValueError("Shield profile source_path must be path-like.") from error
+        object.__setattr__(self, "source_path", source_path)
+        if (
+            not isinstance(self.source_sha256, str)
+            or _SHA256_PATTERN.fullmatch(self.source_sha256) is None
+        ):
+            raise ValueError("Shield profile source_sha256 must be lowercase SHA-256.")
+        if (
+            not isinstance(self.profile_id, str)
+            or _SHIELD_PROFILE_ID_PATTERN.fullmatch(self.profile_id) is None
+        ):
+            raise ValueError(
+                "Shield profile_id must be a lowercase path-safe name of at most "
+                "64 characters."
+            )
+        if type(self.enabled) is not bool:
+            raise ValueError("Shield profile enabled must be a boolean.")
+        if not isinstance(self.config, SafetyShieldConfig):
+            raise ValueError("Shield profile config must be a SafetyShieldConfig.")
+
+    @property
+    def config_values(self) -> dict[str, float]:
+        values = asdict(self.config)
+        values.pop("lidar_max_range")
+        return {name: float(value) for name, value in values.items()}
+
+    @property
+    def controller_environment(self) -> dict[str, str]:
+        return {
+            environment_name: repr(self.config_values[field_name])
+            for environment_name, field_name in SAFETY_SHIELD_CONFIG_ENV_FIELDS.items()
+        }
+
+    @property
+    def semantic_sha256(self) -> str:
+        payload = {
+            "enabled": self.enabled,
+            "config": self.config_values,
+        }
+        encoded = json.dumps(
+            payload,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @property
+    def result_token(self) -> str:
+        return f"{self.profile_id}-{self.semantic_sha256[:12]}"
+
+    def verify_source(self, repository_root: Path) -> None:
+        resolved = self.source_path.resolve()
+        try:
+            resolved.relative_to(repository_root.resolve())
+        except ValueError as error:
+            raise ValueError("Shield profile must stay inside the repository.") from error
+        if not resolved.is_file():
+            raise FileNotFoundError(f"Shield profile does not exist: {resolved}")
+        if sha256_file(resolved) != self.source_sha256:
+            raise ValueError("Shield profile source changed after it was loaded.")
+
+    def manifest_record(self, repository_root: Path) -> dict[str, Any]:
+        self.verify_source(repository_root)
+        return {
+            "profile_id": self.profile_id,
+            "result_token": self.result_token,
+            "semantic_sha256": self.semantic_sha256,
+            "source_path": _portable(self.source_path, repository_root),
+            "source_sha256": self.source_sha256,
+            "enabled": self.enabled,
+            "config": self.config_values,
+            "lidar_max_range_source": "LDS-01.getMaxRange()",
+        }
+
+
+@dataclass(frozen=True)
 class WebotsCheckpointSweepRequest:
     """Immutable scenario and model identity for one checkpoint sweep."""
 
@@ -94,6 +191,7 @@ class WebotsCheckpointSweepRequest:
     port_base: int = 13400
     workers: int = 1
     timeout_seconds: float = 3600.0
+    shield_profile: WebotsSafetyShieldProfile | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "repository_root", self.repository_root.resolve())
@@ -143,6 +241,10 @@ class WebotsCheckpointSweepRequest:
         if isinstance(self.workers, bool) or self.workers <= 0:
             raise ValueError("workers must be a positive integer.")
         _positive_finite(self.timeout_seconds, "timeout_seconds")
+        if self.shield_profile is not None:
+            if not isinstance(self.shield_profile, WebotsSafetyShieldProfile):
+                raise ValueError("shield_profile must be a WebotsSafetyShieldProfile.")
+            self.shield_profile.verify_source(self.repository_root)
 
     @property
     def model_directory(self) -> Path:
@@ -162,9 +264,14 @@ class WebotsCheckpointSweepRequest:
         )
 
     def run_name(self, step: int) -> str:
+        shield_suffix = (
+            f"_shield-{self.shield_profile.result_token}"
+            if self.shield_profile is not None
+            else ""
+        )
         return (
             f"webots_validation_{self.condition.casefold()}_"
-            f"checkpoint{step}_seed{self.seed}"
+            f"checkpoint{step}_seed{self.seed}{shield_suffix}"
         )
 
     def planner(self, step: int) -> str:
@@ -187,6 +294,76 @@ def _resolve_inside_repository(path: Path, repository_root: Path, label: str) ->
     except ValueError as error:
         raise ValueError(f"{label} must stay inside the repository: {path}") from error
     return resolved
+
+
+def load_safety_shield_profile(
+    path: Path,
+    *,
+    repository_root: Path,
+) -> WebotsSafetyShieldProfile:
+    """Load a complete repository-local profile and bind its exact source."""
+
+    profile_path = _resolve_inside_repository(path, repository_root, "shield_profile")
+    if not profile_path.is_file():
+        raise FileNotFoundError(f"Shield profile does not exist: {profile_path}")
+    try:
+        raw = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as error:
+        raise ValueError(f"Cannot read shield profile {profile_path}: {error}") from error
+    if not isinstance(raw, dict):
+        raise ValueError("Shield profile must be a YAML mapping.")
+    expected_root_fields = {"schema_version", "profile_id", "enabled", "config"}
+    actual_root_fields = set(raw)
+    if actual_root_fields != expected_root_fields:
+        raise ValueError(
+            "Shield profile fields differ from the schema; "
+            f"expected {sorted(expected_root_fields)}, "
+            f"got {sorted(str(name) for name in actual_root_fields)}."
+        )
+    if type(raw["schema_version"]) is not int or raw["schema_version"] != 1:
+        raise ValueError("Shield profile schema_version must be 1.")
+    profile_id = raw["profile_id"]
+    if (
+        not isinstance(profile_id, str)
+        or _SHIELD_PROFILE_ID_PATTERN.fullmatch(profile_id) is None
+    ):
+        raise ValueError(
+            "Shield profile_id must be a lowercase path-safe name of at most "
+            "64 characters."
+        )
+    enabled = raw["enabled"]
+    if type(enabled) is not bool:
+        raise ValueError("Shield profile enabled must be a boolean.")
+    raw_config = raw["config"]
+    if not isinstance(raw_config, dict):
+        raise ValueError("Shield profile config must be a YAML mapping.")
+    expected_config_fields = set(SAFETY_SHIELD_CONFIG_ENV_FIELDS.values())
+    actual_config_fields = set(raw_config)
+    if actual_config_fields != expected_config_fields:
+        raise ValueError(
+            "Shield profile config must list every non-hardware SafetyShieldConfig "
+            "field exactly once; "
+            f"missing={sorted(expected_config_fields - actual_config_fields)}, "
+            "extra="
+            f"{sorted(str(name) for name in actual_config_fields - expected_config_fields)}."
+        )
+    config_environment: dict[str, str] = {}
+    for environment_name, field_name in SAFETY_SHIELD_CONFIG_ENV_FIELDS.items():
+        raw_value = raw_config[field_name]
+        if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
+            raise ValueError(f"Shield profile config.{field_name} must be a finite number.")
+        value = float(raw_value)
+        if not math.isfinite(value):
+            raise ValueError(f"Shield profile config.{field_name} must be a finite number.")
+        config_environment[environment_name] = repr(value)
+    config = safety_shield_config_from_env(config_environment)
+    return WebotsSafetyShieldProfile(
+        source_path=profile_path,
+        source_sha256=sha256_file(profile_path),
+        profile_id=profile_id,
+        enabled=enabled,
+        config=config,
+    )
 
 
 def _same_float(actual: object, expected: float) -> bool:
@@ -225,6 +402,11 @@ def validate_existing_summary(
         min_success_rate=0.0,
         max_collision_rate=1.0,
         model_variant=request.model_variant,
+        shield_profile_token=(
+            request.shield_profile.result_token
+            if request.shield_profile is not None
+            else None
+        ),
     )
     identity = parse_result_identity(summary_path)
     if identity.kind != "checkpoint" or identity.step != step:
@@ -270,8 +452,46 @@ def validate_existing_summary(
         request.vertical_route_half_length,
     ):
         raise ValueError("Validation summary vertical route length does not match the sweep.")
-    if provenance.get("safety_shield_enabled") is not False:
-        raise ValueError("Checkpoint sweeps require safety_shield_enabled=false.")
+    expected_shield_enabled = (
+        request.shield_profile.enabled if request.shield_profile is not None else False
+    )
+    if provenance.get("safety_shield_enabled") is not expected_shield_enabled:
+        raise ValueError(
+            "Validation summary safety_shield_enabled does not match the sweep."
+        )
+    if request.shield_profile is not None:
+        raw_shield_config = provenance.get("safety_shield_config")
+        if not isinstance(raw_shield_config, dict):
+            raise ValueError(
+                "Explicit shield-profile summaries require safety_shield_config provenance."
+            )
+        expected_fields = set(SafetyShieldConfig.__dataclass_fields__)
+        if set(raw_shield_config) != expected_fields:
+            raise ValueError(
+                "Validation summary safety_shield_config fields do not match "
+                "SafetyShieldConfig."
+            )
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            for value in raw_shield_config.values()
+        ):
+            raise ValueError(
+                "Validation summary safety_shield_config values must be finite numbers."
+            )
+        try:
+            SafetyShieldConfig(**raw_shield_config)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "Validation summary safety_shield_config is invalid."
+            ) from error
+        for field_name, expected_value in request.shield_profile.config_values.items():
+            if not _same_float(raw_shield_config[field_name], expected_value):
+                raise ValueError(
+                    "Validation summary safety_shield_config does not match "
+                    f"profile field {field_name}."
+                )
     if provenance.get("static_layout") != "train_a":
         raise ValueError("Validation summary static_layout must be train_a.")
 
@@ -334,10 +554,16 @@ def _environment(
             request.horizontal_route_half_length
         ),
         "WEBOTS_VERTICAL_ROUTE_HALF_LENGTH": str(request.vertical_route_half_length),
-        "WEBOTS_SAFETY_SHIELD": "false",
+        "WEBOTS_SAFETY_SHIELD": (
+            "true"
+            if request.shield_profile is not None and request.shield_profile.enabled
+            else "false"
+        ),
     }
     if request.model_variant is not None:
         environment["WEBOTS_MODEL_VARIANT"] = request.model_variant
+    if request.shield_profile is not None:
+        environment.update(request.shield_profile.controller_environment)
     return _clean_environment(environment)
 
 
@@ -594,6 +820,40 @@ def run_checkpoint_sweep(
         if all(record["status"] in {"completed", "reused"} for record in records)
         else "failed"
     )
+    request_record: dict[str, Any] = {
+        "seed": request.seed,
+        "condition": request.condition,
+        "model_variant": request.model_variant,
+        "steps": list(request.steps),
+        "episodes": request.episodes,
+        "seed_start": request.seed_start,
+        "scenario_seeds": list(
+            range(request.seed_start, request.seed_start + request.episodes)
+        ),
+        "obstacle_count": request.obstacle_count,
+        "obstacle_speed_range": [
+            request.obstacle_speed_min,
+            request.obstacle_speed_max,
+        ],
+        "horizontal_route_half_length": request.horizontal_route_half_length,
+        "vertical_route_half_length": request.vertical_route_half_length,
+        "safety_shield_enabled": (
+            request.shield_profile.enabled
+            if request.shield_profile is not None
+            else False
+        ),
+        "static_layout": "train_a",
+        "action_repeat": 4,
+        "max_episode_steps": 300,
+        "port_base": request.port_base,
+        "workers": request.workers,
+        "timeout_seconds": request.timeout_seconds,
+    }
+    if request.shield_profile is not None:
+        request_record["safety_shield_profile"] = (
+            request.shield_profile.manifest_record(repository_root)
+        )
+
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "kind": "webots_checkpoint_validation_sweep",
@@ -601,31 +861,7 @@ def run_checkpoint_sweep(
         "split": "validation",
         "started_at": started_at,
         "finished_at": utc_now(),
-        "request": {
-            "seed": request.seed,
-            "condition": request.condition,
-            "model_variant": request.model_variant,
-            "steps": list(request.steps),
-            "episodes": request.episodes,
-            "seed_start": request.seed_start,
-            "scenario_seeds": list(
-                range(request.seed_start, request.seed_start + request.episodes)
-            ),
-            "obstacle_count": request.obstacle_count,
-            "obstacle_speed_range": [
-                request.obstacle_speed_min,
-                request.obstacle_speed_max,
-            ],
-            "horizontal_route_half_length": request.horizontal_route_half_length,
-            "vertical_route_half_length": request.vertical_route_half_length,
-            "safety_shield_enabled": False,
-            "static_layout": "train_a",
-            "action_repeat": 4,
-            "max_episode_steps": 300,
-            "port_base": request.port_base,
-            "workers": request.workers,
-            "timeout_seconds": request.timeout_seconds,
-        },
+        "request": request_record,
         "runtime": {
             "webots_executable": str(executable),
             "evaluation_world": _portable(world_path, repository_root),

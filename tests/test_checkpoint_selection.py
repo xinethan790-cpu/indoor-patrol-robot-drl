@@ -23,6 +23,7 @@ def gate(
     success: float = 0.75,
     collision: float = 0.15,
     model_variant: str | None = None,
+    shield_profile_token: str | None = None,
 ) -> CheckpointSelectionGate:
     return CheckpointSelectionGate(
         seed=11,
@@ -31,6 +32,7 @@ def gate(
         min_success_rate=success,
         max_collision_rate=collision,
         model_variant=model_variant,
+        shield_profile_token=shield_profile_token,
     )
 
 
@@ -45,11 +47,15 @@ def save_candidate(
     completion_time: float = 16.0,
     create_model: bool = True,
     model_variant: str | None = None,
+    shield_profile_token: str | None = None,
 ) -> tuple[Path, Path]:
     planner = f"ppo_w1_step{step}"
     suffix = f"checkpoint{step}" if kind == "checkpoint" else f"final_step{step}"
-    result_directory = (
-        root / "artifacts/results" / f"webots_validation_w1_{suffix}_seed11"
+    shield_suffix = (
+        f"_shield-{shield_profile_token}" if shield_profile_token is not None else ""
+    )
+    result_directory = root / "artifacts/results" / (
+        f"webots_validation_w1_{suffix}_seed11{shield_suffix}"
     )
     result_directory.mkdir(parents=True)
     model_directory = root / "artifacts/models/webots/seed_11"
@@ -125,8 +131,70 @@ def test_identity_supports_checkpoint_and_final_result_names(tmp_path: Path) -> 
 
     assert parse_result_identity(checkpoint).kind == "checkpoint"
     assert parse_result_identity(checkpoint).step == 123
+    assert parse_result_identity(checkpoint).shield_profile_token is None
     assert parse_result_identity(final).kind == "final"
     assert parse_result_identity(final).step == 456
+    assert parse_result_identity(final).shield_profile_token is None
+
+
+def test_profile_result_requires_an_explicit_matching_selection_gate(
+    tmp_path: Path,
+) -> None:
+    token = "front-brake-v1-0123456789ab"
+    summary_path, _ = save_candidate(
+        tmp_path,
+        step=123,
+        shield_profile_token=token,
+    )
+
+    identity = parse_result_identity(summary_path)
+    assert identity.shield_profile_token == token
+    with pytest.raises(ValueError, match="shield profile"):
+        make_candidate_record(summary_path, repository_root=tmp_path, gate=gate())
+
+    candidate = make_candidate_record(
+        summary_path,
+        repository_root=tmp_path,
+        gate=gate(shield_profile_token=token),
+    )
+    assert candidate["step"] == 123
+
+
+def test_default_selection_rejects_renamed_shield_enabled_summary(
+    tmp_path: Path,
+) -> None:
+    summary_path, _ = save_candidate(tmp_path, step=123)
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["evaluation_provenance"]["safety_shield_enabled"] = True
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="safety_shield_enabled=false"):
+        make_candidate_record(summary_path, repository_root=tmp_path, gate=gate())
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "front-brake-v1",
+        "front-brake-v1-0123456789a",
+        "front-brake-v1-0123456789abc",
+        "front-brake-v1-0123456789ag",
+        "Front-brake-v1-0123456789ab",
+    ],
+)
+def test_profile_result_identity_rejects_noncanonical_tokens(
+    tmp_path: Path,
+    token: str,
+) -> None:
+    path = (
+        tmp_path
+        / "artifacts/results"
+        / f"webots_validation_w1_checkpoint123_seed11_shield-{token}"
+        / "summary.json"
+    )
+
+    with pytest.raises(ValueError, match="shield_profile_token|Unsupported"):
+        parse_result_identity(path)
 
 
 def test_legacy_checkpoint_path_remains_unchanged(tmp_path: Path) -> None:
@@ -513,6 +581,40 @@ def test_variant_default_alias_stays_inside_variant_directory(tmp_path: Path) ->
         / "artifacts/models/webots/seed_11"
         / "ppo_webots_w1_validation_selected.zip"
     ).exists()
+
+
+def test_shield_profile_selection_never_copies_a_policy_only_alias(tmp_path: Path) -> None:
+    token = "front-brake-v1-0123456789ab"
+    summary_path, _ = save_candidate(
+        tmp_path,
+        step=123,
+        success_count=18,
+        collision_count=1,
+        shield_profile_token=token,
+    )
+    selection = build_checkpoint_selection(
+        [summary_path],
+        repository_root=tmp_path,
+        gate=gate(shield_profile_token=token),
+    )
+    alias = tmp_path / "aliases/misleading-policy-only.zip"
+
+    write_checkpoint_selection(
+        selection,
+        output_directory=tmp_path / "selection",
+        repository_root=tmp_path,
+        copy_selected=True,
+        alias_path=alias,
+    )
+
+    assert selection["formal_selected"] is not None
+    assert selection["validation_contract"]["shield_profile_token"] == token
+    assert not alias.exists()
+    assert selection["copy_selected"]["performed"] is False
+    assert (
+        selection["copy_selected"]["reason"]
+        == "shield_profile_requires_deployment_profile"
+    )
 
 
 def test_copy_request_does_not_create_alias_when_gate_fails(tmp_path: Path) -> None:
