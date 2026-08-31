@@ -77,3 +77,29 @@ def test_r2a_v2_changes_only_the_early_warning_distance() -> None:
     assert v1_environment.pop("WEBOTS_REWARD_PROXIMITY_DISTANCE") == "0.60"
     assert v2_environment.pop("WEBOTS_REWARD_PROXIMITY_DISTANCE") == "0.70"
     assert v2_environment == v1_environment
+
+
+def test_r2a_v3_changes_only_the_terminal_collision_penalty() -> None:
+    v2 = load_webots_curriculum(
+        REPOSITORY_ROOT / "configs/train/webots_r2a_targeted_v2.yaml"
+    )
+    v3 = load_webots_curriculum(
+        REPOSITORY_ROOT / "configs/train/webots_r2a_targeted_v3.yaml"
+    )
+
+    assert v3.model_variant == "r2a_targeted_v3"
+    assert v3.policy_transfer_model == v2.policy_transfer_model
+    assert len(v3.stages) == 1
+    v2_stage = v2.stages[0]
+    v3_stage = v3.stages[0]
+    assert v3_stage.stage_id == "R2A3"
+    assert v3_stage.training_steps == v2_stage.training_steps == 40960
+    assert v3_stage.gate == v2_stage.gate
+
+    v2_environment = dict(v2_stage.controller_env)
+    v3_environment = dict(v3_stage.controller_env)
+    assert v2_environment.pop("WEBOTS_RUN_ID") == "r2a_targeted_v2"
+    assert v3_environment.pop("WEBOTS_RUN_ID") == "r2a_targeted_v3"
+    assert v2_environment.pop("WEBOTS_REWARD_COLLISION_PENALTY") == "-30.0"
+    assert v3_environment.pop("WEBOTS_REWARD_COLLISION_PENALTY") == "-40.0"
+    assert v3_environment == v2_environment
