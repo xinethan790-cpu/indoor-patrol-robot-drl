@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -21,15 +22,24 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        help=(
-            "Optional PPO .zip path. By default the controller prefers the Webots "
-            "seed-11 latest model and falls back to the stage-2 kinematic warm start."
-        ),
+        help=("Optional PPO .zip path for an explicitly unvalidated exploratory run."),
     )
     parser.add_argument(
-        "--output-dir",
-        help="Result directory, relative to the repository unless absolute.",
+        "--allow-unvalidated-model",
+        action="store_true",
+        help="Acknowledge that --model bypasses formal model selection.",
     )
+    parser.add_argument("--run-id", help="Stable run identity; defaults to seed plus UTC time.")
+    parser.add_argument(
+        "--output-dir",
+        help="New result directory; defaults to artifacts/results/<run-id>.",
+    )
+    parser.add_argument(
+        "--inspection-config",
+        default="configs/inspection/environmental_patrol_v1.yaml",
+        help="Environmental sensing and alarm scenario YAML.",
+    )
+    parser.add_argument("--timeout-s", type=float, help="Optional whole-task simulation timeout.")
     parser.add_argument("--port", type=int, default=1262, help="Webots TCP port.")
     parser.add_argument(
         "--headless",
@@ -62,10 +72,27 @@ def main() -> int:
     args = parse_args()
     if args.max_steps is not None and args.max_steps <= 0:
         raise ValueError("--max-steps must be positive.")
+    if args.timeout_s is not None and args.timeout_s <= 0.0:
+        raise ValueError("--timeout-s must be positive.")
     if not 1 <= args.port <= 65535:
         raise ValueError("--port must be between 1 and 65535.")
+    if args.model and not args.allow_unvalidated_model:
+        raise ValueError("--model requires --allow-unvalidated-model.")
 
     repository_root = Path(__file__).absolute().parents[1]
+    run_id = args.run_id or (
+        f"webots-patrol-seed{args.seed}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
+    )
+    if not run_id.strip() or any(character in run_id for character in "/\\"):
+        raise ValueError("--run-id must be non-empty and cannot contain path separators.")
+    output_value = args.output_dir or f"artifacts/results/{run_id}"
+    output_directory = Path(output_value).expanduser()
+    if not output_directory.is_absolute():
+        output_directory = repository_root / output_directory
+    if output_directory.exists():
+        raise FileExistsError(
+            f"Patrol output directory already exists; choose a new run: {output_directory}"
+        )
     webots = discover_webots(args.webots)
     subprocess.run(
         [sys.executable, str(repository_root / "scripts/configure_webots_python.py")],
@@ -74,12 +101,17 @@ def main() -> int:
     )
     environment = os.environ.copy()
     environment["WEBOTS_PATROL_SEED"] = str(args.seed)
+    environment["WEBOTS_PATROL_RUN_ID"] = run_id
+    environment["WEBOTS_PATROL_OUTPUT_DIR"] = str(output_directory)
+    environment["WEBOTS_PATROL_INSPECTION_CONFIG"] = args.inspection_config
     if args.max_steps is not None:
         environment["WEBOTS_PATROL_MAX_STEPS"] = str(args.max_steps)
     if args.model:
         environment["WEBOTS_PATROL_MODEL"] = args.model
-    if args.output_dir:
-        environment["WEBOTS_PATROL_OUTPUT_DIR"] = args.output_dir
+    if args.allow_unvalidated_model:
+        environment["WEBOTS_PATROL_ALLOW_UNVALIDATED_MODEL"] = "1"
+    if args.timeout_s is not None:
+        environment["WEBOTS_PATROL_TIMEOUT_S"] = str(args.timeout_s)
     if args.headless:
         environment["WEBOTS_AUTO_QUIT"] = "1"
 

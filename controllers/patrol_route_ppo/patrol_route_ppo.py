@@ -12,6 +12,7 @@ import math
 import os
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,18 @@ import yaml
 from controller import Supervisor
 from stable_baselines3 import PPO
 
+from indoor_patrol_rl.application import (
+    PatrolLiveAlert,
+    PatrolLiveOutcome,
+    PatrolLiveReadings,
+    PatrolLiveSnapshot,
+    PatrolLiveStatusWriter,
+    PatrolRuntimeIdentity,
+    PatrolTaskCheckpoint,
+    PatrolTaskMachine,
+    PatrolTaskState,
+    validate_checkpoint_layout,
+)
 from indoor_patrol_rl.core import DifferentialDriveMapper, ObservationBuilder, VelocityRateLimiter
 from indoor_patrol_rl.envs.webots_patrol import _webots_scan_to_policy_order
 from indoor_patrol_rl.evaluation import (
@@ -32,6 +45,11 @@ from indoor_patrol_rl.evaluation import (
     select_patrol_model,
     write_patrol_outputs,
 )
+from indoor_patrol_rl.inspection import (
+    EnvironmentalInspection,
+    load_inspection_config,
+    write_inspection_bundle,
+)
 from indoor_patrol_rl.planning import (
     AxisAlignedRectangle,
     PlannedPath,
@@ -39,6 +57,8 @@ from indoor_patrol_rl.planning import (
     grid_from_rectangles,
     plan_world_path,
 )
+
+_emergency_live_failure: Callable[[], None] | None = None
 
 
 @dataclass
@@ -70,12 +90,19 @@ def environment_flag(name: str, *, default: bool = False) -> bool:
 
 
 def main() -> None:
+    global _emergency_live_failure
+    _emergency_live_failure = None
     repository_root = Path(__file__).absolute().parents[2]
     supervisor = Supervisor()
     try:
         run_patrol(supervisor, repository_root)
     except Exception:
         traceback.print_exc()
+        if _emergency_live_failure is not None:
+            try:
+                _emergency_live_failure()
+            except Exception:
+                traceback.print_exc()
         _stop_robot(supervisor)
         supervisor.step(int(supervisor.getBasicTimeStep()))
         supervisor.simulationQuit(1)
@@ -128,6 +155,7 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
     if local_target_node is None:
         raise RuntimeError("The Webots world is missing DEF LOCAL_TARGET.")
     local_target_field = local_target_node.getField("translation")
+    _validate_route_checkpoint_nodes(supervisor, checkpoints)
     moving_obstacles = _initialize_obstacles(supervisor, random)
 
     for _ in range(2):
@@ -162,13 +190,72 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             f"got {model.action_space.shape}."
         )
 
+    run_id = os.environ.get(
+        "WEBOTS_PATROL_RUN_ID",
+        f"webots-patrol-seed{seed}-{time.time_ns()}",
+    ).strip()
+    if not run_id:
+        raise ValueError("WEBOTS_PATROL_RUN_ID must be non-empty.")
+    if any(character in run_id for character in "/\\"):
+        raise ValueError("WEBOTS_PATROL_RUN_ID cannot contain path separators.")
+    inspection_config_value = os.environ.get(
+        "WEBOTS_PATROL_INSPECTION_CONFIG",
+        "configs/inspection/environmental_patrol_v1.yaml",
+    )
+    inspection_config_path = Path(inspection_config_value).expanduser()
+    if not inspection_config_path.is_absolute():
+        inspection_config_path = repository_root / inspection_config_path
+    inspection_config_path = inspection_config_path.resolve()
+    inspection_config = load_inspection_config(inspection_config_path)
+    required_live_sensor_ids = {
+        "temperature",
+        "smoke_obscuration",
+        "carbon_monoxide",
+    }
+    configured_sensor_ids = {sensor.id for sensor in inspection_config.sensors}
+    missing_live_sensor_ids = required_live_sensor_ids - configured_sensor_ids
+    if missing_live_sensor_ids:
+        raise ValueError(
+            "The patrol dashboard inspection config is missing required sensors: "
+            f"{sorted(missing_live_sensor_ids)}."
+        )
+    inspection = EnvironmentalInspection(
+        inspection_config,
+        run_id=run_id,
+        scenario_seed=seed,
+    )
+    task_timeout_s = float(
+        os.environ.get(
+            "WEBOTS_PATROL_TIMEOUT_S",
+            str(
+                max_control_steps * control_dt
+                + len(checkpoints) * (inspection.sampling_duration_s + control_dt)
+            ),
+        )
+    )
+    task_machine = PatrolTaskMachine(
+        [
+            PatrolTaskCheckpoint(checkpoint_id, checkpoint_position)
+            for checkpoint_id, checkpoint_position in checkpoints
+        ],
+        arrival_radius_m=0.22,
+        dwell_time_s=inspection.sampling_duration_s,
+        timeout_s=task_timeout_s,
+    )
+
     output_value = os.environ.get(
         "WEBOTS_PATROL_OUTPUT_DIR",
-        f"artifacts/results/webots_patrol_route_seed{seed}",
+        f"artifacts/results/{run_id}",
     )
     output_directory = Path(output_value).expanduser()
     if not output_directory.is_absolute():
         output_directory = repository_root / output_directory
+    output_directory = output_directory.resolve()
+    if output_directory.exists() and any(output_directory.iterdir()):
+        raise FileExistsError(
+            "Patrol output directory already contains files; choose a new run: "
+            f"{output_directory}"
+        )
 
     print(
         f"PATROL_MODEL path={portable_model_path(model_selection.path, repository_root)} "
@@ -219,6 +306,116 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
     checkpoint_records: list[PatrolCheckpointRecord] = []
     collision_records: list[PatrolCollisionRecord] = []
     inference_latencies_ms: list[float] = []
+    live_writer = PatrolLiveStatusWriter(output_directory, run_id=run_id)
+    runtime_identity = PatrolRuntimeIdentity(
+        model_id=portable_model_path(model_selection.path, repository_root),
+        model_sha256=model_selection.model_sha256,
+        safety_shield_enabled=False,
+    )
+    live_sequence = -1
+    latest_live_readings = PatrolLiveReadings()
+    active_live_alerts: dict[str, PatrolLiveAlert] = {}
+
+    def publish_live(
+        *,
+        state: PatrolTaskState,
+        outcome: PatrolLiveOutcome,
+        control_step: int,
+        simulation_time_s: float,
+        current_position: tuple[float, float],
+        local_goal: tuple[float, float] | None = None,
+        remaining_distance_m: float | None = None,
+    ) -> None:
+        nonlocal live_sequence
+        completed_count = len(task_machine.completed_checkpoint_ids)
+        current_checkpoint = task_machine.current_checkpoint
+        live_sequence += 1
+        live_writer.publish(
+            PatrolLiveSnapshot(
+                run_id=run_id,
+                sequence=live_sequence,
+                state=state,
+                outcome=outcome,
+                seed=seed,
+                control_step=control_step,
+                simulation_time_s=simulation_time_s,
+                position=(float(current_position[0]), float(current_position[1])),
+                current_checkpoint_id=(
+                    None if current_checkpoint is None else current_checkpoint.checkpoint_id
+                ),
+                current_checkpoint_ordinal=(
+                    None if current_checkpoint is None else completed_count + 1
+                ),
+                completed_checkpoint_count=completed_count,
+                checkpoint_count=len(checkpoints),
+                progress_ratio=completed_count / len(checkpoints),
+                local_goal=local_goal,
+                remaining_distance_m=remaining_distance_m,
+                latest_readings=latest_live_readings,
+                active_alerts=tuple(
+                    active_live_alerts[rule.id]
+                    for rule in inspection.config.alarm_rules
+                    if rule.id in active_live_alerts
+                ),
+                runtime_identity=runtime_identity,
+            )
+        )
+
+    def update_live_inspection(inspection_result: Any) -> None:
+        nonlocal latest_live_readings
+        latest_by_sensor = {
+            sample.sensor_id: sample for sample in inspection_result.samples
+        }
+        if not required_live_sensor_ids.issubset(latest_by_sensor):
+            raise RuntimeError(
+                "The live dashboard requires temperature, smoke, and carbon-monoxide "
+                "readings from every inspection visit."
+            )
+        latest_live_readings = PatrolLiveReadings(
+            temperature_c=latest_by_sensor["temperature"].observed_value,
+            smoke_obscuration_pct_per_m=(
+                latest_by_sensor["smoke_obscuration"].observed_value
+            ),
+            carbon_monoxide_ppm=(
+                latest_by_sensor["carbon_monoxide"].observed_value
+            ),
+            sampled_at_s=max(
+                sample.simulation_time_s for sample in inspection_result.samples
+            ),
+            checkpoint_id=inspection_result.visit.checkpoint_id,
+        )
+        for event in inspection_result.events:
+            if event.event_type == "raised":
+                active_live_alerts[event.rule_id] = PatrolLiveAlert(
+                    rule_id=event.rule_id,
+                    sensor_id=event.sensor_id,
+                    severity=event.severity,
+                    observed_value=event.observed_value,
+                    threshold=event.threshold,
+                    unit=event.unit,
+                    message=event.message,
+                    raised_at_s=event.simulation_time_s,
+                )
+            else:
+                active_live_alerts.pop(event.rule_id, None)
+
+    def publish_unhandled_failure() -> None:
+        last_snapshot = live_writer.last_snapshot
+        if last_snapshot is None or last_snapshot.state in {
+            PatrolTaskState.COMPLETED,
+            PatrolTaskState.FAILED,
+        }:
+            return
+        publish_live(
+            state=PatrolTaskState.FAILED,
+            outcome=PatrolLiveOutcome.ERROR,
+            control_step=last_snapshot.control_step,
+            simulation_time_s=last_snapshot.simulation_time_s,
+            current_position=last_snapshot.position,
+        )
+
+    global _emergency_live_failure
+    _emergency_live_failure = publish_unhandled_failure
 
     def finish_run(
         *,
@@ -228,6 +425,22 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         failure_reason: str | None = None,
     ) -> None:
         _stop_robot(supervisor)
+        terminal_state = (
+            PatrolTaskState.COMPLETED
+            if outcome == "completed"
+            else PatrolTaskState.FAILED
+        )
+        terminal_outcome = {
+            "completed": PatrolLiveOutcome.SUCCESS,
+            "collision": PatrolLiveOutcome.COLLISION,
+            "timeout": PatrolLiveOutcome.TIMEOUT,
+            "error": (
+                PatrolLiveOutcome.INSPECTION_FAILED
+                if failure_reason is not None
+                and failure_reason.startswith("inspection sampling failed")
+                else PatrolLiveOutcome.ERROR
+            ),
+        }[outcome]
         output_checkpoints = list(checkpoint_records)
         recorded_ids = {record.checkpoint_id for record in output_checkpoints}
         for index, (checkpoint_id, target) in enumerate(checkpoints):
@@ -268,7 +481,7 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         latency_p95 = float(np.percentile(latencies, 95)) if latencies.size else 0.0
         summary = PatrolRunSummary(
             schema_version="1.0",
-            run_id=f"webots-patrol-seed{seed}",
+            run_id=run_id,
             backend="Webots R2025a",
             planner="astar_local_waypoint_ppo",
             scenario_seed=seed,
@@ -297,28 +510,250 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             checkpoints_file="checkpoints.csv",
             collisions_file="collisions.csv",
         )
-        paths = write_patrol_outputs(
-            output_directory,
-            trajectory=trajectory,
-            checkpoints=output_checkpoints,
-            collisions=collision_records,
-            summary=summary,
+        try:
+            paths = write_patrol_outputs(
+                output_directory,
+                trajectory=trajectory,
+                checkpoints=output_checkpoints,
+                collisions=collision_records,
+                summary=summary,
+            )
+            inspection_paths = write_inspection_bundle(
+                output_directory,
+                inspection,
+                inspection_config_path,
+                expected_checkpoint_count=len(checkpoints),
+                patrol_summary_path=paths["summary"],
+            )
+        except Exception:
+            try:
+                publish_live(
+                    state=PatrolTaskState.FAILED,
+                    outcome=PatrolLiveOutcome.ERROR,
+                    control_step=control_step_count,
+                    simulation_time_s=physics_step_count * basic_time_step / 1000.0,
+                    current_position=position(),
+                )
+            except Exception:
+                pass
+            raise
+        publish_live(
+            state=terminal_state,
+            outcome=terminal_outcome,
+            control_step=control_step_count,
+            simulation_time_s=physics_step_count * basic_time_step / 1000.0,
+            current_position=position(),
         )
         print(
             f"WEBOTS_PATROL_FINISHED outcome={outcome} visited={visited}/{len(checkpoints)} "
             f"collisions={len(collision_records)} path={total_path_length:.3f} "
-            f"results={paths['summary'].parent}",
+            f"samples={len(inspection.samples)} alarms={len(inspection.events)} "
+            f"results={inspection_paths['summary'].parent}",
             flush=True,
         )
         supervisor.step(basic_time_step)
         _finish_simulation(supervisor, exit_code)
 
+    initial_goal = waypoint_state.target
+    publish_live(
+        state=PatrolTaskState.NAVIGATING,
+        outcome=PatrolLiveOutcome.RUNNING,
+        control_step=0,
+        simulation_time_s=0.0,
+        current_position=(float(previous_position[0]), float(previous_position[1])),
+        local_goal=initial_goal,
+        remaining_distance_m=(
+            None
+            if initial_goal is None
+            else _remaining_path_distance(
+                active_path,
+                waypoint_state.target_index,
+                (float(previous_position[0]), float(previous_position[1])),
+            )
+        ),
+    )
+
     for control_step in range(1, max_control_steps + 1):
         current_position = position()
         waypoint_state = waypoint_manager.update(current_position)
-        if waypoint_state.completed:
+        simulation_time_s = physics_step_count * basic_time_step / 1000.0
+        task_update = task_machine.update(
+            position=current_position,
+            collision=False,
+            simulation_time_s=simulation_time_s,
+            control_step=control_step - 1,
+        )
+        if task_update.state is PatrolTaskState.FAILED:
+            finish_run(
+                outcome="timeout",
+                control_step_count=control_step - 1,
+                exit_code=3,
+                failure_reason=task_update.failure_reason,
+            )
+            return
+        if task_update.state is PatrolTaskState.DWELLING:
+            if not waypoint_state.completed:
+                raise RuntimeError(
+                    "Patrol task entered DWELLING before the active waypoint path completed."
+                )
             checkpoint_id, target = checkpoints[checkpoint_index]
             completed_actions = control_step - 1
+            arrival_time_s = simulation_time_s
+            arrival_position = current_position
+            _stop_robot(supervisor)
+            current_linear = 0.0
+            current_angular = 0.0
+            previous_action = np.array([-1.0, 0.0], dtype=np.float32)
+            publish_live(
+                state=PatrolTaskState.DWELLING,
+                outcome=PatrolLiveOutcome.RUNNING,
+                control_step=completed_actions,
+                simulation_time_s=simulation_time_s,
+                current_position=arrival_position,
+            )
+            print(
+                f"PPO_POINT_ARRIVED id={checkpoint_id} step={completed_actions} "
+                f"dwell={inspection.sampling_duration_s:.3f}",
+                flush=True,
+            )
+
+            dwell_aborted = False
+            while task_update.state is PatrolTaskState.DWELLING:
+                _move_obstacles(moving_obstacles, basic_time_step)
+                if supervisor.step(basic_time_step) == -1:
+                    raise RuntimeError("Webots ended during checkpoint inspection dwell.")
+                physics_step_count += 1
+                dwell_position = np.asarray(position(), dtype=np.float64)
+                traveled = float(np.linalg.norm(dwell_position - previous_position))
+                total_path_length += traveled
+                segment_path_length += traveled
+                previous_position = dwell_position
+                dwell_scan = _range_image(lidar)
+                dwell_lidar_minimum = _minimum(dwell_scan)
+                contact_collision = _has_contact_collision(robot_node)
+                lidar_collision = (
+                    dwell_lidar_minimum <= float(lidar.getMinRange()) + 0.01
+                )
+                collision = bool(contact_collision or lidar_collision)
+                clearance = 0.0 if collision else max(0.0, dwell_lidar_minimum - 0.10)
+                minimum_lidar_range = min(minimum_lidar_range, dwell_lidar_minimum)
+                minimum_clearance = min(minimum_clearance, clearance)
+                segment_minimum_clearance = min(segment_minimum_clearance, clearance)
+                simulation_time_s = physics_step_count * basic_time_step / 1000.0
+                task_update = task_machine.update(
+                    position=(float(dwell_position[0]), float(dwell_position[1])),
+                    collision=collision,
+                    simulation_time_s=simulation_time_s,
+                    control_step=completed_actions,
+                )
+                if collision:
+                    detection_source = "contact" if contact_collision else "lidar_threshold"
+                    collision_records.append(
+                        PatrolCollisionRecord(
+                            collision_index=len(collision_records) + 1,
+                            control_step=completed_actions,
+                            simulation_time_s=simulation_time_s,
+                            position_x_m=float(dwell_position[0]),
+                            position_y_m=float(dwell_position[1]),
+                            detection_source=detection_source,
+                            minimum_lidar_range_m=dwell_lidar_minimum,
+                        )
+                    )
+                    finish_run(
+                        outcome="collision",
+                        control_step_count=completed_actions,
+                        exit_code=2,
+                        failure_reason=f"collision during inspection dwell by {detection_source}",
+                    )
+                    return
+                if task_update.state is PatrolTaskState.FAILED:
+                    finish_run(
+                        outcome="timeout",
+                        control_step_count=completed_actions,
+                        exit_code=3,
+                        failure_reason=task_update.failure_reason,
+                    )
+                    return
+                if task_update.state is PatrolTaskState.NAVIGATING:
+                    current_position = (float(dwell_position[0]), float(dwell_position[1]))
+                    active_path = plan_world_path(grid, current_position, target)
+                    waypoint_state = waypoint_manager.reset(active_path)
+                    observation_builder.reset(dwell_scan)
+                    drift_goal = waypoint_state.target
+                    publish_live(
+                        state=PatrolTaskState.NAVIGATING,
+                        outcome=PatrolLiveOutcome.RUNNING,
+                        control_step=completed_actions,
+                        simulation_time_s=simulation_time_s,
+                        current_position=current_position,
+                        local_goal=drift_goal,
+                        remaining_distance_m=(
+                            None
+                            if drift_goal is None
+                            else _remaining_path_distance(
+                                active_path,
+                                waypoint_state.target_index,
+                                current_position,
+                            )
+                        ),
+                    )
+                    dwell_aborted = True
+                    print(
+                        f"PPO_DWELL_RESET id={checkpoint_id} reason=left_arrival_radius",
+                        flush=True,
+                    )
+                    break
+                if task_update.state is PatrolTaskState.DWELLING:
+                    publish_live(
+                        state=PatrolTaskState.DWELLING,
+                        outcome=PatrolLiveOutcome.RUNNING,
+                        control_step=completed_actions,
+                        simulation_time_s=simulation_time_s,
+                        current_position=(
+                            float(dwell_position[0]),
+                            float(dwell_position[1]),
+                        ),
+                    )
+
+            if dwell_aborted:
+                continue
+            if not task_update.sampling_requested:
+                raise RuntimeError("Checkpoint dwell ended without requesting sampling.")
+            publish_live(
+                state=PatrolTaskState.SAMPLING,
+                outcome=PatrolLiveOutcome.RUNNING,
+                control_step=completed_actions,
+                simulation_time_s=simulation_time_s,
+                current_position=position(),
+            )
+            try:
+                inspection_result = inspection.sample_visit(
+                    checkpoint_id,
+                    checkpoint_index + 1,
+                    completed_actions,
+                    arrival_time_s,
+                    arrival_position,
+                )
+                update_live_inspection(inspection_result)
+            except Exception as error:
+                task_machine.record_sampling_result(
+                    success=False,
+                    failure_reason=f"inspection sampling failed: {error}",
+                    simulation_time_s=simulation_time_s,
+                    control_step=completed_actions,
+                )
+                finish_run(
+                    outcome="error",
+                    control_step_count=completed_actions,
+                    exit_code=1,
+                    failure_reason=f"inspection sampling failed: {error}",
+                )
+                return
+            task_update = task_machine.record_sampling_result(
+                success=True,
+                simulation_time_s=simulation_time_s,
+                control_step=completed_actions,
+            )
             checkpoint_records.append(
                 PatrolCheckpointRecord(
                     checkpoint_id=checkpoint_id,
@@ -327,16 +762,36 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                     target_y_m=target[1],
                     reached=True,
                     reached_control_step=completed_actions,
-                    arrival_simulation_time_s=(
-                        physics_step_count * basic_time_step / 1000.0
-                    ),
+                    arrival_simulation_time_s=arrival_time_s,
                     segment_control_steps=completed_actions - segment_start_step,
                     actual_segment_path_m=segment_path_length,
                     planned_segment_path_m=active_path.length,
-                    segment_path_ratio=segment_path_length / active_path.length,
+                    segment_path_ratio=(
+                        segment_path_length / active_path.length
+                        if active_path.length > 0.0
+                        else None
+                    ),
                     segment_minimum_clearance_m=segment_minimum_clearance,
                 )
             )
+            latest_by_sensor = {
+                sample.sensor_id: sample for sample in inspection_result.samples
+            }
+            print(
+                "INSPECTION_COMPLETED "
+                f"id={checkpoint_id} "
+                + " ".join(
+                    f"{sensor_id}={sample.observed_value:g}{sample.unit}"
+                    for sensor_id, sample in latest_by_sensor.items()
+                ),
+                flush=True,
+            )
+            for event in inspection_result.events:
+                print(
+                    f"INSPECTION_ALARM type={event.event_type} rule={event.rule_id} "
+                    f"severity={event.severity} value={event.observed_value:g}{event.unit}",
+                    flush=True,
+                )
             print(
                 f"PPO_POINT_VISITED id={checkpoint_id} step={completed_actions} "
                 f"segment_path={segment_path_length:.3f}",
@@ -344,8 +799,11 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             )
             checkpoint_index += 1
             if checkpoint_index == len(checkpoints):
+                if task_update.state is not PatrolTaskState.COMPLETED:
+                    raise RuntimeError("Final patrol sampling did not complete the task.")
                 finish_run(outcome="completed", control_step_count=completed_actions, exit_code=0)
                 return
+            current_position = position()
             active_path = plan_world_path(
                 grid,
                 current_position,
@@ -356,6 +814,28 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             segment_path_length = 0.0
             segment_minimum_clearance = math.inf
             segment_start_step = completed_actions
+            current_scan = _range_image(lidar)
+            observation_builder.reset(current_scan)
+            previous_action = np.array([-1.0, 0.0], dtype=np.float32)
+            previous_position = np.asarray(current_position, dtype=np.float64)
+            next_goal = waypoint_state.target
+            publish_live(
+                state=PatrolTaskState.NAVIGATING,
+                outcome=PatrolLiveOutcome.RUNNING,
+                control_step=completed_actions,
+                simulation_time_s=simulation_time_s,
+                current_position=current_position,
+                local_goal=next_goal,
+                remaining_distance_m=(
+                    None
+                    if next_goal is None
+                    else _remaining_path_distance(
+                        active_path,
+                        waypoint_state.target_index,
+                        current_position,
+                    )
+                ),
+            )
             print(
                 f"PPO_ROUTE_PLANNED checkpoint={checkpoints[checkpoint_index][0]} "
                 f"cells={len(active_path.cells)} waypoints={len(active_path.waypoints)} "
@@ -457,6 +937,12 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             )
         )
         if collision:
+            task_machine.update(
+                position=(float(new_position[0]), float(new_position[1])),
+                collision=True,
+                simulation_time_s=physics_step_count * basic_time_step / 1000.0,
+                control_step=control_step,
+            )
             detection_source = "contact" if contact_collision else "lidar_threshold"
             collision_records.append(
                 PatrolCollisionRecord(
@@ -476,6 +962,15 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 failure_reason=f"collision detected by {detection_source}",
             )
             return
+        publish_live(
+            state=PatrolTaskState.NAVIGATING,
+            outcome=PatrolLiveOutcome.RUNNING,
+            control_step=control_step,
+            simulation_time_s=physics_step_count * basic_time_step / 1000.0,
+            current_position=(float(new_position[0]), float(new_position[1])),
+            local_goal=(float(target[0]), float(target[1])),
+            remaining_distance_m=remaining_distance,
+        )
 
     finish_run(
         outcome="timeout",
@@ -514,6 +1009,25 @@ def _initialize_obstacles(
             )
         )
     return result
+
+
+def _validate_route_checkpoint_nodes(
+    supervisor: Supervisor,
+    checkpoints: list[tuple[str, tuple[float, float]]],
+) -> None:
+    world_positions: dict[str, tuple[float, float]] = {}
+    task_checkpoints = [
+        PatrolTaskCheckpoint(checkpoint_id, position)
+        for checkpoint_id, position in checkpoints
+    ]
+    for checkpoint in task_checkpoints:
+        def_name = f"ROUTE_CHECKPOINT_{checkpoint.checkpoint_id}"
+        node = supervisor.getFromDef(def_name)
+        if node is None:
+            raise RuntimeError(f"The Webots world is missing DEF {def_name}.")
+        values = node.getField("translation").getSFVec3f()
+        world_positions[checkpoint.checkpoint_id] = (float(values[0]), float(values[1]))
+    validate_checkpoint_layout(task_checkpoints, world_positions)
 
 
 def _move_obstacles(obstacles: list[MovingObstacleControl], basic_time_step: int) -> None:
