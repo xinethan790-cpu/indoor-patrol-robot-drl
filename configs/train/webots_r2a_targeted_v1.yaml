@@ -1,0 +1,45 @@
+# R2a targeted fine-tuning preregistration.
+# The policy-only source is the legacy exploratory R1 checkpoint below.  Its exact
+# SHA-256 must be verified before training:
+# 70e84ff352925f09c1dbbae74750f6ff2a7096d4edc303e5aa4dc06cc7289055
+# This stage starts a fresh PPO optimizer and lowers action std from about 0.60 to
+# 0.45.  It remains an exploratory single-obstacle result, not a formal patrol claim.
+schema_version: 1
+transfer_model: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+policy_transfer_model: artifacts/models/webots/seed_11/curriculum_v2/checkpoints/ppo_webots_s11_curriculum_v2_40960_steps.zip
+model_variant: r2a_targeted_v1
+port_base: 13220
+validation:
+  split: validation
+  seed_start: 5000
+  episodes: 100
+  min_success_rate: 0.75
+  max_collision_rate: 0.25
+stages:
+  - id: R2A
+    name: single_medium_low_targeted
+    obstacle_count: 1
+    training_steps: 40960
+    controller_env:
+      WEBOTS_RUN_ID: r2a_targeted
+      WEBOTS_OBSTACLE_SPEED_MIN: "0.10"
+      WEBOTS_OBSTACLE_SPEED_MAX: "0.20"
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_SAFETY_SHIELD: "false"
+      WEBOTS_REWARD_SAFETY_DISTANCE: "0.35"
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: "0.60"
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: "0.80"
+      WEBOTS_REWARD_SAFETY_WEIGHT: "-0.60"
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: "-0.005"
+      WEBOTS_REWARD_GOAL: "30.0"
+      WEBOTS_REWARD_COLLISION_PENALTY: "-30.0"
+      WEBOTS_REWARD_TIMEOUT_PENALTY: "-5.0"
+      WEBOTS_PPO_N_STEPS: "2048"
+      WEBOTS_PPO_BATCH_SIZE: "128"
+      WEBOTS_PPO_N_EPOCHS: "5"
+      WEBOTS_PPO_LEARNING_RATE: "0.00003"
+      WEBOTS_PPO_ENT_COEF: "0.001"
+      WEBOTS_PPO_GAMMA: "0.995"
+      WEBOTS_PPO_TARGET_KL: "0.02"
+      WEBOTS_PPO_INITIAL_ACTION_STD: "0.45"

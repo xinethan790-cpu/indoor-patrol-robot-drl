@@ -478,6 +478,43 @@ def test_manifests_and_copy_alias_require_a_formal_selection(tmp_path: Path) -> 
     assert saved_json["copy_selected"]["alias_sha256"] == sha256_file(source_model)
 
 
+def test_variant_default_alias_stays_inside_variant_directory(tmp_path: Path) -> None:
+    summary_path, source_model = save_candidate(
+        tmp_path,
+        step=40960,
+        success_count=18,
+        collision_count=1,
+        model_variant="r2a_targeted_v1",
+    )
+    selection = build_checkpoint_selection(
+        [summary_path],
+        repository_root=tmp_path,
+        gate=gate(model_variant="r2a_targeted_v1"),
+    )
+
+    write_checkpoint_selection(
+        selection,
+        output_directory=tmp_path / "selection",
+        repository_root=tmp_path,
+        copy_selected=True,
+    )
+
+    alias = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/r2a_targeted_v1"
+        / "ppo_webots_w1_validation_selected.zip"
+    )
+    assert alias.read_bytes() == source_model.read_bytes()
+    assert selection["copy_selected"]["alias_path"] == alias.relative_to(
+        tmp_path
+    ).as_posix()
+    assert not (
+        tmp_path
+        / "artifacts/models/webots/seed_11"
+        / "ppo_webots_w1_validation_selected.zip"
+    ).exists()
+
+
 def test_copy_request_does_not_create_alias_when_gate_fails(tmp_path: Path) -> None:
     summary_path, _ = save_candidate(
         tmp_path, step=123, success_count=10, collision_count=10
