@@ -1,0 +1,150 @@
+{
+  "kind": "webots_system_deployment_profile",
+  "qualification": {
+    "fixed_safety_report": {
+      "decision": "admit_r2a_front_brake_system_for_r2b_preregistration",
+      "path": "artifacts/results/webots_r2a_front_brake_fixed_system_validation_v1/fixed_safety_report.json",
+      "sha256": "0e5ca1a15889dd4eb2576562d478d4396b8620d059ea1bed00dbcd121ad43fd8"
+    },
+    "git_revision": "df4a9f27193fcc524fc770190779c45759b9ec59",
+    "paired_diagnostic_config": {
+      "path": "configs/eval/webots_r2a_front_brake_paired_diagnostic_v1.yaml",
+      "sha256": "7be127f48cccc3de6e3c9118074f3fc9e146cf17c75570397d7fea5fbe4126bd"
+    },
+    "paired_diagnostic_report": {
+      "outcome": "retain_front_brake_profile_for_fixed_r2a_validation",
+      "passed": true,
+      "path": "artifacts/results/webots_r2a_front_brake_paired_diagnostic_v1/paired_safety_report.json",
+      "sha256": "728b23bf0729ecf2a75d2c473ccecf5e1eda17cab17e12e05123e708d3018a97"
+    },
+    "preregistration_revision": "a7b4abf87903af7ea9d830f281339c180c19ade3"
+  },
+  "restrictions": {
+    "formal_model_promotion": "forbidden",
+    "model_and_shield_must_be_deployed_together": true,
+    "policy_only_alias_created": false
+  },
+  "runtime_inputs": {
+    "checkpoint_sweep_runner": {
+      "path": "scripts/run_webots_checkpoint_sweep.py",
+      "sha256": "b4f6a7296bba168d884b628989fbaeee08889cbd1947295a4f3d90bbc02845a9"
+    },
+    "environment_adapter": {
+      "path": "src/indoor_patrol_rl/envs/webots_patrol.py",
+      "sha256": "52697438d6c86265d3f56b598312566f541512e251456f95af8b8af2c4cc4432"
+    },
+    "evaluator": {
+      "path": "controllers/webots_ppo_evaluate/webots_ppo_evaluate.py",
+      "sha256": "91f8ab0b91a5fdb56aa616822544bceaa85ac747be2b10b79d2e2487cb378fdb"
+    },
+    "fixed_cli": {
+      "path": "scripts/analyze_webots_fixed_safety.py",
+      "sha256": "b79fb31e25fe38cef7eafb24dae8e4a4c4f2453803441f979414e09a61b8d299"
+    },
+    "fixed_validator": {
+      "path": "src/indoor_patrol_rl/evaluation/fixed_safety_validation.py",
+      "sha256": "95349109850f93867a034c688d6c425eb84541e018ecbcde730dd3fffd990676"
+    },
+    "paired_validator": {
+      "path": "src/indoor_patrol_rl/evaluation/paired_safety.py",
+      "sha256": "e8e7bfd9092dcf6bc6b5cc8b1557ad69f032232c2672fcccf707e63c7f39dcf1"
+    },
+    "world": {
+      "path": "worlds/webots_ppo_evaluate.wbt",
+      "sha256": "e0ae7ac8aa2a7981f94673d656d76940166cb12ceab8dd2b17a17329985d5425"
+    }
+  },
+  "schema_version": 1,
+  "system": {
+    "model": {
+      "checkpoint_step": 10240,
+      "path": "artifacts/models/webots/seed_11/r2a_targeted_v2/checkpoints/ppo_webots_s11_r2a_targeted_v2_10240_steps.zip",
+      "sha256": "051d1e2f07bb147d247c91ded821e58af5b87987bedc2cee4e287fdbdfcdcbe0",
+      "variant": "r2a_targeted_v2"
+    },
+    "shield_profile": {
+      "enabled": true,
+      "path": "configs/eval/webots_r2a_front_brake_v1.yaml",
+      "resolved_full_config": {
+        "clearance_quantile": 0.0,
+        "front_half_angle": 1.0471975511965976,
+        "front_slowdown_distance": 0.75,
+        "front_stop_distance": 0.24,
+        "intervention_epsilon": 1e-06,
+        "lidar_max_range": 3.5,
+        "side_deadband": 0.03,
+        "side_inner_angle": 1.0471975511965976,
+        "side_outer_angle": 1.8325957145940461,
+        "side_slowdown_distance": 0.32,
+        "side_speed_floor": 1.0,
+        "side_stop_distance": 0.12,
+        "side_turn_weight": 0.55,
+        "turn_blend": 0.0,
+        "turn_gain": 0.9
+      },
+      "result_token": "r2a-front-brake-v1-354ce9b831f0",
+      "semantic_sha256": "354ce9b831f01fb9e9c72a9ad1650574f18c98b1b5fafea26671f81ee000ec08",
+      "source_sha256": "6acd0b2bcafa7ffe48ac800ab94cf13636bc4a7c2dff2fb4e50fd7381262acf3"
+    }
+  },
+  "system_id": "webots_r2a_front_brake_fixed_system_validation_v1",
+  "validation_evidence": {
+    "condition_id": "R2ASV",
+    "episode_count": 100,
+    "episodes_csv": {
+      "path": "artifacts/results/webots_validation_r2asv_checkpoint10240_seed11_shield-r2a-front-brake-v1-354ce9b831f0/episodes.csv",
+      "sha256": "e7546e5f91cec654a9ccba9c82c2045915f8095a8a32c386ffec12e5e38819a9"
+    },
+    "gate": {
+      "checks": {
+        "maximum_collision_rate": {
+          "observed": 0.12,
+          "operator": "<=",
+          "passed": true,
+          "threshold": 0.25
+        },
+        "maximum_error_count": {
+          "observed": 0,
+          "operator": "<=",
+          "passed": true,
+          "threshold": 0
+        },
+        "maximum_timeout_count": {
+          "observed": 0,
+          "operator": "<=",
+          "passed": true,
+          "threshold": 2
+        },
+        "minimum_success_rate": {
+          "observed": 0.88,
+          "operator": ">=",
+          "passed": true,
+          "threshold": 0.75
+        }
+      },
+      "passed": true,
+      "require_all": true
+    },
+    "metrics": {
+      "collision_count": 12,
+      "collision_rate": 0.12,
+      "episodes": 100,
+      "error_count": 0,
+      "error_rate": 0.0,
+      "success_count": 88,
+      "success_rate": 0.88,
+      "timeout_count": 0,
+      "timeout_rate": 0.0
+    },
+    "scenario_seed_end": 5099,
+    "scenario_seed_start": 5000,
+    "summary": {
+      "path": "artifacts/results/webots_validation_r2asv_checkpoint10240_seed11_shield-r2a-front-brake-v1-354ce9b831f0/summary.json",
+      "sha256": "45744291e93db2e53f1b201a3d834ee196b37c5e37bb017221e4b9c07fad2776"
+    },
+    "sweep_manifest": {
+      "path": "artifacts/results/webots_validation_r2asv_checkpoint_sweep_seed11_r2a_targeted_v2_shield-r2a-front-brake-v1-354ce9b831f0/checkpoint_sweep.json",
+      "sha256": "b1a2f0727ef5836ee06d4855282dfe2d4087215f15de93c675d02251bbaa7f49"
+    }
+  }
+}
