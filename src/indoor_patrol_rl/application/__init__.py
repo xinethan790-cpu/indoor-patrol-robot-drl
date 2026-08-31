@@ -1,5 +1,23 @@
 """Application-layer orchestration for indoor patrol tasks."""
 
+from indoor_patrol_rl.application.deployment import (
+    AUDITED_R2A_CHECKPOINT_STEP,
+    AUDITED_R2A_CONDITION_ID,
+    AUDITED_R2A_MODEL_SHA256,
+    AUDITED_R2A_MODEL_VARIANT,
+    AUDITED_R2A_PROFILE_SHA256,
+    AUDITED_R2A_SHIELD_RESULT_TOKEN,
+    AUDITED_R2A_SHIELD_SEMANTIC_SHA256,
+    AUDITED_R2A_SYSTEM_ID,
+    DEFAULT_R2A_DEPLOYMENT_PROFILE_PATH,
+    SYSTEM_DEPLOYMENT_PROFILE_SCHEMA_VERSION,
+    DeploymentArtifactBinding,
+    DeploymentIntegrityError,
+    DeploymentProfileError,
+    VerifiedSystemDeploymentProfile,
+    load_r2a_system_deployment_profile,
+    load_system_deployment_profile,
+)
 from indoor_patrol_rl.application.live_status import (
     LIVE_STATUS_SCHEMA_VERSION,
     PatrolLiveAlert,
@@ -20,6 +38,19 @@ from indoor_patrol_rl.application.task import (
 )
 
 __all__ = [
+    "AUDITED_R2A_CHECKPOINT_STEP",
+    "AUDITED_R2A_CONDITION_ID",
+    "AUDITED_R2A_MODEL_SHA256",
+    "AUDITED_R2A_MODEL_VARIANT",
+    "AUDITED_R2A_PROFILE_SHA256",
+    "AUDITED_R2A_SHIELD_RESULT_TOKEN",
+    "AUDITED_R2A_SHIELD_SEMANTIC_SHA256",
+    "AUDITED_R2A_SYSTEM_ID",
+    "DEFAULT_R2A_DEPLOYMENT_PROFILE_PATH",
+    "SYSTEM_DEPLOYMENT_PROFILE_SCHEMA_VERSION",
+    "DeploymentArtifactBinding",
+    "DeploymentIntegrityError",
+    "DeploymentProfileError",
     "LIVE_STATUS_SCHEMA_VERSION",
     "PatrolLiveAlert",
     "PatrolLiveOutcome",
@@ -31,6 +62,9 @@ __all__ = [
     "PatrolTaskMachine",
     "PatrolTaskState",
     "PatrolTaskUpdate",
+    "VerifiedSystemDeploymentProfile",
+    "load_r2a_system_deployment_profile",
+    "load_system_deployment_profile",
     "read_patrol_live_events",
     "read_patrol_live_status",
     "validate_checkpoint_layout",
