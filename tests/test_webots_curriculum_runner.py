@@ -4,13 +4,18 @@ import hashlib
 import json
 import os
 import subprocess
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 
+from indoor_patrol_rl.core.safety_shield import (
+    SAFETY_SHIELD_CONFIG_ENV_FIELDS,
+    SafetyShieldConfig,
+    safety_shield_config_from_env,
+)
 from indoor_patrol_rl.evaluation.checkpoint_selection import (
     CheckpointSelectionGate,
     make_candidate_record,
@@ -41,6 +46,7 @@ def make_stage(
     success: float = 0.75,
     controller_env: dict[str, str] | None = None,
     preferred_resume_model: Path | None = None,
+    preferred_resume_sha256: str | None = None,
     world: str = "webots_ppo_train.wbt",
 ) -> WebotsStage:
     return WebotsStage(
@@ -56,6 +62,7 @@ def make_stage(
         ),
         controller_env=controller_env,
         preferred_resume_model=preferred_resume_model,
+        preferred_resume_sha256=preferred_resume_sha256,
         world=world,
     )
 
@@ -86,6 +93,8 @@ def save_training_result(
     speed_range: tuple[float, float] | None = None,
     route_half_lengths: tuple[float, float] | None = None,
     run_id: str | None = None,
+    source_model: Path | None = None,
+    source_model_sha256: str | None = None,
 ) -> Path:
     model_directory = repository_root / "artifacts/models/webots" / f"seed_{seed}"
     if variant:
@@ -112,6 +121,13 @@ def save_training_result(
         }
     if run_id is not None:
         metadata["monitor_log"] = str(model_directory / f"training_{run_id}.monitor.csv")
+    if source_model is not None:
+        metadata["source_model"] = str(source_model)
+        metadata["source_model_sha256"] = (
+            source_model_sha256
+            if source_model_sha256 is not None
+            else hashlib.sha256(source_model.read_bytes()).hexdigest()
+        )
     (model_directory / f"run_metadata_step{steps:09d}.yaml").write_text(
         yaml.safe_dump(metadata), encoding="utf-8"
     )
@@ -136,6 +152,12 @@ def save_validation_result(
     condition = environment["WEBOTS_EVAL_CONDITION"]
     model_path = (repository_root / environment["WEBOTS_EVAL_MODEL"]).resolve()
     model_sha256 = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    shield_enabled = environment.get("WEBOTS_SAFETY_SHIELD", "false").casefold() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     output = repository_root / "artifacts/results" / result_name
     output.mkdir(parents=True, exist_ok=True)
     success_count = round(success_rate * episodes)
@@ -173,6 +195,10 @@ def save_validation_result(
             "scenario_seed_start": seed_start,
             "scenario_seed_count": episodes,
             "scenario_seeds": list(range(seed_start, seed_start + episodes)),
+            "safety_shield_enabled": shield_enabled,
+            "safety_shield_config": asdict(
+                safety_shield_config_from_env(environment)
+            ),
         },
     }
     (output / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
@@ -270,12 +296,19 @@ stages:
 
 
 def test_evaluation_receives_only_scenario_and_validation_controller_env() -> None:
+    default_shield = SafetyShieldConfig()
+    shield_environment = {
+        environment_name: repr(getattr(default_shield, field_name))
+        for environment_name, field_name in SAFETY_SHIELD_CONFIG_ENV_FIELDS.items()
+    }
     shared = evaluation_controller_env(
         {
             "WEBOTS_OBSTACLE_SPEED_MIN": "0.10",
             "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH": "1.10",
             "WEBOTS_PPO_N_STEPS": "2048",
             "WEBOTS_REWARD_SAFETY_WEIGHT": "-0.60",
+            "WEBOTS_SAFETY_SHIELD": "true",
+            **shield_environment,
             "WEBOTS_EVAL_PLANNER_LABEL": "ppo_v2",
         }
     )
@@ -283,8 +316,11 @@ def test_evaluation_receives_only_scenario_and_validation_controller_env() -> No
     assert shared == {
         "WEBOTS_OBSTACLE_SPEED_MIN": "0.10",
         "WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH": "1.10",
+        "WEBOTS_SAFETY_SHIELD": "true",
+        **shield_environment,
         "WEBOTS_EVAL_PLANNER_LABEL": "ppo_v2",
     }
+    assert set(shield_environment) == set(SAFETY_SHIELD_CONFIG_ENV_FIELDS)
 
 
 def test_loader_refuses_to_automatically_run_test_split(tmp_path: Path) -> None:
@@ -401,6 +437,122 @@ def test_strict_stage_gate_rejects_wrong_evaluation_provenance(
             expected_seed_start=5000,
             expected_episodes=4,
         )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["disabled", "drift", "missing", "extra", "nan", "boolean"],
+)
+def test_strict_stage_gate_rejects_wrong_safety_shield_provenance(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    model = save_training_result(tmp_path, seed=11, obstacles=1, steps=10)
+    environment = {
+        "WEBOTS_MODEL_SEED": "11",
+        "WEBOTS_EVAL_MODEL": model.relative_to(tmp_path).as_posix(),
+        "WEBOTS_EVAL_EPISODES": "4",
+        "WEBOTS_EVAL_SEED_START": "5000",
+        "WEBOTS_EVAL_SPLIT": "validation",
+        "WEBOTS_EVAL_CONDITION": "R2B",
+        "WEBOTS_EVAL_PLANNER_LABEL": "ppo_r2b_step10",
+        "WEBOTS_EVAL_RUN_NAME": "webots_validation_r2b_final_step10_seed11",
+        "WEBOTS_OBSTACLE_COUNT": "1",
+        "WEBOTS_SAFETY_SHIELD": "true",
+        "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+    }
+    save_validation_result(
+        tmp_path,
+        environment=environment,
+        success_rate=1.0,
+        collision_rate=0.0,
+    )
+    summary_path = (
+        tmp_path
+        / "artifacts/results/webots_validation_r2b_final_step10_seed11/summary.json"
+    )
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    provenance = payload["evaluation_provenance"]
+    config = provenance["safety_shield_config"]
+    if mutation == "disabled":
+        provenance["safety_shield_enabled"] = False
+    elif mutation == "drift":
+        config["turn_gain"] = 0.1
+    elif mutation == "missing":
+        config.pop("turn_gain")
+    elif mutation == "extra":
+        config["unexpected"] = 1.0
+    elif mutation == "nan":
+        config["front_stop_distance"] = float("nan")
+    else:
+        config["front_stop_distance"] = True
+    summary_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="safety_shield"):
+        load_validation_metrics(
+            summary_path,
+            repository_root=tmp_path,
+            expected_model_path=model,
+            expected_model_sha256=hashlib.sha256(model.read_bytes()).hexdigest(),
+            expected_training_seed=11,
+            expected_model_variant=None,
+            expected_condition="R2B",
+            expected_planner="ppo_r2b_step10",
+            expected_seed_start=5000,
+            expected_episodes=4,
+            expected_safety_shield_enabled=True,
+            expected_safety_shield_config=asdict(
+                safety_shield_config_from_env(environment)
+            ),
+        )
+
+
+def test_strict_stage_gate_accepts_exact_safety_shield_provenance(
+    tmp_path: Path,
+) -> None:
+    model = save_training_result(tmp_path, seed=11, obstacles=1, steps=10)
+    environment = {
+        "WEBOTS_MODEL_SEED": "11",
+        "WEBOTS_EVAL_MODEL": model.relative_to(tmp_path).as_posix(),
+        "WEBOTS_EVAL_EPISODES": "4",
+        "WEBOTS_EVAL_SEED_START": "5000",
+        "WEBOTS_EVAL_SPLIT": "validation",
+        "WEBOTS_EVAL_CONDITION": "R2B",
+        "WEBOTS_EVAL_PLANNER_LABEL": "ppo_r2b_step10",
+        "WEBOTS_EVAL_RUN_NAME": "webots_validation_r2b_final_step10_seed11",
+        "WEBOTS_OBSTACLE_COUNT": "1",
+        "WEBOTS_SAFETY_SHIELD": "true",
+        "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+    }
+    save_validation_result(
+        tmp_path,
+        environment=environment,
+        success_rate=1.0,
+        collision_rate=0.0,
+    )
+    summary_path = (
+        tmp_path
+        / "artifacts/results/webots_validation_r2b_final_step10_seed11/summary.json"
+    )
+
+    metrics = load_validation_metrics(
+        summary_path,
+        repository_root=tmp_path,
+        expected_model_path=model,
+        expected_model_sha256=hashlib.sha256(model.read_bytes()).hexdigest(),
+        expected_training_seed=11,
+        expected_model_variant=None,
+        expected_condition="R2B",
+        expected_planner="ppo_r2b_step10",
+        expected_seed_start=5000,
+        expected_episodes=4,
+        expected_safety_shield_enabled=True,
+        expected_safety_shield_config=asdict(
+            safety_shield_config_from_env(environment)
+        ),
+    )
+
+    assert metrics == {"episodes": 4, "success_rate": 1.0, "collision_rate": 0.0}
 
 
 def test_runner_records_commands_results_and_both_manifest_formats(tmp_path: Path) -> None:
@@ -558,6 +710,7 @@ def test_identical_semantic_config_can_resume_with_normalized_paths_and_json(
         "gate",
         "controller_env",
         "preferred_resume_model",
+        "preferred_resume_sha256",
     ],
 )
 def test_resume_rejects_changed_semantic_config(
@@ -608,6 +761,15 @@ def test_resume_rejects_changed_semantic_config(
                 "artifacts/models/webots/seed_11/checkpoints/"
                 "ppo_webots_s11_5_steps.zip"
             ),
+        )
+    elif changed_field == "preferred_resume_sha256":
+        changed_stage = replace(
+            stage,
+            preferred_resume_model=Path(
+                "artifacts/models/webots/seed_11/checkpoints/"
+                "ppo_webots_s11_5_steps.zip"
+            ),
+            preferred_resume_sha256="0" * 64,
         )
     if changed_stage is not stage:
         changed_config = replace(config, stages=(changed_stage,))
@@ -743,6 +905,57 @@ def test_gate_failure_stops_before_next_stage(tmp_path: Path) -> None:
     manifest = yaml.safe_load((tmp_path / "manifest.yaml").read_text(encoding="utf-8"))
     assert manifest["status"] == "gate_failed"
     assert [stage["id"] for stage in manifest["stages"]] == ["W0"]
+
+
+def test_runner_marks_successful_but_wrong_shield_summary_invalid(
+    tmp_path: Path,
+) -> None:
+    stage = make_stage(
+        "R2B",
+        obstacles=1,
+        controller_env={
+            "WEBOTS_SAFETY_SHIELD": "true",
+            "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+        },
+    )
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        if command[-1].endswith("webots_ppo_train.wbt"):
+            save_training_result(tmp_path, seed=11, obstacles=1, steps=10)
+        else:
+            save_validation_result(
+                tmp_path,
+                environment=environment,
+                success_rate=1.0,
+                collision_rate=0.0,
+            )
+            summary_path = (
+                tmp_path
+                / "artifacts/results"
+                / environment["WEBOTS_EVAL_RUN_NAME"]
+                / "summary.json"
+            )
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            summary["evaluation_provenance"]["safety_shield_enabled"] = False
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0)
+
+    manifest_path = tmp_path / "manifest.yaml"
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=fake_run,
+    )
+
+    assert runner.run(start_stage=0, stop_after_stage=0) == 3
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    validation = manifest["stages"][0]["validation"]
+    assert validation["status"] == "summary_invalid"
+    assert "safety_shield_enabled" in validation["error"]
 
 
 def test_runner_resumes_partial_checkpoint_with_only_remaining_steps(tmp_path: Path) -> None:
@@ -981,6 +1194,535 @@ def test_preferred_resume_ignores_endpoint_then_uses_new_stage_checkpoint(
         "curriculum_v2_80_steps.zip"
     )
     assert second_attempt["additional_steps_requested"] == 35
+
+
+def test_preferred_resume_rejects_sha256_drift_before_launch(tmp_path: Path) -> None:
+    preferred = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/curriculum_v2/sources"
+        / "ppo_webots_s11_curriculum_v2_source_40_steps.zip"
+    )
+    preferred.parent.mkdir(parents=True)
+    preferred.write_bytes(b"selected source")
+    stage = make_stage(
+        "R2",
+        obstacles=1,
+        steps=75,
+        preferred_resume_model=preferred,
+        preferred_resume_sha256="0" * 64,
+    )
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage, variant="curriculum_v2"),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=lambda *_args, **_kwargs: pytest.fail("started Webots"),
+        dry_run=True,
+    )
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        runner.run(start_stage=0, stop_after_stage=0)
+
+
+def test_sha_preflight_runs_before_completed_record_is_skipped(tmp_path: Path) -> None:
+    preferred = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/r2b_targeted_v1/sources"
+        / "ppo_webots_s11_r2b_targeted_v1_source_40_steps.zip"
+    )
+    preferred.parent.mkdir(parents=True)
+    preferred.write_bytes(b"selected source")
+    stage = make_stage(
+        "R2B",
+        obstacles=1,
+        steps=75,
+        preferred_resume_model=preferred,
+        preferred_resume_sha256=hashlib.sha256(preferred.read_bytes()).hexdigest(),
+    )
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage, variant="r2b_targeted_v1"),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=lambda *_args, **_kwargs: pytest.fail("started Webots"),
+        dry_run=True,
+    )
+    record = runner._stage_record(stage)
+    record.update(
+        {
+            "status": "completed",
+            "training": {"final_model_steps": 115},
+            "validation": {"passed": True},
+        }
+    )
+    runner._write_manifest()
+    preferred.write_bytes(b"tampered after completion")
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        runner.run(start_stage=0, stop_after_stage=0)
+
+
+def test_completed_record_skip_rechecks_training_source_metadata(tmp_path: Path) -> None:
+    preferred = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/r2b_targeted_v1/sources"
+        / "ppo_webots_s11_r2b_targeted_v1_source_40_steps.zip"
+    )
+    preferred.parent.mkdir(parents=True)
+    preferred.write_bytes(b"selected source")
+    alternate = preferred.with_name(
+        "ppo_webots_s11_r2b_targeted_v1_alternate_40_steps.zip"
+    )
+    alternate.write_bytes(b"alternate source")
+    stage = make_stage(
+        "R2B",
+        obstacles=1,
+        steps=75,
+        preferred_resume_model=preferred,
+        preferred_resume_sha256=hashlib.sha256(preferred.read_bytes()).hexdigest(),
+    )
+    save_training_result(
+        tmp_path,
+        seed=11,
+        obstacles=1,
+        steps=115,
+        variant="r2b_targeted_v1",
+        starting_steps=40,
+        additional_steps=75,
+        source_model=alternate,
+    )
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage, variant="r2b_targeted_v1"),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=lambda *_args, **_kwargs: pytest.fail("started Webots"),
+    )
+    record = runner._stage_record(stage)
+    record.update(
+        {
+            "status": "completed",
+            "training": {"final_model_steps": 115},
+            "validation": {"passed": True},
+        }
+    )
+    runner._write_manifest()
+
+    with pytest.raises(ValueError, match="does not match this attempt"):
+        runner.run(start_stage=0, stop_after_stage=0)
+
+
+def test_sha_preflight_covers_prerequisites_before_later_stage_start(
+    tmp_path: Path,
+) -> None:
+    preferred = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/r2b_targeted_v1/sources"
+        / "ppo_webots_s11_r2b_targeted_v1_source_40_steps.zip"
+    )
+    preferred.parent.mkdir(parents=True)
+    preferred.write_bytes(b"selected source")
+    root_stage = make_stage(
+        "R2A",
+        obstacles=1,
+        steps=10,
+        preferred_resume_model=preferred,
+        preferred_resume_sha256=hashlib.sha256(preferred.read_bytes()).hexdigest(),
+    )
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(
+            root_stage,
+            make_stage("R2B", obstacles=1),
+            variant="r2b_targeted_v1",
+        ),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=lambda *_args, **_kwargs: pytest.fail("started Webots"),
+        dry_run=True,
+    )
+    preferred.unlink()
+
+    with pytest.raises(FileNotFoundError, match="preferred resume model"):
+        runner.run(start_stage=1, stop_after_stage=1)
+
+
+def test_sha_bound_training_records_and_rechecks_exact_resume_source(
+    tmp_path: Path,
+) -> None:
+    preferred = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/r2b_targeted_v1/sources"
+        / "ppo_webots_s11_r2b_targeted_v1_source_40_steps.zip"
+    )
+    preferred.parent.mkdir(parents=True)
+    preferred.write_bytes(b"selected source")
+    preferred_sha256 = hashlib.sha256(preferred.read_bytes()).hexdigest()
+    stage = make_stage(
+        "R2B",
+        obstacles=1,
+        steps=75,
+        controller_env={"WEBOTS_SAFETY_SHIELD": "true"},
+        preferred_resume_model=preferred,
+        preferred_resume_sha256=preferred_sha256,
+    )
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        if command[-1].endswith("webots_ppo_train.wbt"):
+            source = (tmp_path / environment["WEBOTS_RESUME_MODEL"]).resolve()
+            save_training_result(
+                tmp_path,
+                seed=11,
+                obstacles=1,
+                steps=115,
+                variant="r2b_targeted_v1",
+                starting_steps=40,
+                additional_steps=75,
+                source_model=source,
+            )
+        else:
+            save_validation_result(
+                tmp_path,
+                environment=environment,
+                success_rate=1.0,
+                collision_rate=0.0,
+            )
+        return subprocess.CompletedProcess(command, 0)
+
+    manifest_path = tmp_path / "manifest.yaml"
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage, variant="r2b_targeted_v1"),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=fake_run,
+    )
+
+    assert runner.run(start_stage=0, stop_after_stage=0) == 0
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    stage_record = manifest["stages"][0]
+    attempt = stage_record["training_attempts"][0]
+    assert stage_record["preferred_resume_sha256"] == preferred_sha256
+    assert attempt["preferred_resume_sha256"] == preferred_sha256
+    assert attempt["preferred_resume_actual_sha256"] == preferred_sha256
+    assert attempt["resume_model_sha256"] == preferred_sha256
+    assert stage_record["training"]["source_model_sha256"] == preferred_sha256
+    assert stage_record["validation"]["expected_safety_shield_enabled"] is True
+    assert len(stage_record["validation"]["expected_safety_shield_config"]) == 15
+
+    summary_path = (
+        tmp_path
+        / "artifacts/results/webots_validation_r2b_final_step115_seed11/summary.json"
+    )
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["evaluation_provenance"]["safety_shield_enabled"] = False
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    restarted = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage, variant="r2b_targeted_v1"),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=lambda *_args, **_kwargs: pytest.fail("started Webots"),
+    )
+    with pytest.raises(ValueError, match="safety_shield_enabled"):
+        restarted.run(start_stage=0, stop_after_stage=0)
+
+
+@pytest.mark.parametrize(
+    "metadata_error",
+    ["wrong_path", "wrong_sha", "missing_sha", "wrong_start", "wrong_steps", "mutated"],
+)
+def test_sha_bound_training_rejects_unbound_completion_metadata(
+    tmp_path: Path,
+    metadata_error: str,
+) -> None:
+    preferred = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/r2b_targeted_v1/sources"
+        / "ppo_webots_s11_r2b_targeted_v1_source_40_steps.zip"
+    )
+    preferred.parent.mkdir(parents=True)
+    preferred.write_bytes(b"selected source")
+    preferred_sha256 = hashlib.sha256(preferred.read_bytes()).hexdigest()
+    alternate = preferred.with_name(
+        "ppo_webots_s11_r2b_targeted_v1_alternate_40_steps.zip"
+    )
+    alternate.write_bytes(b"alternate source")
+    stage = make_stage(
+        "R2B",
+        obstacles=1,
+        steps=75,
+        preferred_resume_model=preferred,
+        preferred_resume_sha256=preferred_sha256,
+    )
+    calls: list[str] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command[-1])
+        assert command[-1].endswith("webots_ppo_train.wbt")
+        source = alternate if metadata_error == "wrong_path" else preferred
+        model = save_training_result(
+            tmp_path,
+            seed=11,
+            obstacles=1,
+            steps=115,
+            variant="r2b_targeted_v1",
+            starting_steps=41 if metadata_error == "wrong_start" else 40,
+            additional_steps=74 if metadata_error == "wrong_steps" else 75,
+            source_model=source,
+            source_model_sha256="0" * 64 if metadata_error == "wrong_sha" else None,
+        )
+        metadata_path = model.parent / "run_metadata_step000000115.yaml"
+        if metadata_error == "missing_sha":
+            for path in (metadata_path, model.parent / "run_metadata.yaml"):
+                metadata = yaml.safe_load(path.read_text(encoding="utf-8"))
+                metadata.pop("source_model_sha256")
+                path.write_text(yaml.safe_dump(metadata), encoding="utf-8")
+        if metadata_error == "mutated":
+            preferred.write_bytes(b"mutated during training")
+        return subprocess.CompletedProcess(command, 0)
+
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage, variant="r2b_targeted_v1"),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=tmp_path / "manifest.yaml",
+        process_runner=fake_run,
+    )
+
+    with pytest.raises((OSError, ValueError)):
+        runner.run(start_stage=0, stop_after_stage=0)
+    assert len(calls) == 1
+    assert calls[0].endswith("webots_ppo_train.wbt")
+    manifest = yaml.safe_load((tmp_path / "manifest.yaml").read_text(encoding="utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["stages"][0]["status"] == "training_failed"
+
+
+def test_sha_bound_training_rejects_under_target_final_model(tmp_path: Path) -> None:
+    preferred = (
+        tmp_path
+        / "artifacts/models/webots/seed_11/r2b_targeted_v1/sources"
+        / "ppo_webots_s11_r2b_targeted_v1_source_40_steps.zip"
+    )
+    preferred.parent.mkdir(parents=True)
+    preferred.write_bytes(b"selected source")
+    stage = make_stage(
+        "R2B",
+        obstacles=1,
+        steps=75,
+        preferred_resume_model=preferred,
+        preferred_resume_sha256=hashlib.sha256(preferred.read_bytes()).hexdigest(),
+    )
+    calls: list[str] = []
+
+    def fake_run(command: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command[-1])
+        assert command[-1].endswith("webots_ppo_train.wbt")
+        save_training_result(
+            tmp_path,
+            seed=11,
+            obstacles=1,
+            steps=100,
+            variant="r2b_targeted_v1",
+            starting_steps=40,
+            additional_steps=75,
+            source_model=preferred,
+        )
+        return subprocess.CompletedProcess(command, 0)
+
+    manifest_path = tmp_path / "manifest.yaml"
+    runner = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=make_config(stage, variant="r2b_targeted_v1"),
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=fake_run,
+    )
+
+    assert runner.run(start_stage=0, stop_after_stage=0) == 2
+    assert len(calls) == 1
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["stages"][0]["training_attempts"][0]["status"] == (
+        "metadata_missing"
+    )
+    assert "validation" not in manifest["stages"][0]
+
+
+def test_sha_bound_partial_retry_binds_generated_checkpoint_to_attempt(
+    tmp_path: Path,
+) -> None:
+    model_directory = tmp_path / "artifacts/models/webots/seed_11/r2b_targeted_v1"
+    preferred = (
+        model_directory
+        / "sources/ppo_webots_s11_r2b_targeted_v1_source_40_steps.zip"
+    )
+    preferred.parent.mkdir(parents=True)
+    preferred.write_bytes(b"selected source")
+    stage = make_stage(
+        "R2B",
+        obstacles=1,
+        steps=75,
+        preferred_resume_model=preferred,
+        preferred_resume_sha256=hashlib.sha256(preferred.read_bytes()).hexdigest(),
+    )
+    config = make_config(stage, variant="r2b_targeted_v1")
+    manifest_path = tmp_path / "manifest.yaml"
+    first = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=lambda *_args, **_kwargs: pytest.fail("dry-run started Webots"),
+        dry_run=True,
+    )
+    assert first.run(start_stage=0, stop_after_stage=0) == 0
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    manifest["stages"][0]["training_attempts"][0]["status"] = "failed"
+    manifest_path.write_text(yaml.safe_dump(manifest), encoding="utf-8")
+    checkpoint = (
+        model_directory
+        / "checkpoints/ppo_webots_s11_r2b_targeted_v1_80_steps.zip"
+    )
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"partial checkpoint")
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        if command[-1].endswith("webots_ppo_train.wbt"):
+            source = (tmp_path / environment["WEBOTS_RESUME_MODEL"]).resolve()
+            save_training_result(
+                tmp_path,
+                seed=11,
+                obstacles=1,
+                steps=115,
+                variant="r2b_targeted_v1",
+                starting_steps=80,
+                additional_steps=35,
+                source_model=source,
+            )
+        else:
+            save_validation_result(
+                tmp_path,
+                environment=environment,
+                success_rate=1.0,
+                collision_rate=0.0,
+            )
+        return subprocess.CompletedProcess(command, 0)
+
+    resumed = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=fake_run,
+    )
+
+    assert resumed.run(start_stage=0, stop_after_stage=0) == 0
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    attempt = manifest["stages"][0]["training_attempts"][-1]
+    assert attempt["additional_steps_requested"] == 35
+    assert attempt["resume_model"].endswith("r2b_targeted_v1_80_steps.zip")
+    assert attempt["resume_model_sha256"] == hashlib.sha256(
+        checkpoint.read_bytes()
+    ).hexdigest()
+
+
+def test_sha_bound_completion_recovers_after_orchestrator_restart(
+    tmp_path: Path,
+) -> None:
+    model_directory = tmp_path / "artifacts/models/webots/seed_11/r2b_targeted_v1"
+    preferred = (
+        model_directory
+        / "sources/ppo_webots_s11_r2b_targeted_v1_source_40_steps.zip"
+    )
+    preferred.parent.mkdir(parents=True)
+    preferred.write_bytes(b"selected source")
+    checkpoint = (
+        model_directory
+        / "checkpoints/ppo_webots_s11_r2b_targeted_v1_80_steps.zip"
+    )
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"partial checkpoint")
+    checkpoint_sha256 = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    stage = make_stage(
+        "R2B",
+        obstacles=1,
+        steps=75,
+        preferred_resume_model=preferred,
+        preferred_resume_sha256=hashlib.sha256(preferred.read_bytes()).hexdigest(),
+    )
+    config = make_config(stage, variant="r2b_targeted_v1")
+    save_training_result(
+        tmp_path,
+        seed=11,
+        obstacles=1,
+        steps=115,
+        variant="r2b_targeted_v1",
+        starting_steps=80,
+        additional_steps=35,
+        source_model=checkpoint,
+    )
+    manifest_path = tmp_path / "manifest.yaml"
+    interrupted = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=lambda *_args, **_kwargs: pytest.fail("started Webots"),
+    )
+    record = interrupted._stage_record(stage)
+    record["stage_start_steps"] = 40
+    record["status"] = "training"
+    record["training_attempts"].append(
+        {
+            "started_at": "2001-01-01T00:00:00+00:00",
+            "resume_model": checkpoint.relative_to(tmp_path).as_posix(),
+            "resume_model_sha256": checkpoint_sha256,
+            "additional_steps_requested": 35,
+        }
+    )
+    interrupted._write_manifest()
+    calls: list[str] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command[-1])
+        assert command[-1].endswith("webots_ppo_evaluate.wbt")
+        save_validation_result(
+            tmp_path,
+            environment=kwargs["env"],
+            success_rate=1.0,
+            collision_rate=0.0,
+        )
+        return subprocess.CompletedProcess(command, 0)
+
+    recovered = WebotsCurriculumRunner(
+        repository_root=tmp_path,
+        config=config,
+        webots_executable=tmp_path / "webots",
+        seed=11,
+        manifest_path=manifest_path,
+        process_runner=fake_run,
+    )
+
+    assert recovered.run(start_stage=0, stop_after_stage=0) == 0
+    assert len(calls) == 1
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    attempt = manifest["stages"][0]["training_attempts"][0]
+    assert attempt["status"] == "completed"
+    assert attempt["recovered_after_restart"] is True
 
 
 def test_variant_later_stage_requires_validation_selected_resume(tmp_path: Path) -> None:

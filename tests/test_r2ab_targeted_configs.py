@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from indoor_patrol_rl.evaluation.checkpoint_sweep import load_safety_shield_profile
 from indoor_patrol_rl.training import load_webots_curriculum
 
 REPOSITORY_ROOT = Path(__file__).absolute().parents[1]
@@ -43,14 +44,28 @@ def test_r2b_targeted_config_requires_selected_resume_without_resetting_std() ->
     stage = config.stages[0]
     assert stage.stage_id == "R2B"
     assert stage.training_steps == 40960
-    assert stage.preferred_resume_model is None
+    expected_resume = Path(
+        "artifacts/models/webots/seed_11/r2b_targeted_v1/sources/"
+        "ppo_webots_s11_r2b_targeted_v1_source_r2a_v2_10240_steps.zip"
+    )
+    assert stage.preferred_resume_model == expected_resume
+    assert stage.preferred_resume_sha256 == (
+        "051d1e2f07bb147d247c91ded821e58af5b87987bedc2cee4e287fdbdfcdcbe0"
+    )
     assert stage.gate.seed_start == 5000
     assert stage.gate.episodes == 100
     assert stage.controller_env["WEBOTS_OBSTACLE_SPEED_MIN"] == "0.18"
     assert stage.controller_env["WEBOTS_OBSTACLE_SPEED_MAX"] == "0.25"
     assert "WEBOTS_PPO_INITIAL_ACTION_STD" not in stage.controller_env
     assert stage.controller_env["WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT"] == "0.80"
-    assert stage.controller_env["WEBOTS_SAFETY_SHIELD"] == "false"
+    assert stage.controller_env["WEBOTS_REWARD_PROXIMITY_DISTANCE"] == "0.70"
+    assert stage.controller_env["WEBOTS_SAFETY_SHIELD"] == "true"
+    profile = load_safety_shield_profile(
+        REPOSITORY_ROOT / "configs/eval/webots_r2a_front_brake_v1.yaml",
+        repository_root=REPOSITORY_ROOT,
+    )
+    for name, value in profile.controller_environment.items():
+        assert stage.controller_env[name] == value
 
 
 def test_r2a_v2_changes_only_the_early_warning_distance() -> None:

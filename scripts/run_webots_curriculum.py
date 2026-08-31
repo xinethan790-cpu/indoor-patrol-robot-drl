@@ -57,10 +57,11 @@ def main() -> int:
     if stop_after_stage < start_stage:
         parser.error("--stop-after-stage cannot precede --start-stage.")
     webots = resolve_webots_executable(args.webots)
+    variant_suffix = f"_{config.model_variant}" if config.model_variant else ""
     manifest = args.manifest or (
         repository_root
         / "artifacts/results"
-        / f"webots_curriculum_seed{args.seed}"
+        / f"webots_curriculum{variant_suffix}_seed{args.seed}"
         / "run_manifest.yaml"
     )
     if not manifest.is_absolute():
