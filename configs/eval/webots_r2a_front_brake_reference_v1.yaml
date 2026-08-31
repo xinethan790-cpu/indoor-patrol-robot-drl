@@ -1,0 +1,20 @@
+# Reference arm for the paired R2a front-brake diagnostic.
+# Every threshold matches webots_r2a_front_brake_v1.yaml; only enabled differs.
+schema_version: 1
+profile_id: r2a-front-brake-v1
+enabled: false
+config:
+  front_stop_distance: 0.24
+  front_slowdown_distance: 0.75
+  side_stop_distance: 0.12
+  side_slowdown_distance: 0.32
+  front_half_angle: 1.0471975511965976
+  side_inner_angle: 1.0471975511965976
+  side_outer_angle: 1.8325957145940461
+  clearance_quantile: 0.0
+  side_speed_floor: 1.0
+  side_turn_weight: 0.55
+  turn_gain: 0.90
+  turn_blend: 0.0
+  side_deadband: 0.03
+  intervention_epsilon: 0.000001

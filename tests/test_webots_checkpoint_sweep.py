@@ -7,6 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 import yaml
 
@@ -347,6 +348,78 @@ def test_repository_front_brake_profile_is_complete_and_source_bound() -> None:
     assert profile.config.side_inner_angle == pytest.approx(1.0471975511965976)
     assert profile.config.side_speed_floor == pytest.approx(1.0)
     assert profile.config.turn_blend == pytest.approx(0.0)
+
+
+def test_r2a_front_brake_diagnostic_is_frozen_and_covariate_balanced() -> None:
+    config_path = (
+        REPOSITORY_ROOT
+        / "configs/eval/webots_r2a_front_brake_paired_diagnostic_v1.yaml"
+    )
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert config["split"] == "validation"
+    assert config["condition_id"] == "R2AD"
+    assert config["scenario_seed_start"] == 72542
+    assert config["episodes"] == 120
+    assert config["preregistration"]["candidate_count"] == 1
+    assert config["preregistration"]["parameter_scan"] == "forbidden"
+    assert config["preregistration"]["adaptive_extension"] == "forbidden"
+    assert config["preregistration"]["held_out_formal_test_access"] == "forbidden"
+    assert sha256_file(REPOSITORY_ROOT / config["model"]["path"]) == config["model"][
+        "sha256"
+    ]
+    for artifact in config["runtime_inputs"].values():
+        assert sha256_file(REPOSITORY_ROOT / artifact["path"]) == artifact["sha256"]
+
+    profiles = []
+    for arm in config["arms"]:
+        declared = arm["shield_profile"]
+        profile = load_safety_shield_profile(
+            REPOSITORY_ROOT / declared["path"],
+            repository_root=REPOSITORY_ROOT,
+        )
+        assert profile.source_sha256 == declared["source_sha256"]
+        assert profile.semantic_sha256 == declared["semantic_sha256"]
+        assert profile.result_token == declared["result_token"]
+        assert profile.enabled is declared["enabled"]
+        assert arm["run_name"].endswith(f"_shield-{profile.result_token}")
+        profiles.append(profile)
+    assert profiles[0].config_values == profiles[1].config_values
+    assert profiles[0].enabled is False
+    assert profiles[1].enabled is True
+
+    def covariates(seed: int) -> tuple[str, bool, float]:
+        random_generator = np.random.default_rng(seed)
+        route_axis = str(random_generator.choice(["horizontal", "vertical"]))
+        offset_limit = 0.55 if route_axis == "horizontal" else 0.70
+        random_generator.uniform(-offset_limit, offset_limit)
+        random_generator.uniform(-offset_limit, offset_limit)
+        reverse_route = bool(random_generator.integers(0, 2))
+        random_generator.uniform(-np.pi, np.pi)
+        if route_axis == "horizontal":
+            random_generator.uniform(-0.55, 0.55)
+            random_generator.uniform(-1.05, 1.05)
+        else:
+            random_generator.uniform(-1.55, 1.55)
+            random_generator.uniform(-0.45, 0.45)
+        random_generator.uniform(0.10, 0.20)
+        direction = float(random_generator.choice([-1.0, 1.0]))
+        return route_axis, reverse_route, direction
+
+    rows = [covariates(seed) for seed in range(72542, 72662)]
+    route_counts = {
+        (axis, reverse): sum(
+            row_axis == axis and row_reverse is reverse
+            for row_axis, row_reverse, _direction in rows
+        )
+        for axis in ("horizontal", "vertical")
+        for reverse in (False, True)
+    }
+    direction_counts = {
+        direction: sum(row_direction == direction for *_prefix, row_direction in rows)
+        for direction in (-1.0, 1.0)
+    }
+    assert set(route_counts.values()) == {30}
+    assert direction_counts == {-1.0: 60, 1.0: 60}
 
 
 @pytest.mark.parametrize(
