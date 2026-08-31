@@ -734,7 +734,12 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 segment_path_length += traveled
                 previous_position = dwell_position
                 dwell_scan = _range_image(lidar)
-                dwell_lidar_minimum = _minimum(dwell_scan)
+                (
+                    dwell_lidar_minimum,
+                    dwell_lidar_beam_index,
+                    dwell_lidar_angle_rad,
+                ) = _minimum_lidar_diagnostic(dwell_scan)
+                obstacle_positions = _dynamic_obstacle_positions(moving_obstacles)
                 contact_collision = _has_contact_collision(robot_node)
                 lidar_collision = (
                     dwell_lidar_minimum <= float(lidar.getMinRange()) + 0.01
@@ -762,6 +767,12 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                             position_y_m=float(dwell_position[1]),
                             detection_source=detection_source,
                             minimum_lidar_range_m=dwell_lidar_minimum,
+                            minimum_lidar_beam_index=dwell_lidar_beam_index,
+                            minimum_lidar_angle_rad=dwell_lidar_angle_rad,
+                            dynamic_obstacle_1_x_m=obstacle_positions[0][0],
+                            dynamic_obstacle_1_y_m=obstacle_positions[0][1],
+                            dynamic_obstacle_2_x_m=obstacle_positions[1][0],
+                            dynamic_obstacle_2_y_m=obstacle_positions[1][1],
                         )
                     )
                     finish_run(
@@ -1008,7 +1019,12 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         segment_path_length += traveled
         previous_position = new_position
         post_scan = _range_image(lidar)
-        lidar_minimum = _minimum(post_scan)
+        (
+            lidar_minimum,
+            minimum_lidar_beam_index,
+            minimum_lidar_angle_rad,
+        ) = _minimum_lidar_diagnostic(post_scan)
+        obstacle_positions = _dynamic_obstacle_positions(moving_obstacles)
         lidar_collision = lidar_minimum <= float(lidar.getMinRange()) + 0.01
         collision = bool(contact_collision or lidar_collision)
         clearance = 0.0 if collision else max(0.0, lidar_minimum - 0.10)
@@ -1051,6 +1067,12 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 shield_front_clearance_m=shield_result.front_clearance,
                 shield_left_clearance_m=shield_result.left_clearance,
                 shield_right_clearance_m=shield_result.right_clearance,
+                minimum_lidar_beam_index=minimum_lidar_beam_index,
+                minimum_lidar_angle_rad=minimum_lidar_angle_rad,
+                dynamic_obstacle_1_x_m=obstacle_positions[0][0],
+                dynamic_obstacle_1_y_m=obstacle_positions[0][1],
+                dynamic_obstacle_2_x_m=obstacle_positions[1][0],
+                dynamic_obstacle_2_y_m=obstacle_positions[1][1],
             )
         )
         if collision:
@@ -1070,6 +1092,12 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                     position_y_m=float(new_position[1]),
                     detection_source=detection_source,
                     minimum_lidar_range_m=lidar_minimum,
+                    minimum_lidar_beam_index=minimum_lidar_beam_index,
+                    minimum_lidar_angle_rad=minimum_lidar_angle_rad,
+                    dynamic_obstacle_1_x_m=obstacle_positions[0][0],
+                    dynamic_obstacle_1_y_m=obstacle_positions[0][1],
+                    dynamic_obstacle_2_x_m=obstacle_positions[1][0],
+                    dynamic_obstacle_2_y_m=obstacle_positions[1][1],
                 )
             )
             finish_run(
@@ -1204,6 +1232,35 @@ def _minimum(scan: np.ndarray) -> float:
     if not finite.size:
         raise ValueError("The Webots LiDAR scan contains no finite values.")
     return float(finite.min())
+
+
+def _minimum_lidar_diagnostic(scan: np.ndarray) -> tuple[float, int, float]:
+    """Return the all-beam minimum and its policy-order bearing."""
+
+    values = np.asarray(scan, dtype=np.float64).reshape(-1)
+    finite_indices = np.flatnonzero(np.isfinite(values))
+    if not finite_indices.size:
+        raise ValueError("The Webots LiDAR scan contains no finite values.")
+    beam_index = int(finite_indices[np.argmin(values[finite_indices])])
+    angle_rad = wrap_angle(beam_index * 2.0 * math.pi / values.size)
+    return float(values[beam_index]), beam_index, angle_rad
+
+
+def _dynamic_obstacle_positions(
+    obstacles: list[MovingObstacleControl],
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Capture the two moving obstacles used by the patrol world."""
+
+    if len(obstacles) != 2:
+        raise ValueError("The patrol scene diagnostic requires exactly two obstacles.")
+    positions = []
+    for obstacle in obstacles:
+        values = obstacle.translation.getSFVec3f()
+        position = (float(values[0]), float(values[1]))
+        if not all(math.isfinite(value) for value in position):
+            raise ValueError("Dynamic-obstacle positions must be finite.")
+        positions.append(position)
+    return positions[0], positions[1]
 
 
 def _has_contact_collision(robot_node: Any) -> bool:

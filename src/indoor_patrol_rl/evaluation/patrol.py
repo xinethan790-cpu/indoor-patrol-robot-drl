@@ -71,6 +71,12 @@ class PatrolTrajectorySample:
     shield_front_clearance_m: float | None = None
     shield_left_clearance_m: float | None = None
     shield_right_clearance_m: float | None = None
+    minimum_lidar_beam_index: int | None = None
+    minimum_lidar_angle_rad: float | None = None
+    dynamic_obstacle_1_x_m: float | None = None
+    dynamic_obstacle_1_y_m: float | None = None
+    dynamic_obstacle_2_x_m: float | None = None
+    dynamic_obstacle_2_y_m: float | None = None
 
     def __post_init__(self) -> None:
         """Reject incomplete or internally inconsistent shield evidence."""
@@ -144,6 +150,15 @@ class PatrolTrajectorySample:
         elif intervention != 0.0 or self.safety_shield_active:
             raise ValueError("Shield intervention evidence requires both action vectors.")
 
+        _validate_scene_diagnostic(
+            minimum_lidar_beam_index=self.minimum_lidar_beam_index,
+            minimum_lidar_angle_rad=self.minimum_lidar_angle_rad,
+            dynamic_obstacle_1_x_m=self.dynamic_obstacle_1_x_m,
+            dynamic_obstacle_1_y_m=self.dynamic_obstacle_1_y_m,
+            dynamic_obstacle_2_x_m=self.dynamic_obstacle_2_x_m,
+            dynamic_obstacle_2_y_m=self.dynamic_obstacle_2_y_m,
+        )
+
 
 @dataclass(frozen=True)
 class PatrolCheckpointRecord:
@@ -174,6 +189,24 @@ class PatrolCollisionRecord:
     position_y_m: float
     detection_source: str
     minimum_lidar_range_m: float
+    minimum_lidar_beam_index: int | None = None
+    minimum_lidar_angle_rad: float | None = None
+    dynamic_obstacle_1_x_m: float | None = None
+    dynamic_obstacle_1_y_m: float | None = None
+    dynamic_obstacle_2_x_m: float | None = None
+    dynamic_obstacle_2_y_m: float | None = None
+
+    def __post_init__(self) -> None:
+        """Reject partial collision-scene diagnostics."""
+
+        _validate_scene_diagnostic(
+            minimum_lidar_beam_index=self.minimum_lidar_beam_index,
+            minimum_lidar_angle_rad=self.minimum_lidar_angle_rad,
+            dynamic_obstacle_1_x_m=self.dynamic_obstacle_1_x_m,
+            dynamic_obstacle_1_y_m=self.dynamic_obstacle_1_y_m,
+            dynamic_obstacle_2_x_m=self.dynamic_obstacle_2_x_m,
+            dynamic_obstacle_2_y_m=self.dynamic_obstacle_2_y_m,
+        )
 
 
 @dataclass(frozen=True)
@@ -298,6 +331,60 @@ class PatrolRunSummary:
             raise ValueError("A disabled safety shield cannot record interventions.")
         if (self.safety_shield_intervention_steps == 0) != (intervention_rate == 0.0):
             raise ValueError("Shield intervention steps and rate must both be zero or positive.")
+
+
+def _validate_scene_diagnostic(
+    *,
+    minimum_lidar_beam_index: int | None,
+    minimum_lidar_angle_rad: float | None,
+    dynamic_obstacle_1_x_m: float | None,
+    dynamic_obstacle_1_y_m: float | None,
+    dynamic_obstacle_2_x_m: float | None,
+    dynamic_obstacle_2_y_m: float | None,
+) -> None:
+    """Validate one optional all-beam LiDAR and two-obstacle scene snapshot."""
+
+    lidar_diagnostic = (minimum_lidar_beam_index, minimum_lidar_angle_rad)
+    if any(value is not None for value in lidar_diagnostic) and not all(
+        value is not None for value in lidar_diagnostic
+    ):
+        raise ValueError("Minimum LiDAR beam index and angle must be recorded together.")
+    if minimum_lidar_beam_index is not None:
+        if isinstance(minimum_lidar_beam_index, bool) or not isinstance(
+            minimum_lidar_beam_index, int
+        ):
+            raise ValueError("minimum_lidar_beam_index must be an integer.")
+        if minimum_lidar_beam_index < 0:
+            raise ValueError("minimum_lidar_beam_index cannot be negative.")
+        _finite_range(
+            minimum_lidar_angle_rad,
+            "minimum_lidar_angle_rad",
+            minimum=-math.pi,
+            maximum=math.pi,
+        )
+
+    obstacle_positions = (
+        dynamic_obstacle_1_x_m,
+        dynamic_obstacle_1_y_m,
+        dynamic_obstacle_2_x_m,
+        dynamic_obstacle_2_y_m,
+    )
+    if any(value is not None for value in obstacle_positions) and not all(
+        value is not None for value in obstacle_positions
+    ):
+        raise ValueError("Both dynamic-obstacle x/y positions must be recorded together.")
+    for name, value in zip(
+        (
+            "dynamic_obstacle_1_x_m",
+            "dynamic_obstacle_1_y_m",
+            "dynamic_obstacle_2_x_m",
+            "dynamic_obstacle_2_y_m",
+        ),
+        obstacle_positions,
+        strict=True,
+    ):
+        if value is not None:
+            _finite_range(value, name)
 
 
 def _finite_range(
@@ -557,6 +644,7 @@ def write_patrol_outputs(
     _write_dataclass_csv(checkpoints_path, checkpoints, PatrolCheckpointRecord)
     _write_dataclass_csv(collisions_path, collisions, PatrolCollisionRecord)
     payload = asdict(summary)
+    payload["minimum_lidar_diagnostic"] = _minimum_lidar_diagnostic(trajectory)
     payload["checkpoint_records"] = [asdict(record) for record in checkpoints]
     payload["collision_records"] = [asdict(record) for record in collisions]
     summary_path.write_text(
@@ -568,6 +656,29 @@ def write_patrol_outputs(
         "checkpoints": checkpoints_path,
         "collisions": collisions_path,
         "summary": summary_path,
+    }
+
+
+def _minimum_lidar_diagnostic(
+    trajectory: list[PatrolTrajectorySample],
+) -> dict[str, int | float | None] | None:
+    """Return the earliest trajectory sample with the lowest all-beam range."""
+
+    if not trajectory:
+        return None
+    sample = min(trajectory, key=lambda item: item.minimum_lidar_range_m)
+    return {
+        "control_step": sample.control_step,
+        "simulation_time_s": sample.simulation_time_s,
+        "minimum_lidar_range_m": sample.minimum_lidar_range_m,
+        "minimum_lidar_beam_index": sample.minimum_lidar_beam_index,
+        "minimum_lidar_angle_rad": sample.minimum_lidar_angle_rad,
+        "robot_position_x_m": sample.position_x_m,
+        "robot_position_y_m": sample.position_y_m,
+        "dynamic_obstacle_1_x_m": sample.dynamic_obstacle_1_x_m,
+        "dynamic_obstacle_1_y_m": sample.dynamic_obstacle_1_y_m,
+        "dynamic_obstacle_2_x_m": sample.dynamic_obstacle_2_x_m,
+        "dynamic_obstacle_2_y_m": sample.dynamic_obstacle_2_y_m,
     }
 
 

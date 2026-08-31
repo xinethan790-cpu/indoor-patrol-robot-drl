@@ -216,8 +216,29 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
             shield_front_clearance_m=0.23,
             shield_left_clearance_m=0.41,
             shield_right_clearance_m=0.19,
+            minimum_lidar_beam_index=17,
+            minimum_lidar_angle_rad=-0.42,
+            dynamic_obstacle_1_x_m=-0.35,
+            dynamic_obstacle_1_y_m=0.62,
+            dynamic_obstacle_2_x_m=0.88,
+            dynamic_obstacle_2_y_m=-0.41,
         )
     ]
+    trajectory.append(
+        replace(
+            trajectory[0],
+            control_step=2,
+            simulation_time_s=0.256,
+            position_x_m=-1.50,
+            minimum_lidar_range_m=0.31,
+            minimum_lidar_beam_index=5,
+            minimum_lidar_angle_rad=0.18,
+            dynamic_obstacle_1_x_m=-0.31,
+            dynamic_obstacle_1_y_m=0.60,
+            dynamic_obstacle_2_x_m=0.84,
+            dynamic_obstacle_2_y_m=-0.38,
+        )
+    )
     checkpoints = [
         PatrolCheckpointRecord(
             checkpoint_id="P1",
@@ -243,6 +264,12 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
             position_y_m=0.4,
             detection_source="contact",
             minimum_lidar_range_m=0.12,
+            minimum_lidar_beam_index=3,
+            minimum_lidar_angle_rad=0.07,
+            dynamic_obstacle_1_x_m=0.21,
+            dynamic_obstacle_1_y_m=0.36,
+            dynamic_obstacle_2_x_m=0.95,
+            dynamic_obstacle_2_y_m=-0.22,
         )
     ]
     summary = PatrolRunSummary(
@@ -288,6 +315,16 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="action-vector difference"):
         replace(trajectory[0], safety_shield_intervention=0.1)
+    with pytest.raises(ValueError, match="index and angle"):
+        replace(trajectory[0], minimum_lidar_angle_rad=None)
+    with pytest.raises(ValueError, match="at most"):
+        replace(trajectory[0], minimum_lidar_angle_rad=math.pi + 0.01)
+    with pytest.raises(ValueError, match="dynamic-obstacle x/y"):
+        replace(trajectory[0], dynamic_obstacle_2_y_m=None)
+    with pytest.raises(ValueError, match="index and angle"):
+        replace(collisions[0], minimum_lidar_beam_index=None)
+    with pytest.raises(ValueError, match="dynamic-obstacle x/y"):
+        replace(collisions[0], dynamic_obstacle_1_x_m=None)
     for out_of_scope_label in (
         "validated_component_outside_patrol_scenario",
         "experimental_patrol_scenario",
@@ -316,11 +353,19 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
         "shield_front_clearance_m",
         "shield_left_clearance_m",
         "shield_right_clearance_m",
+        "minimum_lidar_beam_index",
+        "minimum_lidar_angle_rad",
+        "dynamic_obstacle_1_x_m",
+        "dynamic_obstacle_1_y_m",
+        "dynamic_obstacle_2_x_m",
+        "dynamic_obstacle_2_y_m",
     ):
         legacy_trajectory_fields.pop(field_name)
     legacy_trajectory = PatrolTrajectorySample(**legacy_trajectory_fields)
     assert legacy_trajectory.policy_action_linear is None
     assert legacy_trajectory.safety_shield_active is False
+    assert legacy_trajectory.minimum_lidar_beam_index is None
+    assert legacy_trajectory.dynamic_obstacle_1_x_m is None
 
     legacy_summary_fields = asdict(summary)
     for field_name in (
@@ -361,8 +406,25 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
     assert payload["safety_shield_enabled"] is True
     assert payload["safety_shield_intervention_steps"] == 1
     assert payload["safety_shield_intervention_rate"] == pytest.approx(1 / 190)
+    assert payload["minimum_lidar_diagnostic"] == {
+        "control_step": 2,
+        "simulation_time_s": 0.256,
+        "minimum_lidar_range_m": 0.31,
+        "minimum_lidar_beam_index": 5,
+        "minimum_lidar_angle_rad": 0.18,
+        "robot_position_x_m": -1.50,
+        "robot_position_y_m": 0.0,
+        "dynamic_obstacle_1_x_m": -0.31,
+        "dynamic_obstacle_1_y_m": 0.60,
+        "dynamic_obstacle_2_x_m": 0.84,
+        "dynamic_obstacle_2_y_m": -0.38,
+    }
     assert payload["checkpoint_records"][0]["checkpoint_id"] == "P1"
     assert payload["collision_records"][0]["detection_source"] == "contact"
+    assert payload["collision_records"][0]["minimum_lidar_beam_index"] == 3
+    assert payload["collision_records"][0]["minimum_lidar_angle_rad"] == pytest.approx(0.07)
+    assert payload["collision_records"][0]["dynamic_obstacle_1_x_m"] == pytest.approx(0.21)
+    assert payload["collision_records"][0]["dynamic_obstacle_2_y_m"] == pytest.approx(-0.22)
     with paths["trajectory"].open(newline="", encoding="utf-8") as stream:
         row = next(csv.DictReader(stream))
     assert row["checkpoint_id"] == "P1"
@@ -376,6 +438,20 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
     assert float(row["shield_front_clearance_m"]) == pytest.approx(0.23)
     assert float(row["shield_left_clearance_m"]) == pytest.approx(0.41)
     assert float(row["shield_right_clearance_m"]) == pytest.approx(0.19)
+    assert int(row["minimum_lidar_beam_index"]) == 17
+    assert float(row["minimum_lidar_angle_rad"]) == pytest.approx(-0.42)
+    assert float(row["dynamic_obstacle_1_x_m"]) == pytest.approx(-0.35)
+    assert float(row["dynamic_obstacle_1_y_m"]) == pytest.approx(0.62)
+    assert float(row["dynamic_obstacle_2_x_m"]) == pytest.approx(0.88)
+    assert float(row["dynamic_obstacle_2_y_m"]) == pytest.approx(-0.41)
+    with paths["collisions"].open(newline="", encoding="utf-8") as stream:
+        collision_row = next(csv.DictReader(stream))
+    assert int(collision_row["minimum_lidar_beam_index"]) == 3
+    assert float(collision_row["minimum_lidar_angle_rad"]) == pytest.approx(0.07)
+    assert float(collision_row["dynamic_obstacle_1_x_m"]) == pytest.approx(0.21)
+    assert float(collision_row["dynamic_obstacle_1_y_m"]) == pytest.approx(0.36)
+    assert float(collision_row["dynamic_obstacle_2_x_m"]) == pytest.approx(0.95)
+    assert float(collision_row["dynamic_obstacle_2_y_m"]) == pytest.approx(-0.22)
 
 
 def test_portable_model_path_uses_repository_relative_path(tmp_path: Path) -> None:
