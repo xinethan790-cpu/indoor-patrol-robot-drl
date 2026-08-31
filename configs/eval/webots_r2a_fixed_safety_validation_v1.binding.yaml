@@ -1,0 +1,6 @@
+schema_version: 1
+kind: paired_safety_preregistration_git_binding
+config_path: configs/eval/webots_r2a_fixed_safety_validation_v1.yaml
+preregistration_revision: a7b4abf87903af7ea9d830f281339c180c19ade3
+config_blob_oid: 146d113c4612a81bd4dacf29f8a87bb923b42071
+config_sha256: 1927a1152f3b7506108fe87b3f0e2e92fce4bba22b7779e5e6dca128cb21d2ad
