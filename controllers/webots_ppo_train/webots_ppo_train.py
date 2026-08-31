@@ -20,7 +20,11 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 
-from indoor_patrol_rl.core import RewardConfig
+from indoor_patrol_rl.core import (
+    LidarSafetyShield,
+    RewardConfig,
+    safety_shield_config_from_env,
+)
 from indoor_patrol_rl.envs import WebotsPatrolEnv
 
 ALL_OBSTACLE_DEFS = ("TRAIN_OBSTACLE_0", "TRAIN_OBSTACLE_1", "TRAIN_OBSTACLE_2")
@@ -96,6 +100,10 @@ def main() -> None:
         training_steps = int(os.environ.get("WEBOTS_TRAIN_STEPS", "50000"))
         obstacle_count = int(os.environ.get("WEBOTS_OBSTACLE_COUNT", "1"))
         safety_shield_enabled = environment_flag("WEBOTS_SAFETY_SHIELD")
+        safety_shield_config = safety_shield_config_from_env(
+            os.environ,
+            lidar_max_range=float(supervisor.getDevice("LDS-01").getMaxRange()),
+        )
         model_variant_value = os.environ.get("WEBOTS_MODEL_VARIANT", "").strip()
         if model_variant_value in {".", ".."} or (
             model_variant_value
@@ -161,6 +169,7 @@ def main() -> None:
             action_repeat=4,
             max_episode_steps=300,
             enable_safety_shield=safety_shield_enabled,
+            safety_shield=LidarSafetyShield(safety_shield_config),
             obstacle_speed_range=obstacle_speed_range,
             safety_distance=reward_safety_distance,
             proximity_speed_distance=proximity_speed_distance,

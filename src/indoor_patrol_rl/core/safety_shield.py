@@ -10,9 +10,31 @@ the shield can stop the robot but never requests reverse motion.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
+
+SAFETY_SHIELD_CONFIG_ENV_PREFIX = "WEBOTS_SAFETY_SHIELD_"
+SAFETY_SHIELD_CONFIG_ENV_FIELDS = {
+    f"{SAFETY_SHIELD_CONFIG_ENV_PREFIX}{field.upper()}": field
+    for field in (
+        "front_stop_distance",
+        "front_slowdown_distance",
+        "side_stop_distance",
+        "side_slowdown_distance",
+        "front_half_angle",
+        "side_inner_angle",
+        "side_outer_angle",
+        "clearance_quantile",
+        "side_speed_floor",
+        "side_turn_weight",
+        "turn_gain",
+        "turn_blend",
+        "side_deadband",
+        "intervention_epsilon",
+    )
+}
 
 
 @dataclass(frozen=True)
@@ -36,6 +58,8 @@ class SafetyShieldConfig:
     intervention_epsilon: float = 1e-6
 
     def __post_init__(self) -> None:
+        if not all(math.isfinite(value) for value in self.__dict__.values()):
+            raise ValueError("Safety-shield configuration values must be finite.")
         positive = (
             self.lidar_max_range,
             self.front_stop_distance,
@@ -72,6 +96,46 @@ class SafetyShieldConfig:
                 raise ValueError(f"{name} must be between zero and one.")
         if self.side_deadband < 0.0:
             raise ValueError("side_deadband cannot be negative.")
+
+
+def safety_shield_config_from_env(
+    environ: Mapping[str, str],
+    *,
+    lidar_max_range: float = 3.5,
+) -> SafetyShieldConfig:
+    """Resolve all configurable shield fields from explicit environment values.
+
+    The LiDAR range comes from the live device and intentionally has no
+    environment override. Unknown names in the shield namespace are rejected,
+    so a typo cannot silently select a default. Angle values use radians, which
+    matches :class:`SafetyShieldConfig`.
+    """
+
+    unsupported = sorted(
+        name
+        for name in environ
+        if name.startswith(SAFETY_SHIELD_CONFIG_ENV_PREFIX)
+        and name not in SAFETY_SHIELD_CONFIG_ENV_FIELDS
+    )
+    if unsupported:
+        raise ValueError(
+            "Unsupported safety-shield configuration environment variable(s): "
+            f"{unsupported}."
+        )
+
+    overrides: dict[str, float] = {}
+    for name, field in SAFETY_SHIELD_CONFIG_ENV_FIELDS.items():
+        raw_value = environ.get(name)
+        if raw_value is None:
+            continue
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"{name} must be a finite float.") from error
+        if not math.isfinite(value):
+            raise ValueError(f"{name} must be a finite float.")
+        overrides[field] = value
+    return SafetyShieldConfig(lidar_max_range=float(lidar_max_range), **overrides)
 
 
 @dataclass(frozen=True)

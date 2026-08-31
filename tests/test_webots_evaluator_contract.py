@@ -169,3 +169,60 @@ def test_curriculum_validation_label_contract_is_unchanged(
     assert plan.planner_label == "ppo_w0_step10"
     assert plan.training_seed == 11
     assert plan.scenario_seeds == tuple(range(5000, 5020))
+
+
+def test_validation_plan_and_provenance_bind_complete_shield_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    values = {
+        "WEBOTS_EVAL_SPLIT": "validation",
+        "WEBOTS_SAFETY_SHIELD": "1",
+        "WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE": "0.05",
+        "WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE": "0.24",
+        "WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE": "0.72",
+        "WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE": "0.16",
+        "WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE": "0.42",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+
+    plan = EVALUATOR._resolve_plan(REPOSITORY_ROOT)
+    provenance = EVALUATOR._provenance(
+        REPOSITORY_ROOT,
+        plan,
+        model_path=None,
+        model_variant=None,
+    )
+
+    assert plan.safety_shield_enabled is True
+    assert plan.safety_shield_config.clearance_quantile == pytest.approx(0.05)
+    assert provenance["safety_shield_config"] == {
+        "lidar_max_range": 3.5,
+        "front_stop_distance": 0.24,
+        "front_slowdown_distance": 0.72,
+        "side_stop_distance": 0.16,
+        "side_slowdown_distance": 0.42,
+        "front_half_angle": pytest.approx(0.5235987755982988),
+        "side_inner_angle": pytest.approx(0.6108652381980153),
+        "side_outer_angle": pytest.approx(1.8325957145940461),
+        "clearance_quantile": 0.05,
+        "side_speed_floor": 0.35,
+        "side_turn_weight": 0.55,
+        "turn_gain": 0.9,
+        "turn_blend": 0.9,
+        "side_deadband": 0.03,
+        "intervention_epsilon": 1e-6,
+    }
+
+
+def test_formal_plan_rejects_shield_config_even_when_shield_is_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_formal_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("WEBOTS_SAFETY_SHIELD", "0")
+    monkeypatch.setenv("WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE", "0.05")
+
+    with pytest.raises(ValueError, match="default SafetyShieldConfig"):
+        EVALUATOR._resolve_formal_plan(tmp_path)
