@@ -1,0 +1,160 @@
+schema_version: 1
+created_at: '2026-08-31T02:41:25+00:00'
+selection_status: no_candidate_passed_gate
+model_variant: r2a_targeted_v1
+selection_rule:
+- success_rate_desc
+- collision_rate_asc
+- path_length_ratio_mean_asc
+- completion_time_s_mean_asc
+deterministic_tie_breakers:
+- step_asc
+- kind_asc
+source_globs:
+- artifacts/results/webots_validation_r2a_checkpoint*_seed11/summary.json
+validation_contract:
+  split: validation
+  seed: 11
+  condition: R2A
+  episodes: 100
+  model_variant: r2a_targeted_v1
+  planner_template: ppo_r2a_step{step}
+gate:
+  min_success_rate: 0.75
+  max_collision_rate: 0.25
+  requires_model_file: true
+candidate_count: 4
+available_model_count: 4
+gate_passed_count: 0
+ranking_winner:
+  rank: 1
+  kind: checkpoint
+  step: 30720
+  planner: ppo_r2a_step30720
+  model_variant: r2a_targeted_v1
+  model_path: artifacts/models/webots/seed_11/r2a_targeted_v1/checkpoints/ppo_webots_s11_r2a_targeted_v1_30720_steps.zip
+  model_sha256: 6b0ba8a7ccfe078d18393af49842e4cdecb20a04fcebd00c5fa5a62341f9ad86
+  episodes: 100
+  success_rate: 0.62
+  collision_rate: 0.38
+  gate_passed: false
+formal_selected: null
+candidates:
+- kind: checkpoint
+  step: 30720
+  seed: 11
+  condition: R2A
+  model_variant: r2a_targeted_v1
+  planner: ppo_r2a_step30720
+  summary_path: artifacts/results/webots_validation_r2a_checkpoint30720_seed11/summary.json
+  summary_sha256: cb5db6460e95e44cf82d198db5c7618399e6602007ea53829f251f293e0b19f2
+  model_path: artifacts/models/webots/seed_11/r2a_targeted_v1/checkpoints/ppo_webots_s11_r2a_targeted_v1_30720_steps.zip
+  model_resolution: checkpoint_filename
+  model_exists: true
+  model_sha256: 6b0ba8a7ccfe078d18393af49842e4cdecb20a04fcebd00c5fa5a62341f9ad86
+  evaluation_model_sha256: 6b0ba8a7ccfe078d18393af49842e4cdecb20a04fcebd00c5fa5a62341f9ad86
+  episodes: 100
+  success_count: 62
+  collision_count: 38
+  timeout_count: 0
+  error_count: 0
+  success_rate: 0.62
+  collision_rate: 0.38
+  path_length_ratio_mean: 1.0109142464865664
+  completion_time_s_mean: 13.605161290322581
+  metric_gate_passed: false
+  gate_passed: false
+  gate_failures:
+  - success_rate_below_minimum
+  - collision_rate_above_maximum
+  rank: 1
+- kind: checkpoint
+  step: 10240
+  seed: 11
+  condition: R2A
+  model_variant: r2a_targeted_v1
+  planner: ppo_r2a_step10240
+  summary_path: artifacts/results/webots_validation_r2a_checkpoint10240_seed11/summary.json
+  summary_sha256: c9a49482d9459df975d4411e56708b44072ee92b6586a05afbbcf72d5f82f9e9
+  model_path: artifacts/models/webots/seed_11/r2a_targeted_v1/checkpoints/ppo_webots_s11_r2a_targeted_v1_10240_steps.zip
+  model_resolution: checkpoint_filename
+  model_exists: true
+  model_sha256: a4c56a9c174f4c43e9d624862f18d2e64ce85caa46ec57054ea6036f9100853b
+  evaluation_model_sha256: a4c56a9c174f4c43e9d624862f18d2e64ce85caa46ec57054ea6036f9100853b
+  episodes: 100
+  success_count: 61
+  collision_count: 39
+  timeout_count: 0
+  error_count: 0
+  success_rate: 0.61
+  collision_rate: 0.39
+  path_length_ratio_mean: 1.00901380275243
+  completion_time_s_mean: 14.319213114754097
+  metric_gate_passed: false
+  gate_passed: false
+  gate_failures:
+  - success_rate_below_minimum
+  - collision_rate_above_maximum
+  rank: 2
+- kind: checkpoint
+  step: 20480
+  seed: 11
+  condition: R2A
+  model_variant: r2a_targeted_v1
+  planner: ppo_r2a_step20480
+  summary_path: artifacts/results/webots_validation_r2a_checkpoint20480_seed11/summary.json
+  summary_sha256: cafb3c9df3ecad787cf0b2c69a06da66cc98516715d64ad223b184e2d0b04ef7
+  model_path: artifacts/models/webots/seed_11/r2a_targeted_v1/checkpoints/ppo_webots_s11_r2a_targeted_v1_20480_steps.zip
+  model_resolution: checkpoint_filename
+  model_exists: true
+  model_sha256: bf8dabb76708781756f0c35f127d5152355e1c41cde22a4b3b88743180bf4f17
+  evaluation_model_sha256: bf8dabb76708781756f0c35f127d5152355e1c41cde22a4b3b88743180bf4f17
+  episodes: 100
+  success_count: 61
+  collision_count: 39
+  timeout_count: 0
+  error_count: 0
+  success_rate: 0.61
+  collision_rate: 0.39
+  path_length_ratio_mean: 1.0108826255046608
+  completion_time_s_mean: 14.073704918032787
+  metric_gate_passed: false
+  gate_passed: false
+  gate_failures:
+  - success_rate_below_minimum
+  - collision_rate_above_maximum
+  rank: 3
+- kind: checkpoint
+  step: 40960
+  seed: 11
+  condition: R2A
+  model_variant: r2a_targeted_v1
+  planner: ppo_r2a_step40960
+  summary_path: artifacts/results/webots_validation_r2a_checkpoint40960_seed11/summary.json
+  summary_sha256: d8e30f39a66ab73380ade6c1869594427665f276206379673b0ea9cdc3064865
+  model_path: artifacts/models/webots/seed_11/r2a_targeted_v1/checkpoints/ppo_webots_s11_r2a_targeted_v1_40960_steps.zip
+  model_resolution: checkpoint_filename
+  model_exists: true
+  model_sha256: fb1beb847b5e76c50265a647131d8a7060ced1f6fd518713eb1e55f1fe18078e
+  evaluation_model_sha256: fb1beb847b5e76c50265a647131d8a7060ced1f6fd518713eb1e55f1fe18078e
+  episodes: 100
+  success_count: 60
+  collision_count: 40
+  timeout_count: 0
+  error_count: 0
+  success_rate: 0.6
+  collision_rate: 0.4
+  path_length_ratio_mean: 1.0104824740042209
+  completion_time_s_mean: 13.851733333333335
+  metric_gate_passed: false
+  gate_passed: false
+  gate_failures:
+  - success_rate_below_minimum
+  - collision_rate_above_maximum
+  rank: 4
+copy_selected:
+  requested: true
+  performed: false
+  alias_path: null
+  alias_sha256: null
+  reason: no_gate_passing_formal_selection

@@ -34,6 +34,24 @@ All `421` training resets and all `100` evaluation resets passed the finite-stat
 settle, and readback checks.  The training metadata records Git revision
 `358b34cab6cb1f6d0cebcb488519af56fa9e15ae` with a clean worktree.
 
-R2b is therefore blocked at this point.  The four immutable R2a checkpoints at
-steps `10,240`, `20,480`, `30,720`, and `40,960` must be evaluated with the same
-100 validation episodes before deciding whether R2a has a promotable candidate.
+## Immutable checkpoint sweep
+
+All four checkpoints were subsequently evaluated on the same 100 episodes:
+
+| Checkpoint | Success | Collision | Timeout | Error | Gate |
+|---:|---:|---:|---:|---:|:---:|
+| 10,240 | 61/100 | 39/100 | 0 | 0 | Fail |
+| 20,480 | 61/100 | 39/100 | 0 | 0 | Fail |
+| 30,720 | 62/100 | 38/100 | 0 | 0 | Fail |
+| 40,960 | 60/100 | 40/100 | 0 | 0 | Fail |
+
+The validation-only selector ranked step `30,720` first, but selected no formal
+candidate because every checkpoint missed both locked thresholds.  R2b therefore
+remains blocked.
+
+The first targeted hypothesis did not improve the legacy R1 reference result of
+`63/100` success on the broader R2 evaluation.  Because every R2a-v1 episode ended
+in either success or collision and no timeout was observed, the next preregistered
+single-variable ablation increases only the proximity-warning distance from
+`0.60 m` to `0.70 m`.  Source model, optimizer reset, action standard deviation,
+reward weights, PPO settings, training length, and validation seeds remain fixed.
