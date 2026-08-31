@@ -1,0 +1,76 @@
+schema_version: 1
+scenario_id: equipment_room_environment_v1
+samples_per_visit: 3
+sample_interval_s: 0.5
+
+sensors:
+  - id: temperature
+    quantity: temperature
+    display_name: 温度
+    unit: °C
+    ambient: 24.0
+    minimum: -20.0
+    maximum: 80.0
+    resolution: 0.1
+    noise_half_range: 0.15
+  - id: smoke_obscuration
+    quantity: smoke_obscuration
+    display_name: 烟雾遮蔽率
+    unit: "%/m"
+    ambient: 0.02
+    minimum: 0.0
+    maximum: 20.0
+    resolution: 0.01
+    noise_half_range: 0.01
+  - id: carbon_monoxide
+    quantity: carbon_monoxide
+    display_name: 一氧化碳浓度
+    unit: ppm
+    ambient: 3.0
+    minimum: 0.0
+    maximum: 500.0
+    resolution: 1.0
+    noise_half_range: 0.8
+
+sources:
+  - id: cabinet_overheat_p2
+    sensor_id: temperature
+    position: [1.60, 1.15]
+    peak_delta: 19.0
+    decay_length_m: 0.38
+  - id: smoke_source_p3
+    sensor_id: smoke_obscuration
+    position: [-1.60, 1.15]
+    peak_delta: 8.0
+    decay_length_m: 0.42
+  - id: carbon_monoxide_source_p3
+    sensor_id: carbon_monoxide
+    position: [-1.60, 1.15]
+    peak_delta: 95.0
+    decay_length_m: 0.48
+
+alarm_rules:
+  - id: high_temperature
+    sensor_id: temperature
+    severity: warning
+    direction: above
+    raise_threshold: 38.0
+    clear_threshold: 34.0
+    raise_after_samples: 2
+    clear_after_samples: 2
+  - id: smoke_detected
+    sensor_id: smoke_obscuration
+    severity: critical
+    direction: above
+    raise_threshold: 5.0
+    clear_threshold: 2.0
+    raise_after_samples: 2
+    clear_after_samples: 2
+  - id: high_carbon_monoxide
+    sensor_id: carbon_monoxide
+    severity: critical
+    direction: above
+    raise_threshold: 50.0
+    clear_threshold: 30.0
+    raise_after_samples: 2
+    clear_after_samples: 2
