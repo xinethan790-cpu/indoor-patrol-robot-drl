@@ -8,6 +8,7 @@ import pytest
 from indoor_patrol_rl.application import (
     PatrolActionPipeline,
     PatrolControlMode,
+    next_patrol_policy_control_step,
 )
 from indoor_patrol_rl.core import (
     DifferentialDriveMapper,
@@ -232,4 +233,54 @@ def test_invalid_mode_cannot_silently_disable_a_pinned_component_pipeline() -> N
             mapper=DifferentialDriveMapper(0.35, 1.5, 0.033, 0.16, 6.67),
             rate_limiter=VelocityRateLimiter(10.0, 10.0, 1.0),
             mode=False,  # type: ignore[arg-type]
+        )
+
+
+def test_dwell_only_recovery_does_not_consume_a_policy_control_step() -> None:
+    completed_policy_actions = 608
+
+    before_dwell_reset = next_patrol_policy_control_step(
+        completed_policy_actions=completed_policy_actions,
+        maximum_policy_actions=700,
+    )
+    after_dwell_reset = next_patrol_policy_control_step(
+        completed_policy_actions=completed_policy_actions,
+        maximum_policy_actions=700,
+    )
+
+    assert before_dwell_reset == 609
+    assert after_dwell_reset == 609
+    completed_policy_actions += 1
+    assert next_patrol_policy_control_step(
+        completed_policy_actions=completed_policy_actions,
+        maximum_policy_actions=700,
+    ) == 610
+    assert (
+        next_patrol_policy_control_step(
+            completed_policy_actions=700,
+            maximum_policy_actions=700,
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("completed", "maximum", "error"),
+    [
+        (-1, 1, ValueError),
+        (0, 0, ValueError),
+        (2, 1, ValueError),
+        (False, 1, TypeError),
+        (0, True, TypeError),
+    ],
+)
+def test_policy_control_step_inputs_are_fail_closed(
+    completed: int,
+    maximum: int,
+    error: type[Exception],
+) -> None:
+    with pytest.raises(error):
+        next_patrol_policy_control_step(
+            completed_policy_actions=completed,
+            maximum_policy_actions=maximum,
         )

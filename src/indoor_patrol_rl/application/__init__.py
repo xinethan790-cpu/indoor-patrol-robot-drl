@@ -4,6 +4,7 @@ from indoor_patrol_rl.application.control import (
     PatrolActionPipeline,
     PatrolActionResult,
     PatrolControlMode,
+    next_patrol_policy_control_step,
 )
 from indoor_patrol_rl.application.deployment import (
     AUDITED_R2A_CHECKPOINT_STEP,
@@ -94,6 +95,7 @@ __all__ = [
     "PatrolActionPipeline",
     "PatrolActionResult",
     "PatrolControlMode",
+    "next_patrol_policy_control_step",
     "SYSTEM_DEPLOYMENT_PROFILE_SCHEMA_VERSION",
     "DeploymentArtifactBinding",
     "DeploymentIntegrityError",

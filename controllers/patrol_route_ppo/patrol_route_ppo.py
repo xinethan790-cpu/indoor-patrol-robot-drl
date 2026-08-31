@@ -44,6 +44,7 @@ from indoor_patrol_rl.application import (
     PatrolTTCEscapeGuard,
     load_patrol_scenario_config,
     load_r2a_system_deployment_profile,
+    next_patrol_policy_control_step,
     validate_checkpoint_layout,
 )
 from indoor_patrol_rl.core import (
@@ -818,7 +819,12 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         ),
     )
 
-    for control_step in range(1, max_control_steps + 1):
+    while (
+        control_step := next_patrol_policy_control_step(
+            completed_policy_actions=len(trajectory),
+            maximum_policy_actions=max_control_steps,
+        )
+    ) is not None:
         current_position = position()
         waypoint_state = waypoint_manager.update(current_position)
         simulation_time_s = physics_step_count * basic_time_step / 1000.0
@@ -1508,7 +1514,7 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
 
     finish_run(
         outcome="timeout",
-        control_step_count=max_control_steps,
+        control_step_count=len(trajectory),
         exit_code=3,
         failure_reason="maximum control-step budget reached",
     )

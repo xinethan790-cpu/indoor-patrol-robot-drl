@@ -42,6 +42,38 @@ class PatrolControlMode(StrEnum):
         return self is PatrolControlMode.PINNED_COMPONENT
 
 
+def next_patrol_policy_control_step(
+    *,
+    completed_policy_actions: int,
+    maximum_policy_actions: int,
+) -> int | None:
+    """Return the next contiguous policy step without counting dwell-only work.
+
+    Physics-cadence inspection dwell and escape recovery can re-enter the patrol
+    loop without running the policy.  Deriving the next identifier from the
+    number of completed policy actions prevents those re-entries from creating
+    holes in the trajectory audit sequence.
+    """
+
+    for name, value in (
+        ("completed_policy_actions", completed_policy_actions),
+        ("maximum_policy_actions", maximum_policy_actions),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"{name} must be an integer.")
+    if completed_policy_actions < 0:
+        raise ValueError("completed_policy_actions must be non-negative.")
+    if maximum_policy_actions <= 0:
+        raise ValueError("maximum_policy_actions must be positive.")
+    if completed_policy_actions > maximum_policy_actions:
+        raise ValueError(
+            "completed_policy_actions cannot exceed maximum_policy_actions."
+        )
+    if completed_policy_actions == maximum_policy_actions:
+        return None
+    return completed_policy_actions + 1
+
+
 @dataclass(frozen=True, slots=True)
 class PatrolActionResult:
     """All command stages and safety evidence for one policy action."""
