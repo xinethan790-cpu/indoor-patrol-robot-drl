@@ -1,0 +1,232 @@
+schema_version: 2
+seed: 11
+model_variant: r2a_targeted_v1
+curriculum_config_sha256: fdb749be2ab9071a25880838c8b77857edfe9d742818140b2f96ba282ad2af3f
+curriculum_config:
+  semantic_schema_version: 1
+  seed: 11
+  transfer_model: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+  policy_transfer_model: artifacts/models/webots/seed_11/curriculum_v2/checkpoints/ppo_webots_s11_curriculum_v2_40960_steps.zip
+  model_variant: r2a_targeted_v1
+  port_base: 13220
+  automatic_split: validation
+  evaluation_world: webots_ppo_evaluate.wbt
+  gate_overrides:
+    seed_start: null
+    episodes: null
+    min_success_rate: null
+    max_collision_rate: null
+  stages:
+  - id: R2A
+    name: single_medium_low_targeted
+    world: webots_ppo_train.wbt
+    obstacle_count: 1
+    training_steps: 40960
+    gate:
+      seed_start: 5000
+      episodes: 100
+      min_success_rate: 0.75
+      max_collision_rate: 0.25
+    controller_env:
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_OBSTACLE_SPEED_MAX: '0.20'
+      WEBOTS_OBSTACLE_SPEED_MIN: '0.10'
+      WEBOTS_PPO_BATCH_SIZE: '128'
+      WEBOTS_PPO_ENT_COEF: '0.001'
+      WEBOTS_PPO_GAMMA: '0.995'
+      WEBOTS_PPO_INITIAL_ACTION_STD: '0.45'
+      WEBOTS_PPO_LEARNING_RATE: '0.00003'
+      WEBOTS_PPO_N_EPOCHS: '5'
+      WEBOTS_PPO_N_STEPS: '2048'
+      WEBOTS_PPO_TARGET_KL: '0.02'
+      WEBOTS_REWARD_COLLISION_PENALTY: '-30.0'
+      WEBOTS_REWARD_GOAL: '30.0'
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: '0.60'
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: '0.80'
+      WEBOTS_REWARD_SAFETY_DISTANCE: '0.35'
+      WEBOTS_REWARD_SAFETY_WEIGHT: '-0.60'
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: '-0.005'
+      WEBOTS_REWARD_TIMEOUT_PENALTY: '-5.0'
+      WEBOTS_RUN_ID: r2a_targeted
+      WEBOTS_SAFETY_SHIELD: 'false'
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.10'
+    preferred_resume_model: null
+created_at: '2026-08-31T02:05:55+00:00'
+updated_at: '2026-08-31T02:31:54+00:00'
+status: gate_failed
+webots_executable: /Applications/Webots.app/Contents/MacOS/webots
+automatic_split: validation
+test_split_was_run: false
+stages:
+- id: R2A
+  name: single_medium_low_targeted
+  world: webots_ppo_train.wbt
+  obstacle_count: 1
+  training_steps: 40960
+  controller_env:
+    WEBOTS_RUN_ID: r2a_targeted
+    WEBOTS_OBSTACLE_SPEED_MIN: '0.10'
+    WEBOTS_OBSTACLE_SPEED_MAX: '0.20'
+    WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.10'
+    WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.10'
+    WEBOTS_SAFETY_SHIELD: 'false'
+    WEBOTS_REWARD_SAFETY_DISTANCE: '0.35'
+    WEBOTS_REWARD_PROXIMITY_DISTANCE: '0.60'
+    WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: '0.80'
+    WEBOTS_REWARD_SAFETY_WEIGHT: '-0.60'
+    WEBOTS_REWARD_SMOOTHNESS_WEIGHT: '-0.005'
+    WEBOTS_REWARD_GOAL: '30.0'
+    WEBOTS_REWARD_COLLISION_PENALTY: '-30.0'
+    WEBOTS_REWARD_TIMEOUT_PENALTY: '-5.0'
+    WEBOTS_PPO_N_STEPS: '2048'
+    WEBOTS_PPO_BATCH_SIZE: '128'
+    WEBOTS_PPO_N_EPOCHS: '5'
+    WEBOTS_PPO_LEARNING_RATE: '0.00003'
+    WEBOTS_PPO_ENT_COEF: '0.001'
+    WEBOTS_PPO_GAMMA: '0.995'
+    WEBOTS_PPO_TARGET_KL: '0.02'
+    WEBOTS_PPO_INITIAL_ACTION_STD: '0.45'
+  preferred_resume_model: null
+  status: gate_failed
+  training_attempts:
+  - started_at: '2026-08-31T02:05:55+00:00'
+    command:
+    - /Applications/Webots.app/Contents/MacOS/webots
+    - --port=13220
+    - --batch
+    - --mode=fast
+    - --no-rendering
+    - --stdout
+    - --stderr
+    - /Users/a1/Documents/Codex/2026-08-28/new-chat/outputs/indoor-patrol-robot-drl/worlds/webots_ppo_train.wbt
+    environment:
+      WEBOTS_RUN_ID: r2a_targeted
+      WEBOTS_OBSTACLE_SPEED_MIN: '0.10'
+      WEBOTS_OBSTACLE_SPEED_MAX: '0.20'
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_SAFETY_SHIELD: 'false'
+      WEBOTS_REWARD_SAFETY_DISTANCE: '0.35'
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: '0.60'
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: '0.80'
+      WEBOTS_REWARD_SAFETY_WEIGHT: '-0.60'
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: '-0.005'
+      WEBOTS_REWARD_GOAL: '30.0'
+      WEBOTS_REWARD_COLLISION_PENALTY: '-30.0'
+      WEBOTS_REWARD_TIMEOUT_PENALTY: '-5.0'
+      WEBOTS_PPO_N_STEPS: '2048'
+      WEBOTS_PPO_BATCH_SIZE: '128'
+      WEBOTS_PPO_N_EPOCHS: '5'
+      WEBOTS_PPO_LEARNING_RATE: '0.00003'
+      WEBOTS_PPO_ENT_COEF: '0.001'
+      WEBOTS_PPO_GAMMA: '0.995'
+      WEBOTS_PPO_TARGET_KL: '0.02'
+      WEBOTS_PPO_INITIAL_ACTION_STD: '0.45'
+      WEBOTS_TRAIN_SEED: '11'
+      WEBOTS_TRAIN_STEPS: '40960'
+      WEBOTS_OBSTACLE_COUNT: '1'
+      WEBOTS_MODEL_VARIANT: r2a_targeted_v1
+      WEBOTS_POLICY_TRANSFER_MODEL: artifacts/models/webots/seed_11/curriculum_v2/checkpoints/ppo_webots_s11_curriculum_v2_40960_steps.zip
+    port: 13220
+    baseline_steps: 0
+    progressed_steps_before_attempt: 0
+    additional_steps_requested: 40960
+    finished_at: '2026-08-31T02:05:55+00:00'
+    exit_code: -6
+    status: failed
+  - started_at: '2026-08-31T02:26:42+00:00'
+    command:
+    - /Applications/Webots.app/Contents/MacOS/webots
+    - --port=13220
+    - --batch
+    - --mode=fast
+    - --no-rendering
+    - --stdout
+    - --stderr
+    - /Users/a1/Documents/Codex/2026-08-28/new-chat/outputs/indoor-patrol-robot-drl/worlds/webots_ppo_train.wbt
+    environment:
+      WEBOTS_RUN_ID: r2a_targeted
+      WEBOTS_OBSTACLE_SPEED_MIN: '0.10'
+      WEBOTS_OBSTACLE_SPEED_MAX: '0.20'
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_SAFETY_SHIELD: 'false'
+      WEBOTS_REWARD_SAFETY_DISTANCE: '0.35'
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: '0.60'
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: '0.80'
+      WEBOTS_REWARD_SAFETY_WEIGHT: '-0.60'
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: '-0.005'
+      WEBOTS_REWARD_GOAL: '30.0'
+      WEBOTS_REWARD_COLLISION_PENALTY: '-30.0'
+      WEBOTS_REWARD_TIMEOUT_PENALTY: '-5.0'
+      WEBOTS_PPO_N_STEPS: '2048'
+      WEBOTS_PPO_BATCH_SIZE: '128'
+      WEBOTS_PPO_N_EPOCHS: '5'
+      WEBOTS_PPO_LEARNING_RATE: '0.00003'
+      WEBOTS_PPO_ENT_COEF: '0.001'
+      WEBOTS_PPO_GAMMA: '0.995'
+      WEBOTS_PPO_TARGET_KL: '0.02'
+      WEBOTS_PPO_INITIAL_ACTION_STD: '0.45'
+      WEBOTS_TRAIN_SEED: '11'
+      WEBOTS_TRAIN_STEPS: '40960'
+      WEBOTS_OBSTACLE_COUNT: '1'
+      WEBOTS_MODEL_VARIANT: r2a_targeted_v1
+      WEBOTS_POLICY_TRANSFER_MODEL: artifacts/models/webots/seed_11/curriculum_v2/checkpoints/ppo_webots_s11_curriculum_v2_40960_steps.zip
+    port: 13220
+    baseline_steps: 0
+    progressed_steps_before_attempt: 0
+    additional_steps_requested: 40960
+    finished_at: '2026-08-31T02:31:04+00:00'
+    exit_code: 0
+    status: completed
+  stage_start_steps: 0
+  training:
+    status: completed
+    baseline_steps: 0
+    target_model_steps: 40960
+    final_model_steps: 40960
+    model: artifacts/models/webots/seed_11/r2a_targeted_v1/ppo_webots_s11_step000040960.zip
+    metadata: artifacts/models/webots/seed_11/r2a_targeted_v1/run_metadata.yaml
+  validation:
+    started_at: '2026-08-31T02:31:04+00:00'
+    command:
+    - /Applications/Webots.app/Contents/MacOS/webots
+    - --port=13221
+    - --batch
+    - --mode=fast
+    - --no-rendering
+    - --stdout
+    - --stderr
+    - /Users/a1/Documents/Codex/2026-08-28/new-chat/outputs/indoor-patrol-robot-drl/worlds/webots_ppo_evaluate.wbt
+    environment:
+      WEBOTS_OBSTACLE_SPEED_MIN: '0.10'
+      WEBOTS_OBSTACLE_SPEED_MAX: '0.20'
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_SAFETY_SHIELD: 'false'
+      WEBOTS_MODEL_SEED: '11'
+      WEBOTS_EVAL_MODEL: artifacts/models/webots/seed_11/r2a_targeted_v1/ppo_webots_s11_step000040960.zip
+      WEBOTS_EVAL_EPISODES: '100'
+      WEBOTS_EVAL_SEED_START: '5000'
+      WEBOTS_EVAL_SPLIT: validation
+      WEBOTS_EVAL_CONDITION: R2A
+      WEBOTS_EVAL_PLANNER_LABEL: ppo_r2a_step40960
+      WEBOTS_EVAL_RUN_NAME: webots_validation_r2a_final_step40960_seed11
+      WEBOTS_OBSTACLE_COUNT: '1'
+      WEBOTS_MODEL_VARIANT: r2a_targeted_v1
+    port: 13221
+    model: artifacts/models/webots/seed_11/r2a_targeted_v1/ppo_webots_s11_step000040960.zip
+    model_sha256: 2a87eb5e209a5dc80cbc619b892d4424e6f3928198a0aaf48d1d941d003e1e10
+    gate:
+      episodes: 100
+      min_success_rate: 0.75
+      max_collision_rate: 0.25
+    finished_at: '2026-08-31T02:31:54+00:00'
+    exit_code: 0
+    status: gate_failed
+    summary: artifacts/results/webots_validation_r2a_final_step40960_seed11/summary.json
+    metrics:
+      episodes: 100
+      success_rate: 0.61
+      collision_rate: 0.39
+    passed: false

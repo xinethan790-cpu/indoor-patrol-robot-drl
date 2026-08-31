@@ -1,0 +1,3 @@
+# Evaluation CSV files are hash-bound evidence.  Preserve their exact CRLF bytes
+# and keep whitespace checks from rewriting or rejecting them.
+artifacts/results/**/episodes.csv binary
