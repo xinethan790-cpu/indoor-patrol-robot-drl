@@ -24,6 +24,7 @@
 - [x] 实现温度、烟雾遮蔽率、一氧化碳的确定性模拟采样、迟滞告警与哈希证据包
 - [x] 将环境巡检采样与异常告警接入 Webots 四点任务
 - [x] 实现 operational/stress 场景、TTC 有界脱困和可审计多种子巡检评测
+- [x] 实现 Webots 逐帧采集与 90 秒中文 1080p 汇报视频生成
 - [ ] 完成本地巡检看板
 - [ ] 完成 Webots 三 seed 正式训练、统一批量评测、泛化和奖励消融
 
@@ -100,7 +101,7 @@ python scripts/verify_inspection_bundle.py artifacts/results/<巡检结果目录
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev,train]"
+python -m pip install -e ".[dev,train,video]"
 python scripts/configure_webots_python.py
 ```
 
@@ -132,7 +133,32 @@ python scripts/train_ppo.py --timesteps 5000 --n-envs 4 --n-steps 256
 python scripts/evaluate_ppo.py artifacts/models/ppo_kinematic.zip --episodes 10
 ```
 
-`artifacts/` 用于本地模型、日志、结果和视频，默认不提交大文件到 Git。最终模型和演示视频计划通过 GitHub Release 发布。
+`artifacts/` 用于本地模型、日志、结果和视频，默认不提交大文件到 Git。最终模型和演示视频通过 GitHub Release 发布。
+
+## 毕设汇报演示视频
+
+[下载 90 秒中文演示视频（私有仓库，需登录 GitHub）](https://github.com/xinethan790-cpu/indoor-patrol-robot-drl/releases/tag/graduation-demo-v1)
+
+演示素材来自 `graduation-demo-seed7000-v1` 的一次真实 Webots 运行：完成 `4/4` 个巡检点、碰撞 `0` 次、行驶 `11.74 m`，采集 `36` 条环境传感器样本并触发 `3` 次异常告警。视频为 1920×1080、H.264、无音频，包含题目页、系统架构、四点巡检、动态字幕、告警过程和结尾指标卡。该结果用于应用层功能展示，不替代正式多随机种子泛化结论。
+
+重新录制并生成视频：
+
+```bash
+python scripts/run_webots_patrol.py \
+  --seed 7000 \
+  --run-id graduation-demo-seed7000-v1 \
+  --output-dir artifacts/results/graduation-demo-seed7000-v1 \
+  --capture-frames-dir artifacts/results/graduation-demo-seed7000-v1/frames \
+  --capture-fps 10
+
+python scripts/build_defense_demo_video.py \
+  --frames-dir artifacts/results/graduation-demo-seed7000-v1/frames \
+  --summary artifacts/results/graduation-demo-seed7000-v1/summary.json \
+  --inspection-summary artifacts/results/graduation-demo-seed7000-v1/inspection_summary.json \
+  --output artifacts/videos/indoor-patrol-robot-defense-demo-v1.mp4
+```
+
+生成器会同时写出 `.manifest.json`，记录视频参数、输入文件哈希和输出 SHA-256，便于确认演示画面与运行结果来自同一 `run_id`。
 
 运行完整运动学课程与统一验证基准：
 

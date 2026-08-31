@@ -23,6 +23,9 @@ dev = [
   "pytest>=8,<10",
   "ruff>=0.12,<1",
 ]
+video = [
+  "Pillow>=11,<13",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
