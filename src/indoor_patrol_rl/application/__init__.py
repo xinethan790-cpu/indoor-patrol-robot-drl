@@ -1,5 +1,10 @@
 """Application-layer orchestration for indoor patrol tasks."""
 
+from indoor_patrol_rl.application.control import (
+    PatrolActionPipeline,
+    PatrolActionResult,
+    PatrolControlMode,
+)
 from indoor_patrol_rl.application.deployment import (
     AUDITED_R2A_CHECKPOINT_STEP,
     AUDITED_R2A_CONDITION_ID,
@@ -47,6 +52,9 @@ __all__ = [
     "AUDITED_R2A_SHIELD_SEMANTIC_SHA256",
     "AUDITED_R2A_SYSTEM_ID",
     "DEFAULT_R2A_DEPLOYMENT_PROFILE_PATH",
+    "PatrolActionPipeline",
+    "PatrolActionResult",
+    "PatrolControlMode",
     "SYSTEM_DEPLOYMENT_PROFILE_SCHEMA_VERSION",
     "DeploymentArtifactBinding",
     "DeploymentIntegrityError",

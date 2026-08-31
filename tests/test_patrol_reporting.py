@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import math
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
@@ -205,6 +207,15 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
             clearance_m=0.65,
             collision=False,
             inference_latency_ms=1.2,
+            policy_action_linear=0.20,
+            policy_action_angular=-0.10,
+            shielded_action_linear=-0.05,
+            shielded_action_angular=0.15,
+            safety_shield_active=True,
+            safety_shield_intervention=math.hypot(-0.25, 0.25),
+            shield_front_clearance_m=0.23,
+            shield_left_clearance_m=0.41,
+            shield_right_clearance_m=0.19,
         )
     ]
     checkpoints = [
@@ -264,7 +275,70 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
         trajectory_file="trajectory.csv",
         checkpoints_file="checkpoints.csv",
         collisions_file="collisions.csv",
+        system_deployment_id="webots_r2a_front_brake_fixed_system_validation_v1",
+        system_deployment_profile_sha256="a" * 64,
+        patrol_scenario_qualified=False,
+        deployment_evidence_scope="validated_component_outside_patrol_scenario",
+        safety_shield_id="r2a-front-brake-v1-354ce9b831f0",
+        safety_shield_sha256="b" * 64,
+        safety_shield_enabled=True,
+        safety_shield_intervention_steps=1,
+        safety_shield_intervention_rate=1 / 190,
     )
+
+    with pytest.raises(ValueError, match="action-vector difference"):
+        replace(trajectory[0], safety_shield_intervention=0.1)
+    for out_of_scope_label in (
+        "validated_component_outside_patrol_scenario",
+        "experimental_patrol_scenario",
+    ):
+        with pytest.raises(ValueError, match="out-of-scope evidence"):
+            replace(
+                summary,
+                patrol_scenario_qualified=True,
+                deployment_evidence_scope=out_of_scope_label,
+            )
+    qualified = replace(
+        summary,
+        patrol_scenario_qualified=True,
+        deployment_evidence_scope="qualified_patrol_scenario",
+    )
+    assert qualified.patrol_scenario_qualified is True
+
+    legacy_trajectory_fields = asdict(trajectory[0])
+    for field_name in (
+        "policy_action_linear",
+        "policy_action_angular",
+        "shielded_action_linear",
+        "shielded_action_angular",
+        "safety_shield_active",
+        "safety_shield_intervention",
+        "shield_front_clearance_m",
+        "shield_left_clearance_m",
+        "shield_right_clearance_m",
+    ):
+        legacy_trajectory_fields.pop(field_name)
+    legacy_trajectory = PatrolTrajectorySample(**legacy_trajectory_fields)
+    assert legacy_trajectory.policy_action_linear is None
+    assert legacy_trajectory.safety_shield_active is False
+
+    legacy_summary_fields = asdict(summary)
+    for field_name in (
+        "system_deployment_id",
+        "system_deployment_profile_sha256",
+        "patrol_scenario_qualified",
+        "deployment_evidence_scope",
+        "safety_shield_id",
+        "safety_shield_sha256",
+        "safety_shield_enabled",
+        "safety_shield_intervention_steps",
+        "safety_shield_intervention_rate",
+    ):
+        legacy_summary_fields.pop(field_name)
+    legacy_summary = PatrolRunSummary(**legacy_summary_fields)
+    assert legacy_summary.system_deployment_id is None
+    assert legacy_summary.safety_shield_enabled is False
+    assert legacy_summary.safety_shield_intervention_rate == 0.0
 
     paths = write_patrol_outputs(
         tmp_path / "result",
@@ -278,12 +352,30 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
     assert payload["backend"] == "Webots R2025a"
     assert payload["model_training_domain"] == "webots"
     assert payload["model_sha256"] == hashlib.sha256(b"model").hexdigest()
+    assert payload["system_deployment_id"] == "webots_r2a_front_brake_fixed_system_validation_v1"
+    assert payload["system_deployment_profile_sha256"] == "a" * 64
+    assert payload["patrol_scenario_qualified"] is False
+    assert payload["deployment_evidence_scope"] == "validated_component_outside_patrol_scenario"
+    assert payload["safety_shield_id"] == "r2a-front-brake-v1-354ce9b831f0"
+    assert payload["safety_shield_sha256"] == "b" * 64
+    assert payload["safety_shield_enabled"] is True
+    assert payload["safety_shield_intervention_steps"] == 1
+    assert payload["safety_shield_intervention_rate"] == pytest.approx(1 / 190)
     assert payload["checkpoint_records"][0]["checkpoint_id"] == "P1"
     assert payload["collision_records"][0]["detection_source"] == "contact"
     with paths["trajectory"].open(newline="", encoding="utf-8") as stream:
         row = next(csv.DictReader(stream))
     assert row["checkpoint_id"] == "P1"
     assert float(row["position_x_m"]) == pytest.approx(-1.59)
+    assert float(row["policy_action_linear"]) == pytest.approx(0.20)
+    assert float(row["policy_action_angular"]) == pytest.approx(-0.10)
+    assert float(row["shielded_action_linear"]) == pytest.approx(-0.05)
+    assert float(row["shielded_action_angular"]) == pytest.approx(0.15)
+    assert row["safety_shield_active"] == "True"
+    assert float(row["safety_shield_intervention"]) == pytest.approx(math.hypot(-0.25, 0.25))
+    assert float(row["shield_front_clearance_m"]) == pytest.approx(0.23)
+    assert float(row["shield_left_clearance_m"]) == pytest.approx(0.41)
+    assert float(row["shield_right_clearance_m"]) == pytest.approx(0.19)
 
 
 def test_portable_model_path_uses_repository_relative_path(tmp_path: Path) -> None:

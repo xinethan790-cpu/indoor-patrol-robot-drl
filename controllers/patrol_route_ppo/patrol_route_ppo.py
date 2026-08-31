@@ -23,6 +23,8 @@ from controller import Supervisor
 from stable_baselines3 import PPO
 
 from indoor_patrol_rl.application import (
+    PatrolActionPipeline,
+    PatrolControlMode,
     PatrolLiveAlert,
     PatrolLiveOutcome,
     PatrolLiveReadings,
@@ -32,13 +34,21 @@ from indoor_patrol_rl.application import (
     PatrolTaskCheckpoint,
     PatrolTaskMachine,
     PatrolTaskState,
+    load_r2a_system_deployment_profile,
     validate_checkpoint_layout,
 )
-from indoor_patrol_rl.core import DifferentialDriveMapper, ObservationBuilder, VelocityRateLimiter
+from indoor_patrol_rl.core import (
+    DifferentialDriveMapper,
+    LidarSafetyShield,
+    ObservationBuilder,
+    SafetyShieldConfig,
+    VelocityRateLimiter,
+)
 from indoor_patrol_rl.envs.webots_patrol import _webots_scan_to_policy_order
 from indoor_patrol_rl.evaluation import (
     PatrolCheckpointRecord,
     PatrolCollisionRecord,
+    PatrolModelSelection,
     PatrolRunSummary,
     PatrolTrajectorySample,
     portable_model_path,
@@ -163,21 +173,58 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             raise RuntimeError("Webots ended while initializing the patrol controller.")
 
     explicit_model = os.environ.get("WEBOTS_PATROL_MODEL")
-    selection_manifest = os.environ.get(
-        "WEBOTS_PATROL_SELECTION_MANIFEST",
-        "artifacts/results/webots_validation_w1_selection_seed11/selection.json",
-    )
-    model_selection = select_patrol_model(
-        repository_root,
-        explicit_model,
-        selection_manifest=selection_manifest or None,
-        allow_unvalidated_fallback=environment_flag(
-            "WEBOTS_PATROL_ALLOW_UNVALIDATED_MODEL"
-        ),
-    )
+    deployment_profile = None
+    if explicit_model is None:
+        deployment_profile = load_r2a_system_deployment_profile(
+            repository_root=repository_root
+        )
+        deployment_profile.verify_integrity()
+        shield_lidar_range = deployment_profile.safety_shield_config.lidar_max_range
+        live_lidar_range = float(lidar.getMaxRange())
+        if not math.isclose(shield_lidar_range, live_lidar_range, abs_tol=1e-9):
+            raise ValueError(
+                "The audited R2a safety-shield LiDAR range does not match the live device: "
+                f"{shield_lidar_range} != {live_lidar_range}."
+            )
+        model_selection = PatrolModelSelection(
+            path=deployment_profile.model_path,
+            training_domain="webots",
+            selection_reason=(
+                "pinned R2a model-plus-shield component profile; current patrol "
+                "scenario is outside its recorded evaluation domain"
+            ),
+            model_sha256=deployment_profile.model_sha256,
+        )
+        safety_shield = LidarSafetyShield(deployment_profile.safety_shield_config)
+        safety_shield_enabled = True
+    else:
+        model_selection = select_patrol_model(
+            repository_root,
+            explicit_model,
+            selection_manifest=None,
+            allow_unvalidated_fallback=environment_flag(
+                "WEBOTS_PATROL_ALLOW_UNVALIDATED_MODEL"
+            ),
+        )
+        safety_shield = LidarSafetyShield(
+            SafetyShieldConfig(lidar_max_range=float(lidar.getMaxRange()))
+        )
+        safety_shield_enabled = False
+    if deployment_profile is not None:
+        deployment_profile.verify_integrity()
     model = PPO.load(model_selection.path, device="cpu")
     mapper = DifferentialDriveMapper(0.22, 1.5, 0.033, 0.16, 6.0)
     limiter = VelocityRateLimiter(0.50, 3.0, control_dt)
+    action_pipeline = PatrolActionPipeline(
+        safety_shield=safety_shield,
+        mapper=mapper,
+        rate_limiter=limiter,
+        mode=(
+            PatrolControlMode.PINNED_COMPONENT
+            if safety_shield_enabled
+            else PatrolControlMode.EXPERIMENTAL_SHIELD_DISABLED
+        ),
+    )
     observation_builder = ObservationBuilder(36, float(lidar.getMaxRange()), 4.0)
     if model.observation_space.shape != observation_builder.space.shape:
         raise ValueError(
@@ -264,7 +311,23 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         f"reason={model_selection.selection_reason}",
         flush=True,
     )
-    if (
+    if deployment_profile is not None:
+        print(
+            "PATROL_COMPONENT_PROFILE "
+            f"system_id={deployment_profile.system_id} "
+            f"profile_sha256={deployment_profile.profile_sha256} "
+            f"shield={deployment_profile.safety_shield_id} "
+            f"component_validation_success={deployment_profile.validation_success_rate:.3f} "
+            f"component_validation_collision={deployment_profile.validation_collision_rate:.3f}",
+            flush=True,
+        )
+        print(
+            "PATROL_SCENARIO_WARNING the current two-obstacle four-checkpoint patrol "
+            "is outside the recorded R2a component evaluation domain; this run is "
+            "application-specific measured evidence, not a production safety certification.",
+            flush=True,
+        )
+    elif (
         model_selection.training_domain != "webots"
         or model_selection.selection_reason.startswith("UNVALIDATED")
     ):
@@ -310,11 +373,22 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
     runtime_identity = PatrolRuntimeIdentity(
         model_id=portable_model_path(model_selection.path, repository_root),
         model_sha256=model_selection.model_sha256,
-        safety_shield_enabled=False,
+        safety_shield_enabled=safety_shield_enabled,
+        safety_shield_id=(
+            None
+            if deployment_profile is None
+            else deployment_profile.safety_shield_id
+        ),
+        safety_shield_sha256=(
+            None
+            if deployment_profile is None
+            else deployment_profile.safety_shield_sha256
+        ),
     )
     live_sequence = -1
     latest_live_readings = PatrolLiveReadings()
     active_live_alerts: dict[str, PatrolLiveAlert] = {}
+    safety_shield_intervention_steps = 0
 
     def publish_live(
         *,
@@ -509,6 +583,37 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             trajectory_file="trajectory.csv",
             checkpoints_file="checkpoints.csv",
             collisions_file="collisions.csv",
+            system_deployment_id=(
+                None if deployment_profile is None else deployment_profile.system_id
+            ),
+            system_deployment_profile_sha256=(
+                None
+                if deployment_profile is None
+                else deployment_profile.profile_sha256
+            ),
+            patrol_scenario_qualified=False,
+            deployment_evidence_scope=(
+                None
+                if deployment_profile is None
+                else "validated_component_outside_patrol_scenario"
+            ),
+            safety_shield_id=(
+                None
+                if deployment_profile is None
+                else deployment_profile.safety_shield_id
+            ),
+            safety_shield_sha256=(
+                None
+                if deployment_profile is None
+                else deployment_profile.safety_shield_sha256
+            ),
+            safety_shield_enabled=safety_shield_enabled,
+            safety_shield_intervention_steps=safety_shield_intervention_steps,
+            safety_shield_intervention_rate=(
+                safety_shield_intervention_steps / control_step_count
+                if control_step_count > 0
+                else 0.0
+            ),
         )
         try:
             paths = write_patrol_outputs(
@@ -864,22 +969,25 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             previous_action=previous_action,
         )
         inference_started = time.perf_counter()
-        action, _ = model.predict(observation, deterministic=True)
+        policy_action, _ = model.predict(observation, deterministic=True)
         inference_latency_ms = 1000.0 * (time.perf_counter() - inference_started)
         inference_latencies_ms.append(inference_latency_ms)
-        action = np.clip(np.asarray(action, dtype=np.float32), -1.0, 1.0)
-        requested_linear, requested_angular = mapper.normalized_to_velocity(action)
-        limited_linear, limited_angular = limiter.limit(
-            requested_linear,
-            requested_angular,
-            current_linear,
-            current_angular,
+        action_result = action_pipeline.execute(
+            raw_lidar=scan,
+            policy_action=policy_action,
+            current_linear_mps=current_linear,
+            current_angular_radps=current_angular,
         )
-        left_speed, right_speed = mapper.velocity_to_wheels(limited_linear, limited_angular)
-        current_linear = 0.5 * mapper.wheel_radius * (left_speed + right_speed)
-        current_angular = (
-            mapper.wheel_radius * (right_speed - left_speed) / mapper.axle_length
-        )
+        policy_action = action_result.policy_action
+        shielded_action = action_result.shielded_action
+        shield_result = action_result.shield_result
+        safety_shield_intervention_steps += int(shield_result.active)
+        requested_linear = action_result.requested_linear_mps
+        requested_angular = action_result.requested_angular_radps
+        left_speed = action_result.left_wheel_radps
+        right_speed = action_result.right_wheel_radps
+        current_linear = action_result.executable_linear_mps
+        current_angular = action_result.executable_angular_radps
         left_motor.setVelocity(left_speed)
         right_motor.setVelocity(right_speed)
 
@@ -912,7 +1020,7 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             waypoint_state.target_index,
             (float(new_position[0]), float(new_position[1])),
         )
-        previous_action = action.copy()
+        previous_action = action_result.previous_action
         yaw = float(imu.getRollPitchYaw()[2])
         trajectory.append(
             PatrolTrajectorySample(
@@ -934,6 +1042,15 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 clearance_m=clearance,
                 collision=collision,
                 inference_latency_ms=inference_latency_ms,
+                policy_action_linear=float(policy_action[0]),
+                policy_action_angular=float(policy_action[1]),
+                shielded_action_linear=float(shielded_action[0]),
+                shielded_action_angular=float(shielded_action[1]),
+                safety_shield_active=shield_result.active,
+                safety_shield_intervention=shield_result.intervention,
+                shield_front_clearance_m=shield_result.front_clearance,
+                shield_left_clearance_m=shield_result.left_clearance,
+                shield_right_clearance_m=shield_result.right_clearance,
             )
         )
         if collision:

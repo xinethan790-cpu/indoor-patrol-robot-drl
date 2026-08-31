@@ -13,6 +13,7 @@ import math
 import re
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, fields
+from numbers import Real
 from pathlib import Path
 from typing import Literal, TypeVar
 
@@ -24,6 +25,8 @@ PatrolOutcome = Literal["completed", "collision", "timeout", "error"]
 _FORMAL_MIN_EPISODES = 20
 _FORMAL_MIN_SUCCESS_RATE = 0.75
 _FORMAL_MAX_COLLISION_RATE = 0.15
+_AUDIT_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+_AUDIT_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,87 @@ class PatrolTrajectorySample:
     clearance_m: float
     collision: bool
     inference_latency_ms: float
+    policy_action_linear: float | None = None
+    policy_action_angular: float | None = None
+    shielded_action_linear: float | None = None
+    shielded_action_angular: float | None = None
+    safety_shield_active: bool = False
+    safety_shield_intervention: float = 0.0
+    shield_front_clearance_m: float | None = None
+    shield_left_clearance_m: float | None = None
+    shield_right_clearance_m: float | None = None
+
+    def __post_init__(self) -> None:
+        """Reject incomplete or internally inconsistent shield evidence."""
+
+        action_values = (
+            self.policy_action_linear,
+            self.policy_action_angular,
+            self.shielded_action_linear,
+            self.shielded_action_angular,
+        )
+        if any(value is not None for value in action_values) and not all(
+            value is not None for value in action_values
+        ):
+            raise ValueError("Policy and shielded action components must be recorded together.")
+        for name, value in zip(
+            (
+                "policy_action_linear",
+                "policy_action_angular",
+                "shielded_action_linear",
+                "shielded_action_angular",
+            ),
+            action_values,
+            strict=True,
+        ):
+            if value is not None:
+                _finite_range(value, name, minimum=-1.0, maximum=1.0)
+
+        clearance_values = (
+            self.shield_front_clearance_m,
+            self.shield_left_clearance_m,
+            self.shield_right_clearance_m,
+        )
+        if any(value is not None for value in clearance_values) and not all(
+            value is not None for value in clearance_values
+        ):
+            raise ValueError("Front, left, and right shield clearances must be recorded together.")
+        if all(value is not None for value in action_values) != all(
+            value is not None for value in clearance_values
+        ):
+            raise ValueError("Action vectors and sector clearances must be recorded together.")
+        for name, value in zip(
+            (
+                "shield_front_clearance_m",
+                "shield_left_clearance_m",
+                "shield_right_clearance_m",
+            ),
+            clearance_values,
+            strict=True,
+        ):
+            if value is not None:
+                _finite_range(value, name, minimum=0.0)
+
+        if type(self.safety_shield_active) is not bool:
+            raise ValueError("safety_shield_active must be a boolean.")
+        intervention = _finite_range(
+            self.safety_shield_intervention,
+            "safety_shield_intervention",
+            minimum=0.0,
+        )
+        if self.safety_shield_active and intervention <= 0.0:
+            raise ValueError("An active safety shield must record a positive intervention.")
+        if all(value is not None for value in action_values):
+            expected = math.hypot(
+                float(self.shielded_action_linear) - float(self.policy_action_linear),
+                float(self.shielded_action_angular) - float(self.policy_action_angular),
+            )
+            if not math.isclose(intervention, expected, rel_tol=1e-6, abs_tol=1e-7):
+                raise ValueError(
+                    "safety_shield_intervention must equal the action-vector difference."
+                )
+        elif intervention != 0.0 or self.safety_shield_active:
+            raise ValueError("Shield intervention evidence requires both action vectors.")
 
 
 @dataclass(frozen=True)
@@ -125,6 +209,132 @@ class PatrolRunSummary:
     trajectory_file: str
     checkpoints_file: str
     collisions_file: str
+    system_deployment_id: str | None = None
+    system_deployment_profile_sha256: str | None = None
+    patrol_scenario_qualified: bool = False
+    deployment_evidence_scope: str | None = None
+    safety_shield_id: str | None = None
+    safety_shield_sha256: str | None = None
+    safety_shield_enabled: bool = False
+    safety_shield_intervention_steps: int = 0
+    safety_shield_intervention_rate: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Validate the deployment identity and aggregate intervention evidence."""
+
+        if type(self.safety_shield_enabled) is not bool:
+            raise ValueError("safety_shield_enabled must be a boolean.")
+        identity_values = (
+            self.system_deployment_id,
+            self.system_deployment_profile_sha256,
+            self.safety_shield_id,
+            self.safety_shield_sha256,
+        )
+        if not self.safety_shield_enabled:
+            if any(value is not None for value in identity_values):
+                raise ValueError(
+                    "A disabled safety shield cannot carry deployment or shield identity."
+                )
+        else:
+            _audit_identity(self.safety_shield_id, "safety_shield_id")
+            _audit_sha256(self.safety_shield_sha256, "safety_shield_sha256")
+
+        deployment_values = (
+            self.system_deployment_id,
+            self.system_deployment_profile_sha256,
+        )
+        if any(value is not None for value in deployment_values) and not all(
+            value is not None for value in deployment_values
+        ):
+            raise ValueError("System deployment ID and profile SHA-256 must be recorded together.")
+        if all(value is not None for value in deployment_values):
+            _audit_identity(self.system_deployment_id, "system_deployment_id")
+            _audit_sha256(
+                self.system_deployment_profile_sha256,
+                "system_deployment_profile_sha256",
+            )
+
+        if type(self.patrol_scenario_qualified) is not bool:
+            raise ValueError("patrol_scenario_qualified must be a boolean.")
+        if self.deployment_evidence_scope is not None:
+            _audit_identity(
+                self.deployment_evidence_scope,
+                "deployment_evidence_scope",
+            )
+        if all(value is not None for value in deployment_values):
+            if self.deployment_evidence_scope is None:
+                raise ValueError("A system deployment identity must declare its evidence scope.")
+        if self.patrol_scenario_qualified:
+            if not all(value is not None for value in deployment_values):
+                raise ValueError(
+                    "A qualified patrol scenario requires a system deployment identity."
+                )
+            assert self.deployment_evidence_scope is not None
+            normalized_scope = self.deployment_evidence_scope.casefold()
+            if any(
+                marker in normalized_scope for marker in ("outside", "experimental", "unqualified")
+            ):
+                raise ValueError(
+                    "A qualified patrol scenario cannot use an out-of-scope evidence label."
+                )
+
+        if isinstance(self.safety_shield_intervention_steps, bool) or not isinstance(
+            self.safety_shield_intervention_steps, int
+        ):
+            raise ValueError("safety_shield_intervention_steps must be an integer.")
+        if self.safety_shield_intervention_steps < 0:
+            raise ValueError("safety_shield_intervention_steps cannot be negative.")
+        if self.safety_shield_intervention_steps > self.control_step_count:
+            raise ValueError("safety_shield_intervention_steps cannot exceed control_step_count.")
+        intervention_rate = _finite_range(
+            self.safety_shield_intervention_rate,
+            "safety_shield_intervention_rate",
+            minimum=0.0,
+            maximum=1.0,
+        )
+        if not self.safety_shield_enabled and (
+            self.safety_shield_intervention_steps != 0 or intervention_rate != 0.0
+        ):
+            raise ValueError("A disabled safety shield cannot record interventions.")
+        if (self.safety_shield_intervention_steps == 0) != (intervention_rate == 0.0):
+            raise ValueError("Shield intervention steps and rate must both be zero or positive.")
+
+
+def _finite_range(
+    value: object,
+    name: str,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
+    """Return one finite numeric audit value after optional bound checks."""
+
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError(f"{name} must be a finite number.")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{name} must be a finite number.")
+    if minimum is not None and number < minimum:
+        raise ValueError(f"{name} must be at least {minimum}.")
+    if maximum is not None and number > maximum:
+        raise ValueError(f"{name} must be at most {maximum}.")
+    return number
+
+
+def _audit_identity(value: str | None, name: str) -> str:
+    """Validate a compact portable identity token used by audit outputs."""
+
+    if not isinstance(value, str) or _AUDIT_ID_PATTERN.fullmatch(value) is None:
+        raise ValueError(f"{name} must be a non-empty portable identity token.")
+    return value
+
+
+def _audit_sha256(value: str | None, name: str) -> str:
+    """Validate a canonical lowercase SHA-256 audit identity."""
+
+    if not isinstance(value, str) or _AUDIT_SHA256_PATTERN.fullmatch(value) is None:
+        raise ValueError(f"{name} must be a lowercase SHA-256 digest.")
+    return value
 
 
 def select_patrol_model(
@@ -199,8 +409,7 @@ def select_patrol_model(
             sha256_file(warm_start_path),
         )
     raise FileNotFoundError(
-        "No patrol model is available. Expected either "
-        f"{webots_path} or {warm_start_path}."
+        f"No patrol model is available. Expected either {webots_path} or {warm_start_path}."
     )
 
 
@@ -239,8 +448,7 @@ def _selection_from_manifest(
     )
     if min_success_rate < _FORMAL_MIN_SUCCESS_RATE:
         raise ValueError(
-            "Formal patrol selection requires min_success_rate >= "
-            f"{_FORMAL_MIN_SUCCESS_RATE:.2f}."
+            f"Formal patrol selection requires min_success_rate >= {_FORMAL_MIN_SUCCESS_RATE:.2f}."
         )
     if max_collision_rate > _FORMAL_MAX_COLLISION_RATE:
         raise ValueError(
@@ -256,9 +464,7 @@ def _selection_from_manifest(
         raise ValueError("Patrol selection manifest is missing formal_selected details.")
     if selected.get("gate_passed") is not True:
         raise ValueError("formal_selected.gate_passed must be true.")
-    selected_episodes = _manifest_integer(
-        selected.get("episodes"), "formal_selected.episodes"
-    )
+    selected_episodes = _manifest_integer(selected.get("episodes"), "formal_selected.episodes")
     if selected_episodes != episodes:
         raise ValueError("formal_selected.episodes must match validation_contract.episodes.")
     selected_success_rate = _manifest_rate(
@@ -281,9 +487,10 @@ def _selection_from_manifest(
     expected_sha256 = selected.get("model_sha256")
     if not isinstance(raw_model_path, str) or not raw_model_path:
         raise ValueError("formal_selected.model_path must be a non-empty string.")
-    if not isinstance(expected_sha256, str) or re.fullmatch(
-        r"[0-9a-fA-F]{64}", expected_sha256
-    ) is None:
+    if (
+        not isinstance(expected_sha256, str)
+        or re.fullmatch(r"[0-9a-fA-F]{64}", expected_sha256) is None
+    ):
         raise ValueError("formal_selected.model_sha256 must be a SHA-256 digest.")
 
     model_path = _inside_root(repository_root, raw_model_path)
