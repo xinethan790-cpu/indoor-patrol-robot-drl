@@ -1,0 +1,6 @@
+schema_version: 1
+kind: paired_safety_preregistration_git_binding
+config_path: configs/eval/webots_r2a_front_brake_paired_diagnostic_v1.yaml
+preregistration_revision: db634faf918ace1e6dc97f922771b44f323c6f45
+config_blob_oid: cf67268577576397a705fcf5bec4cdb6cd9c6317
+config_sha256: 7be127f48cccc3de6e3c9118074f3fc9e146cf17c75570397d7fea5fbe4126bd
