@@ -51,3 +51,29 @@ def test_r2b_targeted_config_requires_selected_resume_without_resetting_std() ->
     assert "WEBOTS_PPO_INITIAL_ACTION_STD" not in stage.controller_env
     assert stage.controller_env["WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT"] == "0.80"
     assert stage.controller_env["WEBOTS_SAFETY_SHIELD"] == "false"
+
+
+def test_r2a_v2_changes_only_the_early_warning_distance() -> None:
+    v1 = load_webots_curriculum(
+        REPOSITORY_ROOT / "configs/train/webots_r2a_targeted_v1.yaml"
+    )
+    v2 = load_webots_curriculum(
+        REPOSITORY_ROOT / "configs/train/webots_r2a_targeted_v2.yaml"
+    )
+
+    assert v2.model_variant == "r2a_targeted_v2"
+    assert v2.policy_transfer_model == v1.policy_transfer_model
+    assert len(v2.stages) == 1
+    v1_stage = v1.stages[0]
+    v2_stage = v2.stages[0]
+    assert v2_stage.stage_id == "R2A2"
+    assert v2_stage.training_steps == v1_stage.training_steps == 40960
+    assert v2_stage.gate == v1_stage.gate
+
+    v1_environment = dict(v1_stage.controller_env)
+    v2_environment = dict(v2_stage.controller_env)
+    assert v1_environment.pop("WEBOTS_RUN_ID") == "r2a_targeted"
+    assert v2_environment.pop("WEBOTS_RUN_ID") == "r2a_targeted_v2"
+    assert v1_environment.pop("WEBOTS_REWARD_PROXIMITY_DISTANCE") == "0.60"
+    assert v2_environment.pop("WEBOTS_REWARD_PROXIMITY_DISTANCE") == "0.70"
+    assert v2_environment == v1_environment
