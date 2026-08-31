@@ -22,7 +22,9 @@
 - [x] 完成 Reactive、DWA、PPO 的 240 回合运动学统一验证基准
 - [x] 实现三训练 seed、验证证据锁、一次性测试 ledger 和 400 回合汇总的正式实验协议
 - [x] 实现温度、烟雾遮蔽率、一氧化碳的确定性模拟采样、迟滞告警与哈希证据包
-- [ ] 将环境巡检数据链接入 Webots 四点任务并完成本地巡检看板
+- [x] 将环境巡检采样与异常告警接入 Webots 四点任务
+- [x] 实现 operational/stress 场景、TTC 有界脱困和可审计多种子巡检评测
+- [ ] 完成本地巡检看板
 - [ ] 完成 Webots 三 seed 正式训练、统一批量评测、泛化和奖励消融
 
 轻量二维环境不是最终实验平台。它用于快速验证状态、动作、奖励、随机种子、训练和测试代码，并为 Webots 提供策略热启动。当前验证集选择的是 stage 2（557,056 steps），不是训练最久的 stage 3；完整选择依据见[当前实验进展](reports/current-progress.md)。正式论文效果结论仍以 Webots 批量实验为准。
@@ -62,7 +64,9 @@
 python scripts/verify_inspection_bundle.py artifacts/results/<巡检结果目录>
 ```
 
-该证据包提供完整性校验和确定性复放，不把普通文件哈希描述成数字签名或身份认证。当前里程碑已完成独立环境巡检核心，下一步将它接入 Webots 四点控制器和实时看板。
+该证据包提供完整性校验和确定性复放，不把普通文件哈希描述成数字签名或身份认证。环境巡检现已接入 Webots 四点控制器：机器人在每个巡检点驻留并采样，产生读数、告警、巡检点进度和异常证据；下一阶段将这些数据汇总到本地实时看板。
+
+四点任务另外提供 `operational` 与 `stress` 两套动态障碍配置，并记录每一步 LiDAR 距离、稳健 TTC、PPO 动作、安全过滤动作、最终轮速与有界脱困事件。TTC 脱困只属于当前巡检应用的探索性保护层，不继承 R2a 单障碍组件资格，也不构成形式化安全保证。
 
 ## 架构
 
@@ -157,6 +161,24 @@ open -a Webots worlds/patrol_route_demo.wbt
 ```
 
 机器人会根据已知静态地图绕过中央柜体，依次访问四个彩色巡检点；黄色圆盘表示当前 A* 局部航点。
+
+运行一次带环境采样、PPO 避障和 TTC 有界脱困的四点巡检：
+
+```bash
+python scripts/run_webots_patrol.py --headless --scenario operational --seed 7000
+```
+
+运行 5 个种子的开发期试验：
+
+```bash
+python scripts/run_webots_patrol_campaign.py \
+  --scenario operational \
+  --seed-start 7000 \
+  --episodes 5 \
+  --output-dir artifacts/results/patrol-operational-pilot-seeds7000-7004
+```
+
+批量器会逐回合校验模型、场景、控制器、轨迹和事件文件的一致性。少于 20 回合只标记为 `insufficient_evidence`，用于调试而不能宣称通过应用验收；正式应用门禁至少需要 20 个新种子，完成率不低于 `0.75`、碰撞率不高于 `0.15` 且无执行错误。巡检应用门禁与受保护的论文正式测试协议相互独立。
 
 ## 目录结构
 

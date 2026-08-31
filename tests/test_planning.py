@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from indoor_patrol_rl.planning import (
     AxisAlignedRectangle,
     OccupancyGrid,
     astar,
     grid_from_rectangles,
+    grid_from_rectangles_with_clearances,
     simplify_path,
 )
 
@@ -68,3 +70,91 @@ def test_static_rectangles_and_map_border_are_rasterized() -> None:
     assert grid.occupied[:, -1].all()
     assert not grid.is_free(grid.world_to_grid((0.0, 0.0)))
     assert grid.is_free(grid.world_to_grid((-1.25, -0.75)))
+
+
+def test_static_obstacles_and_border_use_independent_clearances() -> None:
+    grid = grid_from_rectangles_with_clearances(
+        origin=(-2.0, -2.0),
+        size=(4.0, 4.0),
+        resolution=0.1,
+        rectangles=[AxisAlignedRectangle(center=(0.0, 0.0), size=(1.2, 0.8))],
+        obstacle_inflation_radius=0.38,
+        border_inflation_radius=0.15,
+    )
+
+    # The cabinet reaches column 25; 0.38 m adds three 0.1 m cells, not four.
+    assert grid.occupied[20, 28]
+    assert not grid.occupied[20, 29]
+    # The left border occupies column 0; 0.15 m adds one cell, not three.
+    assert grid.occupied[30, 1]
+    assert not grid.occupied[30, 2]
+
+
+def test_zero_separate_clearances_match_original_grid_api() -> None:
+    arguments = {
+        "origin": (-2.0, -1.5),
+        "size": (4.0, 3.0),
+        "resolution": 0.5,
+        "rectangles": [AxisAlignedRectangle(center=(0.0, 0.0), size=(1.0, 1.0))],
+    }
+
+    original = grid_from_rectangles(**arguments)
+    separated = grid_from_rectangles_with_clearances(
+        **arguments,
+        obstacle_inflation_radius=0.0,
+        border_inflation_radius=0.0,
+    )
+
+    assert separated.origin == original.origin
+    assert separated.resolution == original.resolution
+    np.testing.assert_array_equal(separated.occupied, original.occupied)
+
+
+@pytest.mark.parametrize("invalid_radius", [True, "0.15", None])
+@pytest.mark.parametrize(
+    "radius_name",
+    ["obstacle_inflation_radius", "border_inflation_radius"],
+)
+def test_separate_clearances_reject_non_numeric_radii(
+    invalid_radius: object,
+    radius_name: str,
+) -> None:
+    radii: dict[str, object] = {
+        "obstacle_inflation_radius": 0.38,
+        "border_inflation_radius": 0.15,
+    }
+    radii[radius_name] = invalid_radius
+
+    with pytest.raises(TypeError, match=radius_name):
+        grid_from_rectangles_with_clearances(
+            origin=(-1.0, -1.0),
+            size=(2.0, 2.0),
+            resolution=0.1,
+            rectangles=(),
+            **radii,
+        )
+
+
+@pytest.mark.parametrize("invalid_radius", [-0.01, float("nan"), float("inf")])
+@pytest.mark.parametrize(
+    "radius_name",
+    ["obstacle_inflation_radius", "border_inflation_radius"],
+)
+def test_separate_clearances_reject_invalid_numeric_radii(
+    invalid_radius: float,
+    radius_name: str,
+) -> None:
+    radii = {
+        "obstacle_inflation_radius": 0.38,
+        "border_inflation_radius": 0.15,
+    }
+    radii[radius_name] = invalid_radius
+
+    with pytest.raises(ValueError, match=radius_name):
+        grid_from_rectangles_with_clearances(
+            origin=(-1.0, -1.0),
+            size=(2.0, 2.0),
+            resolution=0.1,
+            rectangles=(),
+            **radii,
+        )

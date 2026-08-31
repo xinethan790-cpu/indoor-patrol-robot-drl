@@ -52,11 +52,11 @@ DEF ROUTE_CHECKPOINT_P1 Pose {
   children [ Shape { appearance PBRAppearance { baseColor 0.1 0.8 0.25 emissiveColor 0.02 0.20 0.05 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
 }
 DEF ROUTE_CHECKPOINT_P2 Pose {
-  translation 1.6 1.15 0.025
+  translation 1.6 1.3 0.025
   children [ Shape { appearance PBRAppearance { baseColor 0.1 0.55 0.95 emissiveColor 0.02 0.08 0.22 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
 }
 DEF ROUTE_CHECKPOINT_P3 Pose {
-  translation -1.6 1.15 0.025
+  translation -1.6 1.3 0.025
   children [ Shape { appearance PBRAppearance { baseColor 0.7 0.25 0.95 emissiveColor 0.14 0.03 0.20 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
 }
 DEF ROUTE_CHECKPOINT_P4 Pose {
@@ -87,7 +87,7 @@ DEF DYNAMIC_OBSTACLE_0 Solid {
   locked TRUE
 }
 DEF DYNAMIC_OBSTACLE_1 Solid {
-  translation 0.95 0.92 0.36
+  translation 0.95 0.60 0.36
   children [
     Shape {
       appearance PBRAppearance {

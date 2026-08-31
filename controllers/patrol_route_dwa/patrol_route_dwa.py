@@ -15,7 +15,7 @@ from indoor_patrol_rl.envs.webots_patrol import _webots_scan_to_policy_order
 from indoor_patrol_rl.planning import (
     AxisAlignedRectangle,
     WaypointManager,
-    grid_from_rectangles,
+    grid_from_rectangles_with_clearances,
     plan_world_path,
 )
 from indoor_patrol_rl.policies import DWAConfig, DWAPlanner
@@ -42,12 +42,14 @@ def main() -> None:
         AxisAlignedRectangle(tuple(item["center"]), tuple(item["size"]))
         for item in map_config["static_rectangles"]
     ]
-    grid = grid_from_rectangles(
+    grid = grid_from_rectangles_with_clearances(
         origin=tuple(map_config["origin"]),
         size=tuple(map_config["size"]),
         resolution=float(map_config["resolution"]),
         rectangles=rectangles,
-    ).inflate(float(map_config["inflation_radius"]))
+        obstacle_inflation_radius=float(map_config["obstacle_inflation_radius"]),
+        border_inflation_radius=float(map_config["border_inflation_radius"]),
+    )
     checkpoints = [
         (item["id"], tuple(item["position"])) for item in route_config["checkpoints"]
     ]

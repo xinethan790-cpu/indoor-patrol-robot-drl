@@ -7,6 +7,7 @@ from indoor_patrol_rl.planning.grid import (
     OccupancyGrid,
     WorldPoint,
     grid_from_rectangles,
+    grid_from_rectangles_with_clearances,
 )
 from indoor_patrol_rl.planning.path import NoPathError, PlannedPath, plan_world_path
 from indoor_patrol_rl.planning.waypoints import WaypointManager, WaypointUpdate
@@ -22,6 +23,7 @@ __all__ = [
     "WorldPoint",
     "astar",
     "grid_from_rectangles",
+    "grid_from_rectangles_with_clearances",
     "plan_world_path",
     "simplify_path",
 ]

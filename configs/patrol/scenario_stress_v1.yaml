@@ -1,0 +1,16 @@
+# Deliberately out-of-domain application stress scenario.
+# It preserves the original faster obstacle speeds and does not inherit the
+# R2a model-plus-shield system qualification.
+schema_version: 1
+scenario_id: patrol_stress_v1
+mode: stress
+inherits_r2a_system_qualification: false
+dynamic_obstacles:
+  - def_name: DYNAMIC_OBSTACLE_0
+    axis: 1
+    bounds_m: [-1.20, 1.20]
+    speed_mps: 0.31
+  - def_name: DYNAMIC_OBSTACLE_1
+    axis: 0
+    bounds_m: [-1.55, 1.55]
+    speed_mps: 0.27

@@ -167,6 +167,18 @@ def test_writer_rejects_updates_after_a_terminal_snapshot(tmp_path: Path) -> Non
         writer.publish(_snapshot(sequence=1, control_step=1, simulation_time_s=0.1))
 
 
+def test_safety_stop_is_a_replayable_failure_outcome() -> None:
+    terminal = replace(
+        _snapshot(),
+        state=PatrolTaskState.FAILED,
+        outcome=PatrolLiveOutcome.SAFETY_STOP,
+        local_goal=None,
+        remaining_distance_m=None,
+    )
+
+    assert PatrolLiveSnapshot.from_dict(terminal.to_dict()) == terminal
+
+
 def test_writer_resumes_existing_stream_and_keeps_event_order(tmp_path: Path) -> None:
     first_writer = PatrolLiveStatusWriter(tmp_path, run_id="patrol-run-001")
     first_writer.publish(_snapshot(sequence=7, control_step=70, simulation_time_s=2.0))

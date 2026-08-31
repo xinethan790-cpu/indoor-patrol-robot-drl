@@ -11,6 +11,11 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+SCENARIO_CONFIGS = {
+    "operational": "configs/patrol/scenario_operational_v1.yaml",
+    "stress": "configs/patrol/scenario_stress_v1.yaml",
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -38,6 +43,15 @@ def parse_args() -> argparse.Namespace:
         "--inspection-config",
         default="configs/inspection/environmental_patrol_v1.yaml",
         help="Environmental sensing and alarm scenario YAML.",
+    )
+    parser.add_argument(
+        "--scenario",
+        choices=tuple(SCENARIO_CONFIGS),
+        default="operational",
+        help=(
+            "Patrol obstacle profile: operational is the default application run; "
+            "stress keeps the faster out-of-domain diagnostic challenge."
+        ),
     )
     parser.add_argument("--timeout-s", type=float, help="Optional whole-task simulation timeout.")
     parser.add_argument("--port", type=int, default=1262, help="Webots TCP port.")
@@ -104,6 +118,7 @@ def main() -> int:
     environment["WEBOTS_PATROL_RUN_ID"] = run_id
     environment["WEBOTS_PATROL_OUTPUT_DIR"] = str(output_directory)
     environment["WEBOTS_PATROL_INSPECTION_CONFIG"] = args.inspection_config
+    environment["WEBOTS_PATROL_SCENARIO_CONFIG"] = SCENARIO_CONFIGS[args.scenario]
     if args.max_steps is not None:
         environment["WEBOTS_PATROL_MAX_STEPS"] = str(args.max_steps)
     if args.model:
@@ -122,8 +137,9 @@ def main() -> int:
     completed = subprocess.run(command, cwd=repository_root, env=environment, check=False)
     meanings = {
         0: "four-point patrol completed",
-        2: "patrol stopped after a measured collision",
+        2: "patrol stopped after a physical contact collision",
         3: "patrol reached the configured control-step timeout",
+        4: "patrol-specific TTC escape guard exhausted its bounded recovery window",
     }
     print(f"Webots exit {completed.returncode}: {meanings.get(completed.returncode, 'error')}")
     return completed.returncode

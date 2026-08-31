@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from numbers import Real
 from typing import TypeAlias
 
 import numpy as np
@@ -114,3 +116,59 @@ def grid_from_rectangles(
         occupied[[0, -1], :] = True
         occupied[:, [0, -1]] = True
     return OccupancyGrid(occupied, resolution, origin)
+
+
+def grid_from_rectangles_with_clearances(
+    *,
+    origin: WorldPoint,
+    size: WorldPoint,
+    resolution: float,
+    rectangles: list[AxisAlignedRectangle] | tuple[AxisAlignedRectangle, ...],
+    obstacle_inflation_radius: float,
+    border_inflation_radius: float,
+) -> OccupancyGrid:
+    """Rasterize and independently inflate static obstacles and the map border.
+
+    The function deliberately builds both layers through
+    :func:`grid_from_rectangles`, so its rasterization semantics stay aligned with
+    the original API. The returned grid is a new union of the two inflated layers.
+    """
+
+    obstacle_radius = _validated_radius(
+        obstacle_inflation_radius,
+        name="obstacle_inflation_radius",
+    )
+    border_radius = _validated_radius(
+        border_inflation_radius,
+        name="border_inflation_radius",
+    )
+    obstacle_grid = grid_from_rectangles(
+        origin=origin,
+        size=size,
+        resolution=resolution,
+        rectangles=rectangles,
+        occupy_border=False,
+    ).inflate(obstacle_radius)
+    border_grid = grid_from_rectangles(
+        origin=origin,
+        size=size,
+        resolution=resolution,
+        rectangles=(),
+        occupy_border=True,
+    ).inflate(border_radius)
+    return OccupancyGrid(
+        np.logical_or(obstacle_grid.occupied, border_grid.occupied),
+        resolution,
+        origin,
+    )
+
+
+def _validated_radius(value: float, *, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise TypeError(f"{name} must be a real number.")
+    radius = float(value)
+    if not math.isfinite(radius):
+        raise ValueError(f"{name} must be finite.")
+    if radius < 0.0:
+        raise ValueError(f"{name} cannot be negative.")
+    return radius

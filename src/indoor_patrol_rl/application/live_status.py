@@ -32,6 +32,7 @@ class PatrolLiveOutcome(StrEnum):
     RUNNING = "running"
     SUCCESS = "success"
     COLLISION = "collision"
+    SAFETY_STOP = "safety_stop"
     TIMEOUT = "timeout"
     INSPECTION_FAILED = "inspection_failed"
     ERROR = "error"

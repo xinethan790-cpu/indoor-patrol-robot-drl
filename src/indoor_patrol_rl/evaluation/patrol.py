@@ -20,13 +20,14 @@ from typing import Literal, TypeVar
 from indoor_patrol_rl.evaluation.checkpoint_selection import sha256_file
 
 ModelTrainingDomain = Literal["webots", "kinematic", "unknown"]
-PatrolOutcome = Literal["completed", "collision", "timeout", "error"]
+PatrolOutcome = Literal["completed", "collision", "safety_stop", "timeout", "error"]
 
 _FORMAL_MIN_EPISODES = 20
 _FORMAL_MIN_SUCCESS_RATE = 0.75
 _FORMAL_MAX_COLLISION_RATE = 0.15
 _AUDIT_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 _AUDIT_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+_CSV_FILE_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\.csv")
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,19 @@ class PatrolTrajectorySample:
     dynamic_obstacle_1_y_m: float | None = None
     dynamic_obstacle_2_x_m: float | None = None
     dynamic_obstacle_2_y_m: float | None = None
+    critical_proximity: bool = False
+    proximity_closing_rate_mps: float | None = None
+    estimated_ttc_s: float | None = None
+    ttc_escape_guard_active: bool = False
+    ttc_escape_guard_mode: Literal[
+        "inactive",
+        "reverse",
+        "forward",
+        "rotate",
+        "unrecoverable",
+    ] = "inactive"
+    ttc_escape_guard_target_linear_mps: float | None = None
+    ttc_escape_guard_target_angular_radps: float | None = None
 
     def __post_init__(self) -> None:
         """Reject incomplete or internally inconsistent shield evidence."""
@@ -150,6 +164,61 @@ class PatrolTrajectorySample:
         elif intervention != 0.0 or self.safety_shield_active:
             raise ValueError("Shield intervention evidence requires both action vectors.")
 
+        if type(self.collision) is not bool:
+            raise ValueError("collision must be a boolean.")
+        if type(self.critical_proximity) is not bool:
+            raise ValueError("critical_proximity must be a boolean.")
+        if self.collision and self.critical_proximity:
+            raise ValueError("Physical collision and critical proximity are mutually exclusive.")
+
+        if self.proximity_closing_rate_mps is not None:
+            _finite_range(
+                self.proximity_closing_rate_mps,
+                "proximity_closing_rate_mps",
+            )
+        if self.estimated_ttc_s is not None:
+            _finite_range(self.estimated_ttc_s, "estimated_ttc_s", minimum=0.0)
+
+        if type(self.ttc_escape_guard_active) is not bool:
+            raise ValueError("ttc_escape_guard_active must be a boolean.")
+        if self.ttc_escape_guard_mode not in {
+            "inactive",
+            "reverse",
+            "forward",
+            "rotate",
+            "unrecoverable",
+        }:
+            raise ValueError("ttc_escape_guard_mode is not supported.")
+        guard_targets = (
+            self.ttc_escape_guard_target_linear_mps,
+            self.ttc_escape_guard_target_angular_radps,
+        )
+        if any(value is not None for value in guard_targets) and not all(
+            value is not None for value in guard_targets
+        ):
+            raise ValueError("TTC escape guard target velocities must be recorded together.")
+        for name, value in zip(
+            (
+                "ttc_escape_guard_target_linear_mps",
+                "ttc_escape_guard_target_angular_radps",
+            ),
+            guard_targets,
+            strict=True,
+        ):
+            if value is not None:
+                _finite_range(value, name)
+        if self.ttc_escape_guard_active:
+            if self.ttc_escape_guard_mode == "inactive":
+                raise ValueError("An active TTC escape guard must use a non-inactive mode.")
+            if not all(value is not None for value in guard_targets):
+                raise ValueError("An active TTC escape guard requires target velocities.")
+        elif self.ttc_escape_guard_mode != "inactive" or any(
+            value is not None for value in guard_targets
+        ):
+            raise ValueError(
+                "An inactive TTC escape guard must use inactive mode without target velocities."
+            )
+
         _validate_scene_diagnostic(
             minimum_lidar_beam_index=self.minimum_lidar_beam_index,
             minimum_lidar_angle_rad=self.minimum_lidar_angle_rad,
@@ -158,6 +227,54 @@ class PatrolTrajectorySample:
             dynamic_obstacle_2_x_m=self.dynamic_obstacle_2_x_m,
             dynamic_obstacle_2_y_m=self.dynamic_obstacle_2_y_m,
         )
+
+
+@dataclass(frozen=True)
+class PatrolTTCEscapeGuardEventRecord:
+    """One guard update, including dwell updates absent from navigation trajectory."""
+
+    event_index: int
+    control_step: int
+    simulation_time_s: float
+    phase: Literal["navigation", "dwell"]
+    active: bool
+    mode: Literal[
+        "inactive",
+        "reverse",
+        "forward",
+        "rotate",
+        "unrecoverable",
+    ]
+    target_linear_mps: float | None
+    target_angular_radps: float | None
+    counts_as_intervention_step: bool
+
+    def __post_init__(self) -> None:
+        if isinstance(self.event_index, bool) or not isinstance(self.event_index, int):
+            raise ValueError("event_index must be an integer.")
+        if self.event_index < 1:
+            raise ValueError("event_index must be positive.")
+        if isinstance(self.control_step, bool) or not isinstance(self.control_step, int):
+            raise ValueError("control_step must be an integer.")
+        if self.control_step < 0:
+            raise ValueError("control_step cannot be negative.")
+        _finite_range(self.simulation_time_s, "simulation_time_s", minimum=0.0)
+        if self.phase not in {"navigation", "dwell"}:
+            raise ValueError("phase must be 'navigation' or 'dwell'.")
+        if type(self.counts_as_intervention_step) is not bool:
+            raise ValueError("counts_as_intervention_step must be a boolean.")
+        _validate_ttc_escape_guard_state(
+            active=self.active,
+            mode=self.mode,
+            target_linear_mps=self.target_linear_mps,
+            target_angular_radps=self.target_angular_radps,
+        )
+        if self.counts_as_intervention_step and not self.active:
+            raise ValueError("Only an active guard update can count as an intervention step.")
+        if self.phase == "navigation" and self.active != self.counts_as_intervention_step:
+            raise ValueError(
+                "A navigation guard update counts exactly when the guard is active."
+            )
 
 
 @dataclass(frozen=True)
@@ -180,7 +297,7 @@ class PatrolCheckpointRecord:
 
 @dataclass(frozen=True)
 class PatrolCollisionRecord:
-    """A collision latched by contact points or the LiDAR fallback."""
+    """A physical collision latched by Webots contact points."""
 
     collision_index: int
     control_step: int
@@ -197,8 +314,100 @@ class PatrolCollisionRecord:
     dynamic_obstacle_2_y_m: float | None = None
 
     def __post_init__(self) -> None:
-        """Reject partial collision-scene diagnostics."""
+        """Require a physical-contact event and reject partial scene diagnostics."""
 
+        _validate_terminal_scene_record(
+            index=self.collision_index,
+            index_name="collision_index",
+            control_step=self.control_step,
+            simulation_time_s=self.simulation_time_s,
+            position_x_m=self.position_x_m,
+            position_y_m=self.position_y_m,
+            detection_source=self.detection_source,
+            expected_detection_source="contact",
+            minimum_lidar_range_m=self.minimum_lidar_range_m,
+        )
+
+        _validate_scene_diagnostic(
+            minimum_lidar_beam_index=self.minimum_lidar_beam_index,
+            minimum_lidar_angle_rad=self.minimum_lidar_angle_rad,
+            dynamic_obstacle_1_x_m=self.dynamic_obstacle_1_x_m,
+            dynamic_obstacle_1_y_m=self.dynamic_obstacle_1_y_m,
+            dynamic_obstacle_2_x_m=self.dynamic_obstacle_2_x_m,
+            dynamic_obstacle_2_y_m=self.dynamic_obstacle_2_y_m,
+        )
+
+
+@dataclass(frozen=True)
+class PatrolCriticalProximityRecord:
+    """A proximity-related safety stop before physical contact.
+
+    ``lidar_threshold`` records a stop at the monitor's hard critical boundary
+    and therefore requires at least one consecutive critical frame.
+    ``ttc_escape_guard_timeout`` records a bounded application escape attempt
+    that could not establish its release clearance; it may stop before the hard
+    boundary and must retain the observed (possibly zero) critical-frame count.
+    """
+
+    proximity_index: int
+    control_step: int
+    simulation_time_s: float
+    position_x_m: float
+    position_y_m: float
+    detection_source: str
+    minimum_lidar_range_m: float
+    consecutive_frames: int
+    closing_rate_mps: float | None = None
+    estimated_ttc_s: float | None = None
+    minimum_lidar_beam_index: int | None = None
+    minimum_lidar_angle_rad: float | None = None
+    dynamic_obstacle_1_x_m: float | None = None
+    dynamic_obstacle_1_y_m: float | None = None
+    dynamic_obstacle_2_x_m: float | None = None
+    dynamic_obstacle_2_y_m: float | None = None
+
+    def __post_init__(self) -> None:
+        """Require truthful proximity provenance and complete diagnostics."""
+
+        supported_sources = {
+            "lidar_threshold",
+            "ttc_escape_guard_timeout",
+        }
+        if self.detection_source not in supported_sources:
+            raise ValueError(
+                "detection_source must be 'lidar_threshold' or "
+                "'ttc_escape_guard_timeout' for a proximity safety stop."
+            )
+
+        _validate_terminal_scene_record(
+            index=self.proximity_index,
+            index_name="proximity_index",
+            control_step=self.control_step,
+            simulation_time_s=self.simulation_time_s,
+            position_x_m=self.position_x_m,
+            position_y_m=self.position_y_m,
+            detection_source=self.detection_source,
+            expected_detection_source=self.detection_source,
+            minimum_lidar_range_m=self.minimum_lidar_range_m,
+        )
+        if isinstance(self.consecutive_frames, bool) or not isinstance(
+            self.consecutive_frames, int
+        ):
+            raise ValueError("consecutive_frames must be an integer.")
+        minimum_frames = 1 if self.detection_source == "lidar_threshold" else 0
+        if self.consecutive_frames < minimum_frames:
+            if self.detection_source == "lidar_threshold":
+                raise ValueError(
+                    "consecutive_frames must be positive for lidar_threshold."
+                )
+            raise ValueError("consecutive_frames cannot be negative.")
+        closing_rate = None
+        if self.closing_rate_mps is not None:
+            closing_rate = _finite_range(self.closing_rate_mps, "closing_rate_mps")
+        if self.estimated_ttc_s is not None:
+            _finite_range(self.estimated_ttc_s, "estimated_ttc_s", minimum=0.0)
+            if self.estimated_ttc_s > 0.0 and (closing_rate is None or closing_rate <= 0.0):
+                raise ValueError("A positive estimated_ttc_s requires a positive closing_rate_mps.")
         _validate_scene_diagnostic(
             minimum_lidar_beam_index=self.minimum_lidar_beam_index,
             minimum_lidar_angle_rad=self.minimum_lidar_angle_rad,
@@ -251,6 +460,21 @@ class PatrolRunSummary:
     safety_shield_enabled: bool = False
     safety_shield_intervention_steps: int = 0
     safety_shield_intervention_rate: float = 0.0
+    critical_proximity_count: int = 0
+    proximity_events_file: str = "proximity_events.csv"
+    patrol_scenario_id: str | None = None
+    patrol_scenario_mode: Literal["operational", "stress"] | None = None
+    patrol_scenario_config_sha256: str | None = None
+    dynamic_obstacle_count: int | None = None
+    dynamic_obstacle_speed_max_mps: float | None = None
+    ttc_escape_guard_enabled: bool = False
+    ttc_escape_guard_id: str | None = None
+    ttc_escape_guard_evidence_scope: str | None = None
+    ttc_escape_guard_intervention_steps: int = 0
+    ttc_escape_guard_activation_count: int = 0
+    ttc_escape_guard_recovery_count: int = 0
+    ttc_escape_guard_unrecoverable_count: int = 0
+    ttc_escape_guard_events_file: str = "ttc_escape_guard_events.csv"
 
     def __post_init__(self) -> None:
         """Validate the deployment identity and aggregate intervention evidence."""
@@ -298,18 +522,9 @@ class PatrolRunSummary:
             if self.deployment_evidence_scope is None:
                 raise ValueError("A system deployment identity must declare its evidence scope.")
         if self.patrol_scenario_qualified:
-            if not all(value is not None for value in deployment_values):
-                raise ValueError(
-                    "A qualified patrol scenario requires a system deployment identity."
-                )
-            assert self.deployment_evidence_scope is not None
-            normalized_scope = self.deployment_evidence_scope.casefold()
-            if any(
-                marker in normalized_scope for marker in ("outside", "experimental", "unqualified")
-            ):
-                raise ValueError(
-                    "A qualified patrol scenario cannot use an out-of-scope evidence label."
-                )
+            raise ValueError(
+                "patrol_scenario_qualified cannot be true without a qualification issuer."
+            )
 
         if isinstance(self.safety_shield_intervention_steps, bool) or not isinstance(
             self.safety_shield_intervention_steps, int
@@ -331,6 +546,160 @@ class PatrolRunSummary:
             raise ValueError("A disabled safety shield cannot record interventions.")
         if (self.safety_shield_intervention_steps == 0) != (intervention_rate == 0.0):
             raise ValueError("Shield intervention steps and rate must both be zero or positive.")
+
+        if isinstance(self.collision_count, bool) or not isinstance(self.collision_count, int):
+            raise ValueError("collision_count must be an integer.")
+        if self.collision_count < 0:
+            raise ValueError("collision_count cannot be negative.")
+        if isinstance(self.critical_proximity_count, bool) or not isinstance(
+            self.critical_proximity_count, int
+        ):
+            raise ValueError("critical_proximity_count must be an integer.")
+        if self.critical_proximity_count < 0:
+            raise ValueError("critical_proximity_count cannot be negative.")
+        patrol_output_files = {
+            "trajectory_file": self.trajectory_file,
+            "checkpoints_file": self.checkpoints_file,
+            "collisions_file": self.collisions_file,
+            "proximity_events_file": self.proximity_events_file,
+            "ttc_escape_guard_events_file": self.ttc_escape_guard_events_file,
+        }
+        for name, value in patrol_output_files.items():
+            _portable_csv_filename(value, name)
+        if len(set(patrol_output_files.values())) != len(patrol_output_files):
+            raise ValueError("Patrol output CSV filenames must be mutually distinct.")
+
+        if self.outcome == "collision":
+            if self.collision_count < 1 or self.critical_proximity_count != 0:
+                raise ValueError(
+                    "A collision outcome requires contact records and no proximity stop."
+                )
+        elif self.outcome == "safety_stop":
+            if self.collision_count != 0 or self.critical_proximity_count < 1:
+                raise ValueError(
+                    "A safety_stop outcome requires proximity records and no contact collision."
+                )
+        elif self.collision_count != 0 or self.critical_proximity_count != 0:
+            raise ValueError(
+                "Only collision or safety_stop outcomes may contain terminal safety events."
+            )
+
+        scenario_identity = (
+            self.patrol_scenario_id,
+            self.patrol_scenario_mode,
+            self.patrol_scenario_config_sha256,
+            self.dynamic_obstacle_count,
+            self.dynamic_obstacle_speed_max_mps,
+        )
+        if any(value is not None for value in scenario_identity) and not all(
+            value is not None for value in scenario_identity
+        ):
+            raise ValueError("Patrol scenario identity fields must be recorded together.")
+        if all(value is not None for value in scenario_identity):
+            _audit_identity(self.patrol_scenario_id, "patrol_scenario_id")
+            if self.patrol_scenario_mode not in {"operational", "stress"}:
+                raise ValueError("patrol_scenario_mode must be 'operational' or 'stress'.")
+            _audit_sha256(
+                self.patrol_scenario_config_sha256,
+                "patrol_scenario_config_sha256",
+            )
+            if isinstance(self.dynamic_obstacle_count, bool) or not isinstance(
+                self.dynamic_obstacle_count, int
+            ):
+                raise ValueError("dynamic_obstacle_count must be an integer.")
+            if self.dynamic_obstacle_count < 0:
+                raise ValueError("dynamic_obstacle_count cannot be negative.")
+            maximum_speed = _finite_range(
+                self.dynamic_obstacle_speed_max_mps,
+                "dynamic_obstacle_speed_max_mps",
+                minimum=0.0,
+            )
+            if (self.dynamic_obstacle_count == 0) != (maximum_speed == 0.0):
+                raise ValueError(
+                    "Dynamic-obstacle count and maximum speed must both be zero or positive."
+                )
+
+        if type(self.ttc_escape_guard_enabled) is not bool:
+            raise ValueError("ttc_escape_guard_enabled must be a boolean.")
+        guard_identity = (
+            self.ttc_escape_guard_id,
+            self.ttc_escape_guard_evidence_scope,
+        )
+        if self.ttc_escape_guard_enabled:
+            _audit_identity(self.ttc_escape_guard_id, "ttc_escape_guard_id")
+            _audit_identity(
+                self.ttc_escape_guard_evidence_scope,
+                "ttc_escape_guard_evidence_scope",
+            )
+        elif any(value is not None for value in guard_identity):
+            raise ValueError("A disabled TTC escape guard cannot carry identity or evidence scope.")
+
+        if isinstance(self.control_step_count, bool) or not isinstance(
+            self.control_step_count, int
+        ):
+            raise ValueError("control_step_count must be an integer.")
+        if self.control_step_count < 0:
+            raise ValueError("control_step_count cannot be negative.")
+        guard_counts = {
+            "ttc_escape_guard_intervention_steps": self.ttc_escape_guard_intervention_steps,
+            "ttc_escape_guard_activation_count": self.ttc_escape_guard_activation_count,
+            "ttc_escape_guard_recovery_count": self.ttc_escape_guard_recovery_count,
+            "ttc_escape_guard_unrecoverable_count": self.ttc_escape_guard_unrecoverable_count,
+        }
+        for name, value in guard_counts.items():
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{name} must be an integer.")
+            if value < 0:
+                raise ValueError(f"{name} cannot be negative.")
+        if (
+            self.ttc_escape_guard_activation_count
+            > self.ttc_escape_guard_intervention_steps
+        ):
+            raise ValueError(
+                "ttc_escape_guard_activation_count cannot exceed intervention steps."
+            )
+        if (self.ttc_escape_guard_intervention_steps == 0) != (
+            self.ttc_escape_guard_activation_count == 0
+        ):
+            raise ValueError(
+                "TTC escape guard intervention steps and activations must both be zero or positive."
+            )
+        if (
+            self.ttc_escape_guard_recovery_count
+            + self.ttc_escape_guard_unrecoverable_count
+            > self.ttc_escape_guard_activation_count
+        ):
+            raise ValueError(
+                "TTC escape guard recoveries plus unrecoverable outcomes cannot exceed activations."
+            )
+        if not self.ttc_escape_guard_enabled and any(guard_counts.values()):
+            raise ValueError("A disabled TTC escape guard cannot record intervention evidence.")
+
+
+def _validate_terminal_scene_record(
+    *,
+    index: int,
+    index_name: str,
+    control_step: int,
+    simulation_time_s: float,
+    position_x_m: float,
+    position_y_m: float,
+    detection_source: str,
+    expected_detection_source: str,
+    minimum_lidar_range_m: float,
+) -> None:
+    """Validate shared identity, timing, position, and source semantics."""
+
+    if isinstance(index, bool) or not isinstance(index, int) or index < 1:
+        raise ValueError(f"{index_name} must be a positive integer.")
+    if isinstance(control_step, bool) or not isinstance(control_step, int) or control_step < 0:
+        raise ValueError("control_step must be a non-negative integer.")
+    _finite_range(simulation_time_s, "simulation_time_s", minimum=0.0)
+    _finite_range(position_x_m, "position_x_m")
+    _finite_range(position_y_m, "position_y_m")
+    _finite_range(minimum_lidar_range_m, "minimum_lidar_range_m", minimum=0.0)
+    if detection_source != expected_detection_source:
+        raise ValueError(f"detection_source must be {expected_detection_source!r} for this record.")
 
 
 def _validate_scene_diagnostic(
@@ -406,6 +775,58 @@ def _finite_range(
     if maximum is not None and number > maximum:
         raise ValueError(f"{name} must be at most {maximum}.")
     return number
+
+
+def _validate_ttc_escape_guard_state(
+    *,
+    active: bool,
+    mode: str,
+    target_linear_mps: float | None,
+    target_angular_radps: float | None,
+) -> None:
+    if type(active) is not bool:
+        raise ValueError("active must be a boolean.")
+    if mode not in {"inactive", "reverse", "forward", "rotate", "unrecoverable"}:
+        raise ValueError("mode is not supported.")
+    targets = (target_linear_mps, target_angular_radps)
+    if any(value is not None for value in targets) and not all(
+        value is not None for value in targets
+    ):
+        raise ValueError("TTC escape guard target velocities must be recorded together.")
+    for name, value in zip(
+        ("target_linear_mps", "target_angular_radps"),
+        targets,
+        strict=True,
+    ):
+        if value is not None:
+            _finite_range(value, name)
+    if active:
+        if mode == "inactive":
+            raise ValueError("An active TTC escape guard must use a non-inactive mode.")
+        if not all(value is not None for value in targets):
+            raise ValueError("An active TTC escape guard requires target velocities.")
+        linear = float(target_linear_mps)
+        angular = float(target_angular_radps)
+        if mode == "reverse" and not (linear < 0.0 and angular == 0.0):
+            raise ValueError("Reverse guard mode requires negative linear and zero angular target.")
+        if mode == "forward" and not (linear > 0.0 and angular == 0.0):
+            raise ValueError("Forward guard mode requires positive linear and zero angular target.")
+        if mode == "rotate" and not (linear == 0.0 and angular != 0.0):
+            raise ValueError("Rotate guard mode requires zero linear and nonzero angular target.")
+        if mode == "unrecoverable" and (linear != 0.0 or angular != 0.0):
+            raise ValueError("Unrecoverable guard mode requires zero velocity targets.")
+    elif mode != "inactive" or any(value is not None for value in targets):
+        raise ValueError(
+            "An inactive TTC escape guard must use inactive mode without target velocities."
+        )
+
+
+def _portable_csv_filename(value: object, name: str) -> str:
+    if not isinstance(value, str) or _CSV_FILE_PATTERN.fullmatch(value) is None:
+        raise ValueError(f"{name} must be a portable CSV basename.")
+    if Path(value).name != value:
+        raise ValueError(f"{name} must be a portable CSV basename.")
+    return value
 
 
 def _audit_identity(value: str | None, name: str) -> str:
@@ -630,33 +1051,232 @@ def write_patrol_outputs(
     checkpoints: list[PatrolCheckpointRecord],
     collisions: list[PatrolCollisionRecord],
     summary: PatrolRunSummary,
+    critical_proximities: list[PatrolCriticalProximityRecord] | None = None,
+    ttc_escape_guard_events: list[PatrolTTCEscapeGuardEventRecord] | None = None,
 ) -> dict[str, Path]:
-    """Write full-path CSV evidence and a compact JSON aggregate."""
+    """Exclusively write cross-checked patrol evidence and its JSON aggregate."""
 
     if not checkpoints:
         raise ValueError("A patrol run must contain at least one checkpoint record.")
-    output_directory.mkdir(parents=True, exist_ok=True)
-    trajectory_path = output_directory / summary.trajectory_file
-    checkpoints_path = output_directory / summary.checkpoints_file
-    collisions_path = output_directory / summary.collisions_file
-    summary_path = output_directory / "summary.json"
-    _write_dataclass_csv(trajectory_path, trajectory, PatrolTrajectorySample)
-    _write_dataclass_csv(checkpoints_path, checkpoints, PatrolCheckpointRecord)
-    _write_dataclass_csv(collisions_path, collisions, PatrolCollisionRecord)
+    proximity_records = list(critical_proximities or ())
+    guard_event_records = list(ttc_escape_guard_events or ())
+    if summary.collision_count != len(collisions):
+        raise ValueError("summary.collision_count must match the contact collision records.")
+    if summary.critical_proximity_count != len(proximity_records):
+        raise ValueError(
+            "summary.critical_proximity_count must match the critical proximity records."
+        )
+    _validate_trajectory_audit(summary, trajectory)
+    _validate_guard_event_audit(
+        summary,
+        trajectory,
+        guard_event_records,
+        stream_was_provided=ttc_escape_guard_events is not None,
+    )
+
     payload = asdict(summary)
     payload["minimum_lidar_diagnostic"] = _minimum_lidar_diagnostic(trajectory)
     payload["checkpoint_records"] = [asdict(record) for record in checkpoints]
     payload["collision_records"] = [asdict(record) for record in collisions]
-    summary_path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
-        encoding="utf-8",
+    payload["critical_proximity_records"] = [asdict(record) for record in proximity_records]
+    payload["ttc_escape_guard_event_records"] = [
+        asdict(record) for record in guard_event_records
+    ]
+    summary_text = json.dumps(
+        payload,
+        ensure_ascii=False,
+        indent=2,
+        allow_nan=False,
+    ) + "\n"
+
+    output_root = Path(output_directory).expanduser().resolve()
+    output_paths = {
+        "trajectory": _contained_output_path(output_root, summary.trajectory_file),
+        "checkpoints": _contained_output_path(output_root, summary.checkpoints_file),
+        "collisions": _contained_output_path(output_root, summary.collisions_file),
+        "proximity_events": _contained_output_path(
+            output_root,
+            summary.proximity_events_file,
+        ),
+        "ttc_escape_guard_events": _contained_output_path(
+            output_root,
+            summary.ttc_escape_guard_events_file,
+        ),
+        "summary": _contained_output_path(output_root, "summary.json"),
+    }
+    existing = [
+        path
+        for path in output_paths.values()
+        if path.exists() or path.is_symlink()
+    ]
+    if existing:
+        raise FileExistsError(
+            "Patrol evidence files are immutable and cannot be overwritten: "
+            + ", ".join(str(path) for path in existing)
+        )
+
+    output_root.mkdir(parents=True, exist_ok=True)
+    trajectory_path = output_paths["trajectory"]
+    checkpoints_path = output_paths["checkpoints"]
+    collisions_path = output_paths["collisions"]
+    proximity_events_path = output_paths["proximity_events"]
+    guard_events_path = output_paths["ttc_escape_guard_events"]
+    summary_path = output_paths["summary"]
+    _write_dataclass_csv(trajectory_path, trajectory, PatrolTrajectorySample)
+    _write_dataclass_csv(checkpoints_path, checkpoints, PatrolCheckpointRecord)
+    _write_dataclass_csv(collisions_path, collisions, PatrolCollisionRecord)
+    _write_dataclass_csv(
+        proximity_events_path,
+        proximity_records,
+        PatrolCriticalProximityRecord,
     )
+    _write_dataclass_csv(
+        guard_events_path,
+        guard_event_records,
+        PatrolTTCEscapeGuardEventRecord,
+    )
+    with summary_path.open("x", encoding="utf-8") as stream:
+        stream.write(summary_text)
     return {
         "trajectory": trajectory_path,
         "checkpoints": checkpoints_path,
         "collisions": collisions_path,
+        "proximity_events": proximity_events_path,
+        "ttc_escape_guard_events": guard_events_path,
         "summary": summary_path,
     }
+
+
+def _validate_trajectory_audit(
+    summary: PatrolRunSummary,
+    trajectory: list[PatrolTrajectorySample],
+) -> None:
+    if len(trajectory) != summary.control_step_count:
+        raise ValueError(
+            "Trajectory must contain exactly one sample for every policy control step."
+        )
+    for expected_control_step, sample in enumerate(trajectory, start=1):
+        if isinstance(sample.control_step, bool) or not isinstance(sample.control_step, int):
+            raise ValueError("Trajectory control_step values must be integers.")
+        if sample.control_step != expected_control_step:
+            raise ValueError(
+                "Trajectory control_step values must be the contiguous sequence from one "
+                "through summary.control_step_count."
+            )
+
+    shield_steps = sum(sample.safety_shield_active for sample in trajectory)
+    if summary.safety_shield_intervention_steps != shield_steps:
+        raise ValueError(
+            "summary.safety_shield_intervention_steps must match active trajectory samples."
+        )
+    expected_rate = (
+        shield_steps / summary.control_step_count
+        if summary.control_step_count > 0
+        else 0.0
+    )
+    if not math.isclose(
+        summary.safety_shield_intervention_rate,
+        expected_rate,
+        rel_tol=1e-12,
+        abs_tol=1e-12,
+    ):
+        raise ValueError(
+            "summary.safety_shield_intervention_rate must equal active shield samples divided "
+            "by control_step_count."
+        )
+
+
+def _validate_guard_event_audit(
+    summary: PatrolRunSummary,
+    trajectory: list[PatrolTrajectorySample],
+    events: list[PatrolTTCEscapeGuardEventRecord],
+    *,
+    stream_was_provided: bool,
+) -> None:
+    summary_counts = (
+        summary.ttc_escape_guard_intervention_steps,
+        summary.ttc_escape_guard_activation_count,
+        summary.ttc_escape_guard_recovery_count,
+        summary.ttc_escape_guard_unrecoverable_count,
+    )
+    if not summary.ttc_escape_guard_enabled:
+        if events:
+            raise ValueError("A disabled TTC escape guard cannot carry guard event records.")
+        if any(sample.ttc_escape_guard_active for sample in trajectory):
+            raise ValueError("A disabled TTC escape guard cannot be active in trajectory evidence.")
+        return
+    if (summary.control_step_count > 0 or any(summary_counts)) and not stream_was_provided:
+        raise ValueError("An enabled TTC escape guard requires its complete guard event stream.")
+
+    previous_control_step = -1
+    previous_simulation_time = -math.inf
+    for expected_index, event in enumerate(events, start=1):
+        if event.event_index != expected_index:
+            raise ValueError("TTC escape guard event_index values must be contiguous from one.")
+        if event.control_step < previous_control_step:
+            raise ValueError("TTC escape guard control_step values cannot move backwards.")
+        if event.simulation_time_s < previous_simulation_time:
+            raise ValueError("TTC escape guard simulation_time_s values cannot move backwards.")
+        if event.control_step > summary.control_step_count:
+            raise ValueError(
+                "TTC escape guard event control_step cannot exceed control_step_count."
+            )
+        previous_control_step = event.control_step
+        previous_simulation_time = event.simulation_time_s
+
+    navigation_events = [event for event in events if event.phase == "navigation"]
+    if len(navigation_events) != len(trajectory):
+        raise ValueError(
+            "Every navigation trajectory sample must have exactly one guard event record."
+        )
+    for sample, event in zip(trajectory, navigation_events, strict=True):
+        if (
+            event.control_step != sample.control_step
+            or event.active != sample.ttc_escape_guard_active
+            or event.mode != sample.ttc_escape_guard_mode
+            or not _optional_float_matches(
+                event.target_linear_mps,
+                sample.ttc_escape_guard_target_linear_mps,
+            )
+            or not _optional_float_matches(
+                event.target_angular_radps,
+                sample.ttc_escape_guard_target_angular_radps,
+            )
+        ):
+            raise ValueError(
+                "Navigation guard events must match the corresponding trajectory guard evidence."
+            )
+
+    intervention_steps = sum(event.counts_as_intervention_step for event in events)
+    activation_count = 0
+    recovery_count = 0
+    unrecoverable_count = 0
+    previous_active = False
+    previous_unrecoverable = False
+    for event in events:
+        is_unrecoverable = event.mode == "unrecoverable"
+        activation_count += int(not previous_active and event.active)
+        recovery_count += int(previous_active and not event.active)
+        unrecoverable_count += int(not previous_unrecoverable and is_unrecoverable)
+        previous_active = event.active
+        previous_unrecoverable = is_unrecoverable
+    derived_counts = (
+        intervention_steps,
+        activation_count,
+        recovery_count,
+        unrecoverable_count,
+    )
+    if summary_counts != derived_counts:
+        raise ValueError(
+            "TTC escape guard aggregate counts must match the complete guard event stream: "
+            f"summary={summary_counts}, derived={derived_counts}."
+        )
+
+
+def _optional_float_matches(left: float | None, right: float | None) -> bool:
+    if left is None or right is None:
+        return left is right
+    return math.isclose(left, right, rel_tol=1e-12, abs_tol=1e-12)
 
 
 def _minimum_lidar_diagnostic(
@@ -701,10 +1321,21 @@ def _write_dataclass_csv(
     record_type: type[RecordT],
 ) -> None:
     field_names = [field.name for field in fields(record_type)]
-    with path.open("w", newline="", encoding="utf-8") as stream:
+    with path.open("x", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=field_names)
         writer.writeheader()
         writer.writerows(asdict(record) for record in records)
+
+
+def _contained_output_path(output_root: Path, filename: str) -> Path:
+    candidate = (output_root / filename).resolve()
+    try:
+        candidate.relative_to(output_root)
+    except ValueError as error:
+        raise ValueError(
+            f"Patrol output file must stay inside the output directory: {filename!r}."
+        ) from error
+    return candidate
 
 
 def _inside_root(repository_root: Path, value: str | Path) -> Path:

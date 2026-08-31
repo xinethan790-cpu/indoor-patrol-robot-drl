@@ -1,0 +1,17 @@
+# Conservative application scenario for routine four-point patrol runs.
+# The pinned R2a model-plus-shield component may be used here, but this whole
+# patrol scenario does not inherit the R2a evaluation qualification.
+schema_version: 1
+scenario_id: patrol_operational_v1
+mode: operational
+inherits_r2a_system_qualification: false
+dynamic_obstacles:
+  - def_name: DYNAMIC_OBSTACLE_0
+    axis: 1
+    # The operational route reserves the upper inspection corridor as a dwell-safe zone.
+    bounds_m: [-1.20, 0.80]
+    speed_mps: 0.18
+  - def_name: DYNAMIC_OBSTACLE_1
+    axis: 0
+    bounds_m: [-1.30, 1.30]
+    speed_mps: 0.16

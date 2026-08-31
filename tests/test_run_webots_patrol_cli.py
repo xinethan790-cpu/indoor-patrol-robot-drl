@@ -188,11 +188,43 @@ def test_timeout_and_inspection_config_are_forwarded_to_controller(
     command, launch = launches[0]
     environment = launch["env"]
     assert environment["WEBOTS_PATROL_INSPECTION_CONFIG"] == ("configs/inspection/lab_demo.yaml")
+    assert environment["WEBOTS_PATROL_SCENARIO_CONFIG"] == (
+        "configs/patrol/scenario_operational_v1.yaml"
+    )
     assert environment["WEBOTS_PATROL_TIMEOUT_S"] == "75.5"
     assert environment["WEBOTS_PATROL_MAX_STEPS"] == "900"
     assert environment["WEBOTS_AUTO_QUIT"] == "1"
     assert command[-4:-1] == ["--batch", "--mode=fast", "--no-rendering"]
     assert command[-1] == str(REPOSITORY_ROOT / "worlds/patrol_route_ppo.wbt")
+
+
+def test_stress_scenario_is_forwarded_to_controller(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    launches = _capture_launches(monkeypatch)
+    output = tmp_path / "stress-run"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(RUNNER_PATH),
+            "--run-id",
+            "stress-run",
+            "--output-dir",
+            str(output),
+            "--scenario",
+            "stress",
+        ],
+    )
+
+    assert RUNNER.main() == 0
+
+    environment = launches[0][1]["env"]
+    assert environment["WEBOTS_PATROL_SCENARIO_CONFIG"] == (
+        "configs/patrol/scenario_stress_v1.yaml"
+    )
 
 
 @pytest.mark.parametrize(
