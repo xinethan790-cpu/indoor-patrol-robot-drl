@@ -1,0 +1,14 @@
+{
+  "name": "indoor-patrol-cloudfunctions",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CloudBase relay for the Webots indoor patrol graduation project",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node scripts/build-bundles.js",
+    "test": "node --test tests/*.test.js",
+    "verify:bundles": "node scripts/verify-bundles.js"
+  }
+}

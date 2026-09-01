@@ -16,6 +16,8 @@ from typing import Literal
 
 import yaml
 
+from indoor_patrol_rl.identifiers import validate_patrol_run_id
+
 AlarmDirection = Literal["above", "below"]
 AlarmSeverity = Literal["info", "warning", "critical"]
 AlarmEventType = Literal["raised", "cleared"]
@@ -244,7 +246,7 @@ class EnvironmentalInspection:
 
     def __init__(self, config: InspectionConfig, *, run_id: str, scenario_seed: int) -> None:
         self.config = config
-        self.run_id = _non_empty_string(run_id, "run_id")
+        self.run_id = validate_patrol_run_id(run_id)
         if isinstance(scenario_seed, bool) or not isinstance(scenario_seed, int):
             raise ValueError("scenario_seed must be an integer.")
         self.scenario_seed = scenario_seed

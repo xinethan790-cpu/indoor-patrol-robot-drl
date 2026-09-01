@@ -33,6 +33,16 @@
       <text class="tag">{{modeLabel}}</text>
     </view>
     <radio-group bindchange="changeMode">
+      <label class="mode-option {{mode === 'cloud' ? 'mode-option--active' : ''}}">
+        <radio value="cloud" checked="{{mode === 'cloud'}}" color="#0878f9"></radio>
+        <view class="mode-option__body">
+          <view class="mode-option__heading">
+            <text class="mode-option__title">云端实时同步</text>
+            <text class="mode-option__recommended">推荐</text>
+          </view>
+          <text class="mode-option__text">真机通过 CloudBase 只读查看 Mac 仿真最新状态</text>
+        </view>
+      </label>
       <label class="mode-option {{mode === 'demo' ? 'mode-option--active' : ''}}">
         <radio value="demo" checked="{{mode === 'demo'}}" color="#0878f9"></radio>
         <view class="mode-option__body">
@@ -48,6 +58,18 @@
         </view>
       </label>
     </radio-group>
+
+    <view class="cloud-setting" wx:if="{{mode === 'cloud'}}">
+      <view class="cloud-setting__row">
+        <text>云环境</text>
+        <text>{{cloudEnvId}}</text>
+      </view>
+      <view class="cloud-setting__row">
+        <text>只读文档</text>
+        <text>patrol_live/main</text>
+      </view>
+      <text class="cloud-setting__hint">实时订阅失败时自动切换轮询；8 秒无新序号会标记数据停滞。客户端不保存上传密钥。</text>
+    </view>
 
     <view class="api-setting" wx:if="{{mode === 'local'}}">
       <text class="api-setting__label">接口地址</text>
@@ -66,7 +88,7 @@
     <view class="boundary-card__icon">i</view>
     <view>
       <text class="boundary-card__title">演示边界</text>
-      <text class="boundary-card__text">二维地图来自仿真配置，不代表真实场地测绘或导航安全边界；本小程序当前只读展示，不提供机器人远程控制。</text>
+      <text class="boundary-card__text">二维地图来自仿真配置，不代表真实场地测绘或导航安全边界；小程序仅只读展示，不提供机器人远程控制，也不保存仿真上报密钥。</text>
     </view>
   </view>
 
@@ -85,7 +107,7 @@
     </view>
     <view class="info-row info-row--last">
       <text>客户端版本</text>
-      <text>1.0.0</text>
+      <text>0.2.0</text>
     </view>
   </view>
 

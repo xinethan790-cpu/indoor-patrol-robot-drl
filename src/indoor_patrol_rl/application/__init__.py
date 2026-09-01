@@ -80,6 +80,12 @@ from indoor_patrol_rl.application.task import (
     PatrolTaskUpdate,
     validate_checkpoint_layout,
 )
+from indoor_patrol_rl.identifiers import (
+    PATROL_RUN_ID_PATTERN,
+    PATROL_RUN_ID_REGEX,
+    PatrolRunIdError,
+    validate_patrol_run_id,
+)
 
 __all__ = [
     "AUDITED_R2A_CHECKPOINT_STEP",
@@ -99,6 +105,8 @@ __all__ = [
     "PATROL_FRAME_CAPTURE_SCHEMA_VERSION",
     "PATROL_FRAME_FILENAME_PATTERN",
     "PATROL_FRAME_METADATA_FILENAME",
+    "PATROL_RUN_ID_PATTERN",
+    "PATROL_RUN_ID_REGEX",
     "PATROL_TTC_ESCAPE_GUARD_ID",
     "PATROL_TTC_ESCAPE_GUARD_SCHEMA_VERSION",
     "CriticalProximityAssessment",
@@ -123,6 +131,7 @@ __all__ = [
     "PatrolLiveSnapshot",
     "PatrolLiveStatusWriter",
     "PatrolRuntimeIdentity",
+    "PatrolRunIdError",
     "PatrolDynamicObstacle",
     "PatrolTTCEscapeActivationReason",
     "PatrolTTCEscapeDecision",
@@ -146,4 +155,5 @@ __all__ = [
     "read_patrol_live_events",
     "read_patrol_live_status",
     "validate_checkpoint_layout",
+    "validate_patrol_run_id",
 ]

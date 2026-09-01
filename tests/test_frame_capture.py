@@ -137,3 +137,19 @@ def test_frame_capture_rate_cannot_exceed_physics_rate(tmp_path: Path) -> None:
         )
 
     assert not (tmp_path / "frames").exists()
+
+
+@pytest.mark.parametrize("run_id", ["bad/run", "has space", "-leading", "a" * 129])
+def test_frame_capture_uses_the_shared_safe_run_id_contract(
+    tmp_path: Path,
+    run_id: str,
+) -> None:
+    directory = tmp_path / "frames"
+    with pytest.raises(ValueError, match="must match"):
+        PatrolFrameCapture(
+            PatrolFrameCaptureConfig(directory=directory),
+            run_id=run_id,
+            physics_step_s=0.032,
+            exporter=lambda _filename, _quality: None,
+        )
+    assert not directory.exists()

@@ -49,6 +49,7 @@ from indoor_patrol_rl.application import (
     next_patrol_policy_control_step,
     policy_lidar_sector_clearance,
     validate_checkpoint_layout,
+    validate_patrol_run_id,
 )
 from indoor_patrol_rl.core import (
     DifferentialDriveMapper,
@@ -270,14 +271,13 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             f"got {model.action_space.shape}."
         )
 
-    run_id = os.environ.get(
-        "WEBOTS_PATROL_RUN_ID",
-        f"webots-patrol-seed{seed}-{time.time_ns()}",
-    ).strip()
-    if not run_id:
-        raise ValueError("WEBOTS_PATROL_RUN_ID must be non-empty.")
-    if any(character in run_id for character in "/\\"):
-        raise ValueError("WEBOTS_PATROL_RUN_ID cannot contain path separators.")
+    run_id = validate_patrol_run_id(
+        os.environ.get(
+            "WEBOTS_PATROL_RUN_ID",
+            f"webots-patrol-seed{seed}-{time.time_ns()}",
+        ),
+        field_name="WEBOTS_PATROL_RUN_ID",
+    )
     inspection_config_value = os.environ.get(
         "WEBOTS_PATROL_INSPECTION_CONFIG",
         "configs/inspection/environmental_patrol_v1.yaml",

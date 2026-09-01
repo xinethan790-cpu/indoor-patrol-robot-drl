@@ -1,9 +1,11 @@
 "use strict";
 
 const {
+  createCloudPatrolDataSource,
   createOfflineDataSource,
   createPollingDataSource,
 } = require("../../services/createDataSource");
+const { getPlatform, resolveModeForPlatform } = require("../../services/modePolicy");
 const { formatNumber } = require("../../utils/format");
 
 const app = getApp();
@@ -27,23 +29,19 @@ const FAILURE_REASON_LABELS = {
   "maximum control-step budget reached": "达到最大控制步数",
 };
 
-function isDevTools() {
-  try {
-    const info = typeof wx.getDeviceInfo === "function"
-      ? wx.getDeviceInfo()
-      : wx.getSystemInfoSync();
-    return info.platform === "devtools";
-  } catch (error) {
-    return false;
-  }
-}
-
 function localizeAlarmMessage(message) {
   return String(message || "异常指标超过阈值")
     .replace(" alarm raised: ", "告警触发：")
     .replace(" alarm cleared: ", "告警解除：")
     .replace(" (threshold ", "（阈值 ")
     .replace(/\)$/, "）");
+}
+
+function formatReceivedTime(value) {
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return "等待首个快照";
+  const date = new Date(timestamp);
+  return `最近入云 ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
 }
 
 function sensorState(key, value) {
@@ -135,6 +133,7 @@ function buildView(payload, mode) {
   return {
     dashboardMap: map,
     runId: run.run_id || "",
+    sequenceText: Number.isSafeInteger(run.sequence) ? `SEQ ${run.sequence}` : "",
     terminal: run.terminal === true,
     progressText: `${formatNumber(progress, 0, "0")}%`,
     progressWidth: progress,
@@ -160,20 +159,25 @@ function buildView(payload, mode) {
     boundaryNote: boundary || "本二维地图来自仿真配置，仅用于毕设演示可视化。",
     modeDescription: mode === "demo"
       ? "内置已校验巡检证据，支持离线动态回放"
-      : "微信开发者工具连接 Mac 本机只读接口",
+      : (mode === "cloud"
+        ? "微信云开发只读同步 Mac 仿真数据"
+        : "微信开发者工具连接 Mac 本机只读接口"),
   };
 }
 
 Page({
   data: {
-    mode: "demo",
-    modeLabel: "仿真演示",
-    modeDescription: "内置已校验巡检证据，支持离线动态回放",
+    mode: "cloud",
+    modeLabel: "云端实时",
+    modeDescription: "微信云开发只读同步 Mac 仿真数据",
     connectionLabel: "正在准备巡检数据",
     connectionTone: "warning",
     errorMessage: "",
     demoControlLabel: "暂停演示",
     runId: "",
+    sequenceText: "",
+    cloudTransportLabel: "实时订阅",
+    cloudReceivedText: "等待首个快照",
     terminal: false,
     progressText: "0%",
     progressWidth: 0,
@@ -203,7 +207,9 @@ Page({
   },
 
   onShow() {
-    const mode = app.globalData.mode === "local" ? "local" : "demo";
+    const resolution = resolveModeForPlatform(app.globalData.mode, getPlatform(wx));
+    const mode = resolution.mode;
+    if (resolution.downgraded) app.setMode(mode);
     if (!this._source || this._sourceMode !== mode) {
       this._replaceSource(mode);
     }
@@ -216,6 +222,7 @@ Page({
 
   onUnload() {
     this._stopSource();
+    if (this._source && typeof this._source.close === "function") this._source.close();
     this._source = null;
   },
 
@@ -223,7 +230,7 @@ Page({
     if (this._sourceMode === "demo") {
       this.resetDemo();
     } else {
-      this._replaceSource("local");
+      this._replaceSource(this._sourceMode);
       this._startSource();
     }
     wx.stopPullDownRefresh();
@@ -232,19 +239,39 @@ Page({
   _replaceSource(mode) {
     this._stopSource();
     this._sourceMode = mode;
-    const modeLabel = mode === "demo" ? "仿真演示" : "本机实时";
+    const modeLabel = mode === "demo" ? "仿真演示" : (mode === "cloud" ? "云端实时" : "本机实时");
     this.setData({
       mode,
       modeLabel,
       modeDescription: mode === "demo"
         ? "内置已校验巡检证据，支持离线动态回放"
-        : "微信开发者工具连接 Mac 本机只读接口",
+        : (mode === "cloud"
+          ? "微信云开发只读同步 Mac 仿真数据"
+          : "微信开发者工具连接 Mac 本机只读接口"),
       mapModeLabel: mode === "demo" ? "REPLAY" : "LIVE",
       errorMessage: "",
       demoControlLabel: "暂停演示",
+      cloudReceivedText: "等待首个快照",
     });
     if (mode === "demo") {
       this._source = createOfflineDataSource();
+    } else if (mode === "cloud") {
+      try {
+        this._source = createCloudPatrolDataSource({
+          env: app.globalData.cloudEnvId,
+          staleAfterMs: 8000,
+          pollIntervalMs: 2000,
+        });
+      } catch (error) {
+        this._source = null;
+        this.setData({
+          connectionLabel: "云开发初始化失败",
+          connectionTone: "offline",
+          errorMessage: (error && error.message)
+            || app.globalData.cloudInitError
+            || "当前基础库无法连接云开发，请切换到仿真演示模式。",
+        });
+      }
     } else {
       const base = app.globalData.apiBaseUrl || "http://127.0.0.1:8765";
       this._source = createPollingDataSource({
@@ -257,13 +284,34 @@ Page({
 
   _callbacks() {
     return {
-      onData: (payload) => {
+      onData: (payload, sourceMeta) => {
         const view = buildView(payload, this._sourceMode);
-        this.setData({ ...view, errorMessage: "" });
-        app.setDashboard(payload, { mode: this._sourceMode, receivedAt: Date.now() });
+        this.setData({
+          ...view,
+          errorMessage: "",
+          cloudReceivedText: sourceMeta && sourceMeta.receivedAtUtc
+            ? formatReceivedTime(sourceMeta.receivedAtUtc)
+            : this.data.cloudReceivedText,
+        });
+        app.setDashboard(payload, {
+          mode: this._sourceMode,
+          receivedAt: Date.now(),
+          ...(sourceMeta || {}),
+        });
       },
       onStatus: (event) => this._handleStatus(event),
       onError: (error, details) => {
+        if (this._sourceMode === "cloud" && details && details.retrying) {
+          this.setData({
+            errorMessage: "",
+            connectionLabel: details.transport === "polling"
+              ? "实时订阅中断，已自动切换轮询"
+              : "云端连接中断，正在恢复",
+            connectionTone: "warning",
+            cloudTransportLabel: "轮询保障",
+          });
+          return;
+        }
         this.setData({
           errorMessage: error && error.message ? error.message : "巡检数据读取失败",
           connectionLabel: details && details.retrying ? "连接中断，正在重试" : "数据协议校验失败",
@@ -288,7 +336,6 @@ Page({
   _handleStatus(event) {
     const status = event && event.status;
     if (status === "terminal") {
-      this._sourceStarted = false;
       this.setData({
         connectionLabel: "终态结果已校验",
         connectionTone: "online",
@@ -296,8 +343,39 @@ Page({
       });
       return;
     }
+    if (status === "new_run") {
+      this.setData({
+        connectionLabel: "检测到新的巡检任务，正在切换",
+        connectionTone: "warning",
+      });
+      return;
+    }
     if (status === "backoff") {
       this.setData({ connectionLabel: "连接中断，正在重试", connectionTone: "offline" });
+      return;
+    }
+    if (status === "connecting" || status === "watching") {
+      this.setData({
+        connectionLabel: status === "connecting" ? "正在连接云端巡检数据" : "云端实时订阅已建立",
+        connectionTone: "warning",
+        cloudTransportLabel: "实时订阅",
+      });
+      return;
+    }
+    if (status === "polling") {
+      this.setData({
+        connectionLabel: "实时订阅中断，已自动切换轮询",
+        connectionTone: "warning",
+        cloudTransportLabel: "轮询保障",
+      });
+      return;
+    }
+    if (status === "stale") {
+      this.setData({
+        connectionLabel: "云端数据停滞：8 秒未收到新序号",
+        connectionTone: "offline",
+        cloudTransportLabel: "数据停滞",
+      });
       return;
     }
     if (status === "requesting") {
@@ -316,8 +394,11 @@ Page({
       return;
     }
     this.setData({
-      connectionLabel: this._sourceMode === "demo" ? "仿真证据回放中" : "本机实时数据已连接",
+      connectionLabel: this._sourceMode === "demo"
+        ? "仿真证据回放中"
+        : (this._sourceMode === "cloud" ? "云端实时数据已同步" : "本机实时数据已连接"),
       connectionTone: "online",
+      cloudTransportLabel: event && event.transport === "polling" ? "轮询保障" : "实时订阅",
     });
   },
 
@@ -357,16 +438,18 @@ Page({
 
   chooseMode() {
     wx.showActionSheet({
-      itemList: ["仿真演示回放（推荐）", "电脑本地实时接口"],
+      itemList: ["云端实时同步（推荐）", "仿真演示回放", "电脑本地实时接口"],
       success: ({ tapIndex }) => {
-        const nextMode = tapIndex === 1 ? "local" : "demo";
-        if (nextMode === "local" && !isDevTools()) {
+        const requestedMode = tapIndex === 0 ? "cloud" : (tapIndex === 1 ? "demo" : "local");
+        const resolution = resolveModeForPlatform(requestedMode, getPlatform(wx));
+        const nextMode = resolution.mode;
+        if (resolution.downgraded) {
+          app.setMode("cloud");
           wx.showModal({
-            title: "仅供开发者工具使用",
-            content: "真机无法通过 127.0.0.1 访问 Mac。请先使用仿真演示模式，配置公网 HTTPS 服务后再启用真机实时数据。",
+            title: "已切换到云端实时",
+            content: "真机无法通过 127.0.0.1 访问 Mac，本机模式已自动降级为安全的云端只读模式。",
             showCancel: false,
           });
-          return;
         }
         if (nextMode === this._sourceMode) return;
         app.setMode(nextMode);
@@ -390,6 +473,7 @@ Page({
 module.exports = {
   buildSensorCards,
   buildView,
+  formatReceivedTime,
   localizeAlarmMessage,
   localizeFailureReason(reason) {
     return FAILURE_REASON_LABELS[reason] || reason || "无";

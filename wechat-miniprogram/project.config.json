@@ -1,5 +1,6 @@
 {
   "description": "室内智能巡检机器人微信小程序",
+  "cloudfunctionRoot": "cloudfunctions/",
   "packOptions": {
     "ignore": [
       {

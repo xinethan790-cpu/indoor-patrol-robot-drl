@@ -116,11 +116,19 @@ def main() -> int:
         )
 
     repository_root = Path(__file__).absolute().parents[1]
+    sys.path.insert(0, str(repository_root / "src"))
+    from indoor_patrol_rl.identifiers import validate_patrol_run_id
+
     run_id = args.run_id or (
         f"webots-patrol-seed{args.seed}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
     )
-    if not run_id.strip() or any(character in run_id for character in "/\\"):
-        raise ValueError("--run-id must be non-empty and cannot contain path separators.")
+    try:
+        run_id = validate_patrol_run_id(run_id, field_name="--run-id")
+    except ValueError as error:
+        raise ValueError(
+            "--run-id cannot contain path separators or unsupported characters; "
+            "it must match ^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$."
+        ) from error
     output_value = args.output_dir or f"artifacts/results/{run_id}"
     output_directory = Path(output_value).expanduser()
     if not output_directory.is_absolute():

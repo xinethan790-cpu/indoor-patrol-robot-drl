@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from indoor_patrol_rl.application.task import PatrolTaskState
+from indoor_patrol_rl.identifiers import validate_patrol_run_id
 
 LIVE_STATUS_SCHEMA_VERSION = "patrol-live-status/v1"
 _SHA256_LENGTH = 64
@@ -192,7 +193,7 @@ class PatrolLiveSnapshot:
     schema_version: str = field(default=LIVE_STATUS_SCHEMA_VERSION, init=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "run_id", _non_empty_text(self.run_id, "run_id"))
+        object.__setattr__(self, "run_id", validate_patrol_run_id(self.run_id))
         object.__setattr__(self, "sequence", _non_negative_integer(self.sequence, "sequence"))
         try:
             state = PatrolTaskState(self.state)
@@ -488,9 +489,9 @@ class PatrolLiveStatusWriter:
     """Publish validated snapshots to an atomic current file and JSONL history."""
 
     def __init__(self, output_directory: str | Path, *, run_id: str) -> None:
+        self.run_id = validate_patrol_run_id(run_id)
         self.output_directory = Path(output_directory).expanduser()
         self.output_directory.mkdir(parents=True, exist_ok=True)
-        self.run_id = _non_empty_text(run_id, "run_id")
         self.status_path = self.output_directory / "status.json"
         self.events_path = self.output_directory / "events.jsonl"
         self._last_snapshot = self._load_existing_state()

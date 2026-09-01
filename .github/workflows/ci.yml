@@ -24,3 +24,10 @@ jobs:
         run: python -m pytest
       - name: Test WeChat mini-program
         run: npm test --prefix wechat-miniprogram
+      - name: Test and build CloudBase relay
+        env:
+          PATROL_CONTRACT_FORCE_TRACKED_FIXTURE: "1"
+        run: |
+          npm test --prefix cloudfunctions
+          npm run build --prefix cloudfunctions
+          npm run verify:bundles --prefix cloudfunctions

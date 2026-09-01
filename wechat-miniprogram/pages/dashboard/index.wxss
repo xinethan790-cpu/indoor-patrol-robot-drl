@@ -113,9 +113,26 @@
   box-shadow: 0 0 0 7rpx rgba(255, 113, 128, 0.13);
 }
 
-.connection__run {
-  max-width: 270rpx;
+.connection__identity {
+  display: flex;
+  align-items: center;
+  min-width: 0;
   margin-left: auto;
+}
+
+.connection__sequence {
+  margin-right: 10rpx;
+  padding: 4rpx 8rpx;
+  border-radius: 8rpx;
+  background: rgba(98, 194, 235, 0.1);
+  color: #76c8eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 17rpx;
+}
+
+.connection__run {
+  display: block;
+  max-width: 270rpx;
   overflow: hidden;
   color: #7f9eb2;
   font-size: 19rpx;
@@ -178,6 +195,72 @@
 .error-banner__title,
 .error-banner__message {
   display: block;
+}
+
+.cloud-sync {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20rpx;
+  padding: 20rpx 22rpx;
+  border: 1rpx solid #cfe2f3;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #edf7ff, #f1fbf8);
+}
+
+.cloud-sync__icon {
+  display: flex;
+  flex: 0 0 52rpx;
+  align-items: center;
+  justify-content: center;
+  width: 52rpx;
+  height: 52rpx;
+  margin-right: 15rpx;
+  border-radius: 16rpx;
+  background: #0878f9;
+  color: #ffffff;
+  font-size: 27rpx;
+}
+
+.cloud-sync__body {
+  min-width: 0;
+}
+
+.cloud-sync__title,
+.cloud-sync__text,
+.cloud-sync__time {
+  display: block;
+}
+
+.cloud-sync__title {
+  color: #244c69;
+  font-size: 22rpx;
+  font-weight: 680;
+}
+
+.cloud-sync__text {
+  margin-top: 4rpx;
+  overflow: hidden;
+  color: #748c9e;
+  font-size: 18rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-sync__time {
+  margin-top: 3rpx;
+  color: #90a2b0;
+  font-size: 17rpx;
+}
+
+.cloud-sync__transport {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 7rpx 11rpx;
+  border-radius: 999rpx;
+  background: rgba(8, 120, 249, 0.09);
+  color: #0878f9;
+  font-size: 18rpx;
+  font-weight: 650;
 }
 
 .error-banner__title {

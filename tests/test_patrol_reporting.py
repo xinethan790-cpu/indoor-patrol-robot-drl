@@ -412,6 +412,9 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
         ttc_escape_guard_unrecoverable_count=0,
     )
 
+    with pytest.raises(ValueError, match="must match"):
+        replace(summary, run_id="bad/run")
+
     with pytest.raises(ValueError, match="action-vector difference"):
         replace(trajectory[0], safety_shield_intervention=0.1)
     with pytest.raises(ValueError, match="index and angle"):

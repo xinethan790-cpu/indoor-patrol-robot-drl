@@ -1,0 +1,53 @@
+{
+  "environment_id": "cloud1-5gpkygv2be4de05a",
+  "collections": [
+    {
+      "name": "patrol_live",
+      "purpose": "One WeChat-authenticated read-only current snapshot",
+      "rules": "rules/patrol_live.json",
+      "indexes": []
+    },
+    {
+      "name": "patrol_relay_state",
+      "purpose": "Private monotonic state for each authenticated relay",
+      "rules": "rules/admin_only.json",
+      "indexes": []
+    },
+    {
+      "name": "patrol_relay_nonces",
+      "purpose": "Private replay-prevention ledger",
+      "rules": "rules/admin_only.json",
+      "indexes": [
+        {
+          "name": "expires_at_epoch_ms_1",
+          "fields": [
+            {
+              "field": "expires_at_epoch_ms",
+              "direction": "asc"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "patrol_runs",
+      "purpose": "Private run-id registry and terminal evidence archive",
+      "rules": "rules/admin_only.json",
+      "indexes": [
+        {
+          "name": "device_latest_1",
+          "fields": [
+            {
+              "field": "device_id",
+              "direction": "asc"
+            },
+            {
+              "field": "latest_received_at_epoch_ms",
+              "direction": "desc"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

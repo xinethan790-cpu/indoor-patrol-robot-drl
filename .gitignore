@@ -15,6 +15,7 @@ build/
 # WeChat Developer Tools per-machine settings
 wechat-miniprogram/project.private.config.json
 wechat-miniprogram/miniprogram_npm/
+wechat-miniprogram/cloudfunctions/
 
 # Generated training and evaluation outputs
 artifacts/logs/*

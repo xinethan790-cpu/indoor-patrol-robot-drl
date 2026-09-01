@@ -366,3 +366,21 @@ def test_partial_or_non_finite_readings_and_invalid_identity_are_rejected() -> N
             safety_shield_enabled=False,
             safety_shield_id="unexpected",
         )
+
+
+@pytest.mark.parametrize("run_id", ["bad/run", "has space", "-leading", "a" * 129])
+def test_snapshot_and_writer_use_the_shared_safe_run_id_contract(
+    tmp_path: Path,
+    run_id: str,
+) -> None:
+    with pytest.raises(ValueError, match="must match"):
+        _snapshot(run_id=run_id)
+    with pytest.raises(ValueError, match="must match"):
+        PatrolLiveStatusWriter(tmp_path / "must-not-be-created", run_id=run_id)
+    assert not (tmp_path / "must-not-be-created").exists()
+
+
+def test_run_id_contract_accepts_supported_punctuation_and_maximum_length() -> None:
+    assert _snapshot(run_id="A:patrol.v1_run-7").run_id == "A:patrol.v1_run-7"
+    maximum = "a" + "b" * 127
+    assert _snapshot(run_id=maximum).run_id == maximum

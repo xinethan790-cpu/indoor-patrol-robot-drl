@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import TypeVar
 
+from indoor_patrol_rl.identifiers import validate_patrol_run_id
 from indoor_patrol_rl.inspection.environmental import (
     AlarmEvent,
     EnvironmentalInspection,
@@ -261,6 +262,7 @@ def verify_inspection_bundle(output_directory: str | Path) -> dict[str, object]:
         raise ValueError("Inspection manifest schema_version must be 1.")
     if manifest["bundle_type"] != "environmental_patrol_inspection":
         raise ValueError("Inspection manifest bundle_type is invalid.")
+    validate_patrol_run_id(manifest["run_id"], field_name="inspection manifest run_id")
     files = _mapping(manifest["files"], "inspection manifest files")
     expected_files = {
         _CONFIG_FILE,

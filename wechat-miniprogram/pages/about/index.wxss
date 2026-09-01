@@ -140,7 +140,24 @@
 }
 
 .mode-option__body {
+  flex: 1;
+  min-width: 0;
   margin-left: 9rpx;
+}
+
+.mode-option__heading {
+  display: flex;
+  align-items: center;
+}
+
+.mode-option__recommended {
+  margin-left: 10rpx;
+  padding: 3rpx 9rpx;
+  border-radius: 999rpx;
+  background: #0878f9;
+  color: #ffffff;
+  font-size: 16rpx;
+  font-weight: 650;
 }
 
 .mode-option__title,
@@ -164,6 +181,38 @@
   margin-top: 20rpx;
   padding-top: 20rpx;
   border-top: 1rpx solid #e8edf1;
+}
+
+.cloud-setting {
+  margin-top: 20rpx;
+  padding: 18rpx 20rpx;
+  border: 1rpx solid #cfe4f5;
+  border-radius: 18rpx;
+  background: #f1f8fe;
+}
+
+.cloud-setting__row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10rpx;
+  color: #6c8192;
+  font-size: 20rpx;
+}
+
+.cloud-setting__row text:last-child {
+  color: #27516f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 18rpx;
+  font-weight: 620;
+}
+
+.cloud-setting__hint {
+  display: block;
+  padding-top: 10rpx;
+  border-top: 1rpx solid #dcebf6;
+  color: #6f899d;
+  font-size: 19rpx;
+  line-height: 1.5;
 }
 
 .api-setting__label,

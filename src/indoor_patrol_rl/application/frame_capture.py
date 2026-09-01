@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from indoor_patrol_rl.identifiers import validate_patrol_run_id
+
 PATROL_FRAME_CAPTURE_SCHEMA_VERSION = "1.0"
 PATROL_FRAME_FILENAME_PATTERN = "frame_%08d.jpg"
 PATROL_FRAME_METADATA_FILENAME = "capture_metadata.json"
@@ -113,11 +115,7 @@ class PatrolFrameCapture:
         physics_step_s: float,
         exporter: FrameExporter,
     ) -> None:
-        normalized_run_id = run_id.strip()
-        if not normalized_run_id:
-            raise ValueError("run_id must be non-empty.")
-        if any(character in normalized_run_id for character in "/\\"):
-            raise ValueError("run_id cannot contain path separators.")
+        normalized_run_id = validate_patrol_run_id(run_id)
         step_s = _positive_finite(physics_step_s, "physics_step_s")
         maximum_capture_fps = 1.0 / step_s
         if config.fps > maximum_capture_fps + 1e-9:

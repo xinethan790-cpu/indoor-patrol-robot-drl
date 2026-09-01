@@ -15,7 +15,10 @@
     <view class="connection">
       <view class="connection__dot connection__dot--{{connectionTone}}"></view>
       <text>{{connectionLabel}}</text>
-      <text class="connection__run" wx:if="{{runId}}">{{runId}}</text>
+      <view class="connection__identity" wx:if="{{runId}}">
+        <text class="connection__sequence">{{sequenceText}}</text>
+        <text class="connection__run">{{runId}}</text>
+      </view>
     </view>
 
     <view class="hero__metrics">
@@ -38,6 +41,16 @@
     <view class="error-banner" wx:if="{{errorMessage}}">
       <text class="error-banner__title">数据暂不可用</text>
       <text class="error-banner__message">{{errorMessage}}</text>
+    </view>
+
+    <view class="cloud-sync" wx:if="{{mode === 'cloud'}}">
+      <view class="cloud-sync__icon">☁</view>
+      <view class="cloud-sync__body">
+        <text class="cloud-sync__title">CloudBase 云端只读链路</text>
+        <text class="cloud-sync__text">Mac 仿真 → patrol_live/main → 小程序</text>
+        <text class="cloud-sync__time">{{cloudReceivedText}}</text>
+      </view>
+      <text class="cloud-sync__transport">{{cloudTransportLabel}}</text>
     </view>
 
     <view class="section-card map-card">

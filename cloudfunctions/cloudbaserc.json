@@ -1,0 +1,66 @@
+{
+  "version": "2.0",
+  "envId": "cloud1-5gpkygv2be4de05a",
+  "functions": [
+    {
+      "name": "ingestPatrol",
+      "timeout": 10,
+      "handler": "index.main",
+      "runtime": "Nodejs18.15",
+      "memorySize": 256,
+      "installDependency": true,
+      "dir": ".dist/ingestPatrol",
+      "envVariables": {
+        "PATROL_CLOUDBASE_ENV_ID": "cloud1-5gpkygv2be4de05a",
+        "PATROL_RELAY_DEVICE_ID": "macmini-m4",
+        "PATROL_RELAY_UPLOAD_SECRET": "{{env.PATROL_RELAY_UPLOAD_SECRET}}"
+      },
+      "triggers": [],
+      "ignore": [
+        "node_modules",
+        ".git"
+      ]
+    },
+    {
+      "name": "getPatrolSnapshot",
+      "timeout": 5,
+      "handler": "index.main",
+      "runtime": "Nodejs18.15",
+      "memorySize": 128,
+      "installDependency": true,
+      "dir": ".dist/getPatrolSnapshot",
+      "envVariables": {
+        "PATROL_CLOUDBASE_ENV_ID": "cloud1-5gpkygv2be4de05a",
+        "PATROL_RELAY_DEVICE_ID": "macmini-m4"
+      },
+      "triggers": [],
+      "ignore": [
+        "node_modules",
+        ".git"
+      ]
+    },
+    {
+      "name": "cleanupPatrolNonces",
+      "timeout": 20,
+      "handler": "index.main",
+      "runtime": "Nodejs18.15",
+      "memorySize": 128,
+      "installDependency": true,
+      "dir": ".dist/cleanupPatrolNonces",
+      "envVariables": {
+        "PATROL_CLOUDBASE_ENV_ID": "cloud1-5gpkygv2be4de05a"
+      },
+      "triggers": [
+        {
+          "name": "cleanup-patrol-nonces-minutely",
+          "type": "timer",
+          "config": "0 * * * * * *"
+        }
+      ],
+      "ignore": [
+        "node_modules",
+        ".git"
+      ]
+    }
+  ]
+}

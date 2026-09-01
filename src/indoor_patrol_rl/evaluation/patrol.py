@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Literal, TypeVar
 
 from indoor_patrol_rl.evaluation.checkpoint_selection import sha256_file
+from indoor_patrol_rl.identifiers import validate_patrol_run_id
 
 ModelTrainingDomain = Literal["webots", "kinematic", "unknown"]
 PatrolOutcome = Literal["completed", "collision", "safety_stop", "timeout", "error"]
@@ -501,6 +502,7 @@ class PatrolRunSummary:
     def __post_init__(self) -> None:
         """Validate the deployment identity and aggregate intervention evidence."""
 
+        object.__setattr__(self, "run_id", validate_patrol_run_id(self.run_id))
         if type(self.safety_shield_enabled) is not bool:
             raise ValueError("safety_shield_enabled must be a boolean.")
         identity_values = (

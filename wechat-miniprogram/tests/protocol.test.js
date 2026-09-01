@@ -39,6 +39,23 @@ test('dashboard validator rejects an unknown schema', () => {
   );
 });
 
+test('dashboard validator deeply rejects malformed remote map, sensor and alarm content', () => {
+  const invalidMap = buildDashboardPayload(fixture, 0);
+  invalidMap.map.robot.x_m = '1.0';
+  assert.throws(
+    () => validateDashboardPayload(invalidMap),
+    (error) => error instanceof PayloadProtocolError && error.code === 'INVALID_PAYLOAD',
+  );
+
+  const invalidSensor = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  invalidSensor.sensors.temperature.value = Number.POSITIVE_INFINITY;
+  assert.throws(() => validateDashboardPayload(invalidSensor), PayloadProtocolError);
+
+  const invalidAlarmCount = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  invalidAlarmCount.alarms.history_returned_count += 1;
+  assert.throws(() => validateDashboardPayload(invalidAlarmCount), PayloadProtocolError);
+});
+
 test('payload gate pins run_id and rejects foreign evidence', () => {
   const gate = createPayloadGate({ expectedRunId: fixture.run.run_id });
   gate.accept(buildDashboardPayload(fixture, 0));
