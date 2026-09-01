@@ -206,6 +206,8 @@ python scripts/run_webots_patrol_campaign.py \
 
 批量器会逐回合校验模型、场景、控制器、轨迹和事件文件的一致性。少于 20 回合只标记为 `insufficient_evidence`，用于调试而不能宣称通过应用验收；正式应用门禁至少需要 20 个新种子，完成率不低于 `0.75`、碰撞率不高于 `0.15` 且无执行错误。巡检应用门禁与受保护的论文正式测试协议相互独立。
 
+Guard v2 已在 `7000～7004` 五个开发 seed 上取得 `5/5` 完成、`0` 碰撞、`0` safety stop 和 `0` 超时；该结果仍按协议标记为 `insufficient_evidence`。逐回合数据、固定哈希和边界说明见[四点巡检应用验证记录](reports/patrol-application-validation.md)。
+
 ## 目录结构
 
 ```text

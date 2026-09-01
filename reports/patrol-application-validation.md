@@ -30,3 +30,41 @@
 原始 `trajectory.csv`、`collisions.csv`、`summary.json` 和环境巡检证据包保存在
 本机 `artifacts/results/webots-patrol-seed7000-*` 目录；该目录按仓库规则不提交
 大体积运行产物。本记录保留能够复核根因的固定指标，后续通过/失败结果都会追加。
+
+## Guard v2 五种子开发验收
+
+2026-09-01 使用固定 operational 场景、固定 R2a 模型与安全盾，以及
+`patrol-ttc-escape-guard-v2`，顺序运行 `7000～7004` 五个场景 seed：
+
+```bash
+python scripts/run_webots_patrol_campaign.py \
+  --scenario operational \
+  --seed-start 7000 \
+  --episodes 5 \
+  --output-dir artifacts/results/patrol-operational-pilot-guard-v2-seeds7000-7004
+```
+
+| seed | 结果 | 巡检点 | 碰撞 | 原始临界接近 | Guard 激活/恢复/超时 | 控制步 | 路径（m） |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 7000 | 完成 | 4/4 | 0 | 0 | 4/4/0 | 651 | 11.743 |
+| 7001 | 完成 | 4/4 | 0 | 0 | 5/5/0 | 587 | 11.097 |
+| 7002 | 完成 | 4/4 | 0 | 0 | 14/14/0 | 716 | 12.866 |
+| 7003 | 完成 | 4/4 | 0 | 1 | 1/1/0 | 642 | 11.754 |
+| 7004 | 完成 | 4/4 | 0 | 0 | 1/1/0 | 603 | 11.067 |
+
+汇总结果为 `5/5` 完成、`0` 碰撞、`0` safety stop、`0` 超时、`0` 执行错误；
+平均仿真用时 `86.5856 s`，平均路径 `11.7055 m`。seed 7003 的一条
+`lidar_threshold` 记录表示原始 LiDAR 临界区间被审计并成功恢复，不是物理接触；
+因此该回合仍为完成结果，但全局最小净空按保守口径记为 `0`。
+
+批量器正确给出 `acceptance_status=insufficient_evidence`：五回合只用于开发期
+回归，未达到应用门禁规定的最少 `20` 回合。不得把本节写成正式泛化通过结论。
+固定汇总证据为：
+
+- `episodes.csv` SHA-256：`ddcbb43ef04c12cff304b9a9ac836ee648bffc82b4e8672accc3f601f8634441`
+- `summary.json` SHA-256：`33f8b3b23ffff29724deb6f95833d86fcb0397bd9eb54ce116e4e3fd476abe87`
+- 模型 SHA-256：`051d1e2f07bb147d247c91ded821e58af5b87987bedc2cee4e287fdbdfcdcbe0`
+- 部署档案 SHA-256：`f0d5bf258057589ac5f2da9fcd7e211c4b7a5639d147b61588bd6572ee579383`
+
+原始逐步结果保存在本机对应 `artifacts/results/` 目录；仓库提交本记录和复现入口，
+避免把大体积、机器生成的逐帧与逐步文件直接纳入 Git 历史。
