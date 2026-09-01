@@ -23,13 +23,13 @@
     show-scrollbar="{{false}}"
   >
     <view class="filter-row">
-      <view
+      <button
         wx:for="{{filters}}"
         wx:key="value"
         class="filter-pill {{activeFilter === item.value ? 'filter-pill--active' : ''}}"
         data-value="{{item.value}}"
         bindtap="selectFilter"
-      >{{item.label}}</view>
+      >{{item.label}}</button>
     </view>
   </scroll-view>
 

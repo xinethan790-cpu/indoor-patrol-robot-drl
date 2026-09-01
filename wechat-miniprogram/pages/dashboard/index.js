@@ -138,6 +138,7 @@ function buildView(payload, mode) {
     terminal: run.terminal === true,
     progressText: `${formatNumber(progress, 0, "0")}%`,
     progressWidth: progress,
+    progressStyle: `width: ${progress}%;`,
     simulationTimeText: `${formatNumber(run.simulation_time_s, 1, "0.0")} s`,
     currentCheckpointText: task.current_checkpoint_id || (run.terminal ? "完成" : "—"),
     completedCheckpointText: `${completed} / ${total} 巡检点`,
@@ -176,6 +177,7 @@ Page({
     terminal: false,
     progressText: "0%",
     progressWidth: 0,
+    progressStyle: "width: 0%;",
     simulationTimeText: "0.0 s",
     currentCheckpointText: "—",
     completedCheckpointText: "0 / 4 巡检点",
@@ -342,6 +344,7 @@ Page({
     this.setData({
       progressText: "0%",
       progressWidth: 0,
+      progressStyle: "width: 0%;",
       simulationTimeText: "0.0 s",
       currentCheckpointText: "P1",
       resultAvailable: false,

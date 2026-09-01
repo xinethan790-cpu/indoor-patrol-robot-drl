@@ -3,7 +3,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const fixture = require('../data/graduation-demo-seed7000-v1.json');
+const fixture = require('../data/graduation-demo-seed7000-v1.js');
+const auditFixture = require('../data/graduation-demo-seed7000-v1.json');
 const { buildDashboardPayload } = require('../services/offlineReplay');
 const {
   PayloadProtocolError,
@@ -23,6 +24,10 @@ test('verified fixture keeps the bounded evidence timeline', () => {
   assert.equal(fixture.frames.at(-1).terminal, true);
   assert.equal(fixture.sensor_timeline.length, 4);
   assert.equal(fixture.alarm_timeline.length, 6);
+});
+
+test('runtime module exactly matches the auditable JSON fixture', () => {
+  assert.deepEqual(fixture, auditFixture);
 });
 
 test('dashboard validator rejects an unknown schema', () => {

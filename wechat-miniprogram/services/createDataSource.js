@@ -1,6 +1,6 @@
 'use strict';
 
-const defaultFixture = require('../data/graduation-demo-seed7000-v1.json');
+const defaultFixture = require('../data/graduation-demo-seed7000-v1.js');
 const { createOfflineReplay } = require('./offlineReplay');
 const { createPollingClient } = require('./pollingClient');
 

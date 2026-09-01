@@ -60,7 +60,11 @@
       <button class="primary-button demo-controls__main" bindtap="toggleDemo">
         {{demoControlLabel}}
       </button>
-      <button class="secondary-button demo-controls__reset" bindtap="resetDemo">重新演示</button>
+      <button
+        wx:if="{{!terminal}}"
+        class="secondary-button demo-controls__reset"
+        bindtap="resetDemo"
+      >重新演示</button>
     </view>
 
     <view class="section-card task-card">
@@ -69,7 +73,7 @@
         <text class="section-caption">{{completedCheckpointText}}</text>
       </view>
       <view class="progress-track" aria-label="巡检任务进度">
-        <view class="progress-fill" style="width: {{progressWidth}}%;"></view>
+        <view class="progress-fill" style="{{progressStyle}}"></view>
       </view>
       <view class="checkpoint-row">
         <view
@@ -134,14 +138,14 @@
       <button class="alarm-link" bindtap="openAlarms">查看全部异常记录 →</button>
     </view>
 
-    <view class="result-banner {{resultSuccess ? 'result-banner--success' : 'result-banner--running'}}" wx:if="{{resultAvailable}}" bindtap="openResult">
+    <button class="result-banner {{resultSuccess ? 'result-banner--success' : 'result-banner--running'}}" wx:if="{{resultAvailable}}" bindtap="openResult">
       <view>
         <text class="result-banner__eyebrow">VERIFIED RESULT</text>
         <text class="result-banner__title">{{resultTitle}}</text>
         <text class="result-banner__text">{{resultSummary}}</text>
       </view>
       <text class="result-banner__arrow">›</text>
-    </view>
+    </button>
 
     <view class="mode-switch" bindtap="chooseMode">
       <view>

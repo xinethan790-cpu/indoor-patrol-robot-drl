@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const fixture = require("../data/graduation-demo-seed7000-v1.json");
+const fixture = require("../data/graduation-demo-seed7000-v1.js");
 const { buildDashboardPayload } = require("../services/offlineReplay");
 
 global.getApp = () => ({
@@ -22,6 +22,7 @@ test("dashboard view projects the verified terminal result", () => {
   const payload = buildDashboardPayload(fixture, fixture.frames.length - 1);
   const view = buildView(payload, "demo");
   assert.equal(view.progressText, "100%");
+  assert.equal(view.progressStyle, "width: 100%;");
   assert.equal(view.currentCheckpointText, "完成");
   assert.equal(view.resultAvailable, true);
   assert.equal(view.resultSuccess, true);

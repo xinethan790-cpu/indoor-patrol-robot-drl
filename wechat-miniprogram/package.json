@@ -5,6 +5,6 @@
   "type": "commonjs",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "export:demo": "python3 ../scripts/export_wechat_demo_fixture.py"
+    "export:demo": "../.venv/bin/python ../scripts/export_wechat_demo_fixture.py"
   }
 }

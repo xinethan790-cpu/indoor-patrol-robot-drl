@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const fixture = require('../data/graduation-demo-seed7000-v1.json');
+const fixture = require('../data/graduation-demo-seed7000-v1.js');
 const { buildDashboardPayload, createOfflineReplay } = require('../services/offlineReplay');
 const { createManualScheduler } = require('./helpers');
 

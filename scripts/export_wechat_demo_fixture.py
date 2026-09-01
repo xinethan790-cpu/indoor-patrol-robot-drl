@@ -39,6 +39,12 @@ def parse_args() -> argparse.Namespace:
         help="Destination fixture JSON.",
     )
     parser.add_argument(
+        "--module-output",
+        type=Path,
+        default=root / "wechat-miniprogram/data" / f"{EXPECTED_RUN_ID}.js",
+        help="Destination CommonJS fixture used by the WeChat runtime.",
+    )
+    parser.add_argument(
         "--max-frames",
         type=int,
         default=DEFAULT_MAX_FRAMES,
@@ -311,9 +317,23 @@ def main() -> int:
         json.dumps(fixture, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    module_output = args.module_output.expanduser()
+    if not module_output.is_absolute():
+        module_output = repository_root / module_output
+    module_output.parent.mkdir(parents=True, exist_ok=True)
+    module_payload = json.dumps(
+        fixture,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    )
+    module_output.write_text(
+        f"'use strict';\n\nmodule.exports = {module_payload};\n",
+        encoding="utf-8",
+    )
     print(
         f"Exported {len(fixture['frames'])} replay frames for "
-        f"{fixture['source']['run_id']} to {output}"
+        f"{fixture['source']['run_id']} to {output} and {module_output}"
     )
     return 0
 

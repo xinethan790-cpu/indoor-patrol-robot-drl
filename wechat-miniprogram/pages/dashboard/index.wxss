@@ -486,12 +486,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   margin-bottom: 20rpx;
   padding: 28rpx;
   border-radius: 27rpx;
   background: linear-gradient(135deg, #0d7957, #13aa77);
   color: #ffffff;
+  line-height: 1.2;
+  text-align: left;
   box-shadow: 0 12rpx 30rpx rgba(13, 121, 87, 0.18);
+}
+
+.result-banner::after {
+  border: 0;
 }
 
 .result-banner--running {
