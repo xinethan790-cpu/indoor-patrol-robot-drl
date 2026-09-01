@@ -21,6 +21,6 @@ jobs:
       - name: Lint
         run: ruff check .
       - name: Test
-        run: pytest
+        run: python -m pytest
       - name: Test WeChat mini-program
         run: npm test --prefix wechat-miniprogram
