@@ -49,6 +49,32 @@ test('ingest success returns the sidecar acknowledgement contract', async () => 
   assert.equal(committed.received_at_utc, '2023-11-14T22:13:20.000Z');
 });
 
+test('new cloud accepts a signed legacy outbox body and commits compatibility defaults', async () => {
+  const legacy = validPayload({ sequence: 3 });
+  delete legacy.run.control_step;
+  delete legacy.map.dynamic_obstacles;
+  delete legacy.avoidance;
+  let committed;
+  const handler = createIngestHandler({
+    env: testEnv(),
+    now: () => TEST_NOW_MS,
+    repository: {
+      async commitUpload(upload) {
+        committed = upload;
+        return { disposition: 'new_run', received_at_utc: upload.received_at_utc };
+      },
+    },
+  });
+
+  const response = await handler(signedEvent(legacy));
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(committed.payload.run.control_step, null);
+  assert.deepEqual(committed.payload.map.dynamic_obstacles, []);
+  assert.equal(committed.payload.avoidance.available, false);
+  assert.equal(Object.hasOwn(legacy.run, 'control_step'), false);
+});
+
 test('ingest maps protocol and repository conflicts to safe HTTP errors', async () => {
   const protocolHandler = createIngestHandler({
     env: testEnv(),
@@ -92,6 +118,24 @@ test('ingest does not disclose unexpected internal error details', async () => {
   assert.equal(response.body.includes('should-not-leak'), false);
   assert.equal(logged.length, 1);
   assert.equal(JSON.stringify(logged).includes('should-not-leak'), false);
+});
+
+test('ingest fails closed without logging an invalid configured secret', async () => {
+  const unsafeSecret = 'your-example-default-secret-value-123456';
+  const logged = [];
+  const handler = createIngestHandler({
+    env: {
+      ...testEnv(),
+      PATROL_RELAY_UPLOAD_SECRET: unsafeSecret,
+    },
+    logger: { error: (...args) => logged.push(args) },
+    now: () => TEST_NOW_MS,
+    repository: { commitUpload: async () => ({}) },
+  });
+  const response = await handler(signedEvent(validPayload(), { secret: unsafeSecret }));
+  assert.equal(response.statusCode, 500);
+  assert.equal(response.body.includes(unsafeSecret), false);
+  assert.equal(JSON.stringify(logged).includes(unsafeSecret), false);
 });
 
 test('snapshot requires WeChat identity and reports freshness', async () => {
@@ -154,4 +198,33 @@ test('snapshot reports empty and stale states without fabricating data', async (
     },
   });
   assert.equal((await stale()).stale, true);
+});
+
+test('snapshot fallback normalizes a legacy stored cloud payload', async () => {
+  const payload = validPayload({ sequence: 4 });
+  delete payload.run.control_step;
+  delete payload.map.dynamic_obstacles;
+  delete payload.avoidance;
+  const handler = createSnapshotHandler({
+    getWxContext: () => ({ OPENID: 'test-openid' }),
+    now: () => TEST_NOW_MS,
+    repository: {
+      getLiveSnapshot: async () => ({
+        device_id: 'macmini-m4',
+        run_id: payload.run.run_id,
+        sequence: payload.run.sequence,
+        terminal: payload.run.terminal,
+        body_sha256: 'a'.repeat(64),
+        received_at_utc: new Date(TEST_NOW_MS).toISOString(),
+        received_at_epoch_ms: TEST_NOW_MS,
+        payload,
+      }),
+    },
+  });
+
+  const result = await handler();
+
+  assert.equal(result.snapshot.payload.run.control_step, null);
+  assert.deepEqual(result.snapshot.payload.map.dynamic_obstacles, []);
+  assert.equal(result.snapshot.payload.avoidance.available, false);
 });

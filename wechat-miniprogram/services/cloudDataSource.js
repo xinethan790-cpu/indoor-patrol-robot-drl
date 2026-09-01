@@ -78,7 +78,8 @@ function validateCloudSnapshot(input) {
       '云端索引字段与巡检 payload 不一致',
     );
   }
-  return { snapshot: input, payload };
+  const snapshot = payload === input.payload ? input : { ...input, payload };
+  return { snapshot, payload };
 }
 
 function pickSnapshot(change) {
@@ -172,6 +173,7 @@ function createCloudDataSource(options) {
   let status = 'idle';
   let transport = null;
   let observer = null;
+  let activeWatch = null;
   let pollTimer = null;
   let staleTimer = null;
   let generation = 0;
@@ -204,6 +206,7 @@ function createCloudDataSource(options) {
   function closeObserver() {
     const activeObserver = observer;
     observer = null;
+    activeWatch = null;
     if (activeObserver && typeof activeObserver.close === 'function') {
       try {
         const closing = activeObserver.close();
@@ -369,13 +372,15 @@ function createCloudDataSource(options) {
   }
 
   function startWatch(token) {
+    const watchIdentity = { failed: false };
+    activeWatch = watchIdentity;
     transport = 'watch';
     announce('connecting', { env, collection: collectionName, documentId });
     try {
       announce('watching', { env, collection: collectionName, documentId });
       const nextObserver = document.watch({
         onChange(change) {
-          if (token !== generation || status === 'stopped') return;
+          if (token !== generation || activeWatch !== watchIdentity || status === 'stopped') return;
           const snapshot = pickSnapshot(change);
           if (!snapshot) {
             enterPolling(new Error('云端尚未收到巡检快照'), token);
@@ -389,9 +394,19 @@ function createCloudDataSource(options) {
           }
         },
         onError(error) {
+          if (
+            token !== generation
+            || activeWatch !== watchIdentity
+            || status === 'stopped'
+            || status === 'error'
+          ) {
+            return;
+          }
           // The SDK has already closed a watcher before invoking onError. Calling
           // close() again can trigger its CLOSED -> rebuildWatchFail state error.
+          watchIdentity.failed = true;
           observer = null;
+          activeWatch = null;
           enterPolling(
             new Error(error && error.errMsg ? error.errMsg : '云端实时订阅中断'),
             token,
@@ -400,6 +415,23 @@ function createCloudDataSource(options) {
       });
       if (!nextObserver || typeof nextObserver.close !== 'function') {
         throw new Error('当前云数据库不支持实时订阅');
+      }
+      if (
+        token !== generation
+        || activeWatch !== watchIdentity
+        || status === 'stopped'
+        || status === 'error'
+        || transport !== 'watch'
+      ) {
+        if (!watchIdentity.failed) {
+          try {
+            const closing = nextObserver.close();
+            if (closing && typeof closing.catch === 'function') closing.catch(() => {});
+          } catch (error) {
+            // The watch was invalidated while the SDK was constructing it.
+          }
+        }
+        return;
       }
       observer = nextObserver;
     } catch (error) {

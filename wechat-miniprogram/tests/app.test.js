@@ -27,3 +27,36 @@ test('app initializes the declared CloudBase environment and safely restores mod
   assert.equal(stored.patrol_data_mode, 'cloud');
   assert.equal('secret' in initCalls[0], false);
 });
+
+test('app owns one patrol session and keeps it alive when page subscribers change', () => {
+  const stored = { patrol_data_mode: 'demo' };
+  let definition;
+  global.wx = {
+    cloud: { init() {} },
+    getDeviceInfo: () => ({ platform: 'ios' }),
+    getStorageSync: (key) => stored[key],
+    setStorageSync: (key, value) => { stored[key] = value; },
+  };
+  global.App = (value) => { definition = value; };
+  delete require.cache[require.resolve('../app.js')];
+  require('../app.js');
+  definition.onLaunch.call(definition);
+
+  const first = [];
+  const second = [];
+  const unsubscribeFirst = definition.subscribePatrol.call(definition, {
+    onData: (payload) => first.push(payload.run.sequence),
+  });
+  definition.subscribePatrol.call(definition, {
+    onData: (payload) => second.push(payload.run.sequence),
+  });
+  definition.onShow.call(definition);
+  unsubscribeFirst();
+
+  assert.deepEqual(first, [0]);
+  assert.deepEqual(second, [0]);
+  assert.equal(definition.getPatrolSessionState.call(definition).started, true);
+  assert.equal(definition.getPatrolSessionState.call(definition).subscriberCount, 2);
+  definition.onHide.call(definition);
+  assert.equal(definition.getPatrolSessionState.call(definition).started, false);
+});

@@ -84,6 +84,7 @@ function buildDashboardPayload(fixtureInput, frameIndex) {
   const map = cloneObject(fixture.map);
   map.robot = cloneObject(frame.position);
   map.local_goal = frame.local_goal === null ? null : cloneObject(frame.local_goal);
+  map.dynamic_obstacles = cloneObject(frame.dynamic_obstacles);
   map.trajectory = trajectory;
   map.trajectory_point_count = trajectory.length;
   map.trajectory_source_point_count = fixture.source.source_event_count;
@@ -118,6 +119,7 @@ function buildDashboardPayload(fixtureInput, frameIndex) {
     task,
     sensors: sensorProjection(frame.readings),
     alarms: alarmProjection(fixture, frame),
+    avoidance: cloneObject(frame.avoidance),
     result: frame.terminal
       ? cloneObject(fixture.result)
       : {

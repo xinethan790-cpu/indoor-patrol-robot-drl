@@ -12,8 +12,7 @@
       "dir": ".dist/ingestPatrol",
       "envVariables": {
         "PATROL_CLOUDBASE_ENV_ID": "cloud1-5gpkygv2be4de05a",
-        "PATROL_RELAY_DEVICE_ID": "macmini-m4",
-        "PATROL_RELAY_UPLOAD_SECRET": "{{env.PATROL_RELAY_UPLOAD_SECRET}}"
+        "PATROL_RELAY_DEVICE_ID": "macmini-m4"
       },
       "triggers": [],
       "ignore": [

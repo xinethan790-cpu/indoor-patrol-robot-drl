@@ -11,6 +11,8 @@ import pytest
 
 from indoor_patrol_rl.application import (
     PatrolLiveAlert,
+    PatrolLiveAvoidance,
+    PatrolLiveDynamicObstacle,
     PatrolLiveOutcome,
     PatrolLiveReadings,
     PatrolLiveSnapshot,
@@ -235,6 +237,49 @@ def test_running_projection_uses_snapshot_diffs_and_labels_reading_provenance(
     assert payload["alarms"]["active"][0]["checkpoint_id"] == "P1"
     assert payload["alarms"]["history"][0]["event_type"] == "raised"
     assert payload["result"]["available"] is False
+
+
+def test_projection_exposes_current_dynamic_obstacles_and_avoidance_audit(
+    tmp_path: Path,
+) -> None:
+    run_directory = tmp_path / "run"
+    snapshot = replace(
+        _snapshot(5),
+        dynamic_obstacles=(
+            PatrolLiveDynamicObstacle(
+                obstacle_id="DYNAMIC_OBSTACLE_0",
+                position=(-0.92, -0.25),
+                radius_m=0.18,
+                velocity_mps=(0.0, 0.18),
+            ),
+        ),
+        avoidance=PatrolLiveAvoidance(
+            measured_control_step=5,
+            measured_at_s=0.64,
+            minimum_lidar_range_m=0.36,
+            robust_ttc_s=1.2,
+            policy_action=(0.5, -0.1),
+            filtered_action=(0.5, -0.1),
+            executed_action=(0.11, -0.2),
+        ),
+    )
+    _write_live_stream(run_directory, [snapshot])
+
+    payload = project_dashboard(
+        PatrolDashboardRepository(run_directory).read(),
+        DashboardMap.from_yaml(MAP_CONFIG),
+    )
+
+    assert payload["map"]["dynamic_obstacles"] == [
+        {
+            "id": "DYNAMIC_OBSTACLE_0",
+            "position": {"x_m": -0.92, "y_m": -0.25},
+            "radius_m": 0.18,
+            "velocity": {"x_mps": 0.0, "y_mps": 0.18},
+        }
+    ]
+    assert payload["avoidance"]["minimum_lidar_range_m"] == pytest.approx(0.36)
+    assert payload["avoidance"]["actions"]["policy"]["linear_normalized"] == 0.5
 
 
 def test_live_diff_records_alarm_clear_transition(tmp_path: Path) -> None:

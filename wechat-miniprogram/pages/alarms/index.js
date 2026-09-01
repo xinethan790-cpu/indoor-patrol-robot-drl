@@ -46,6 +46,16 @@ function filterEvents(events, filter) {
   return events;
 }
 
+function sourcePresentation(mode, status) {
+  if (mode === "cloud") {
+    if (status === "stale") return { label: "云端数据停滞 · 显示最后异常记录", tone: "offline" };
+    if (status === "stopped") return { label: "云端同步已暂停 · 显示最后异常记录", tone: "demo" };
+    return { label: "云端实时异常记录", tone: "online" };
+  }
+  if (mode === "local") return { label: "本机实时异常记录", tone: "online" };
+  return { label: "已校验仿真事件记录", tone: "demo" };
+}
+
 Page({
   data: {
     filters: [
@@ -62,20 +72,57 @@ Page({
     modeTone: "demo",
   },
 
+  onLoad() {
+    const app = getApp();
+    this._visible = false;
+    this._unsubscribePatrol = app.subscribePatrol({
+      onClear: (event) => {
+        if (this._visible) this._renderPayload(null, { mode: event.mode, status: "idle" });
+      },
+      onData: (payload, meta) => {
+        if (this._visible) this._renderPayload(payload, meta);
+      },
+      onStatus: (event) => {
+        if (!this._visible) return;
+        const presentation = sourcePresentation(event.mode || app.globalData.mode, event.status);
+        this.setData({ sourceLabel: presentation.label, modeTone: presentation.tone });
+      },
+    });
+  },
+
   onShow() {
     const app = getApp();
-    const payload = app.globalData.dashboard;
-    const mode = app.globalData.mode === "local" ? "local" : "demo";
+    this._visible = true;
+    this._renderPayload(app.globalData.dashboard, app.globalData.dashboardMeta);
+  },
+
+  onHide() {
+    this._visible = false;
+  },
+
+  onUnload() {
+    if (this._unsubscribePatrol) this._unsubscribePatrol();
+    this._unsubscribePatrol = null;
+  },
+
+  _renderPayload(payload, meta) {
+    const app = getApp();
+    const mode = (meta && meta.mode) || app.globalData.mode;
+    const sessionState = app.getPatrolSessionState ? app.getPatrolSessionState() : null;
+    const status = (meta && meta.status)
+      || (sessionState && sessionState.status)
+      || "idle";
     const rawEvents = payload && payload.alarms && Array.isArray(payload.alarms.history)
       ? payload.alarms.history
       : [];
     const allEvents = rawEvents.map(projectEvent);
+    const presentation = sourcePresentation(mode, status);
     this.setData({
       allEvents,
       filteredEvents: filterEvents(allEvents, this.data.activeFilter),
       historyCount: rawEvents.length,
-      sourceLabel: mode === "demo" ? "已校验仿真事件记录" : "本机巡检事件记录",
-      modeTone: mode === "demo" ? "demo" : "online",
+      sourceLabel: presentation.label,
+      modeTone: presentation.tone,
     });
   },
 
@@ -88,4 +135,4 @@ Page({
   },
 });
 
-module.exports = { filterEvents, projectEvent };
+module.exports = { filterEvents, projectEvent, sourcePresentation };

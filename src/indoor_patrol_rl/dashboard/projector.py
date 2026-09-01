@@ -203,6 +203,9 @@ def project_dashboard(
                 }
                 for obstacle in dashboard_map.obstacles
             ],
+            "dynamic_obstacles": [
+                obstacle.to_dict() for obstacle in current.dynamic_obstacles
+            ],
         },
         "task": {
             "current_checkpoint_id": current.current_checkpoint_id,
@@ -247,6 +250,7 @@ def project_dashboard(
             "history_truncated": len(evidence.alarm_history) > MAX_ALARM_HISTORY_ITEMS,
             "history": list(reversed(evidence.alarm_history[-MAX_ALARM_HISTORY_ITEMS:])),
         },
+        "avoidance": current.avoidance.to_dict(),
         "result": result,
     }
 

@@ -30,6 +30,22 @@ test('runtime module exactly matches the auditable JSON fixture', () => {
   assert.deepEqual(fixture, auditFixture);
 });
 
+test('fixture preserves closest approach and every recorded escape-guard frame', () => {
+  const measured = fixture.frames.filter((frame) => frame.avoidance.available);
+  assert.equal(
+    Math.min(...measured.map((frame) => frame.avoidance.minimum_lidar_range_m)),
+    0.2861393988132477,
+  );
+  const guardedSteps = new Set(
+    measured
+      .filter((frame) => frame.avoidance.escape_guard.active)
+      .map((frame) => frame.control_step),
+  );
+  assert.deepEqual([...guardedSteps], [98, 99, 101, 102, 592, 593, 618, 619]);
+  assert.ok(measured.every((frame) => frame.dynamic_obstacles.length === 2));
+  assert.ok(measured.some((frame) => frame.avoidance.safety_shield.active));
+});
+
 test('dashboard validator rejects an unknown schema', () => {
   const payload = buildDashboardPayload(fixture, 0);
   payload.schema_version = 'patrol-dashboard/v999';
@@ -37,6 +53,21 @@ test('dashboard validator rejects an unknown schema', () => {
     () => validateDashboardPayload(payload),
     (error) => error instanceof PayloadProtocolError && error.code === 'SCHEMA_MISMATCH',
   );
+});
+
+test('new mini protocol normalizes a legacy patrol-dashboard/v1 payload', () => {
+  const legacy = buildDashboardPayload(fixture, 0);
+  delete legacy.run.control_step;
+  delete legacy.map.dynamic_obstacles;
+  delete legacy.avoidance;
+
+  const normalized = validateDashboardPayload(legacy);
+
+  assert.notEqual(normalized, legacy);
+  assert.equal(normalized.run.control_step, null);
+  assert.deepEqual(normalized.map.dynamic_obstacles, []);
+  assert.equal(normalized.avoidance.available, false);
+  assert.equal(Object.hasOwn(legacy, 'avoidance'), false);
 });
 
 test('dashboard validator deeply rejects malformed remote map, sensor and alarm content', () => {
@@ -54,6 +85,57 @@ test('dashboard validator deeply rejects malformed remote map, sensor and alarm 
   const invalidAlarmCount = buildDashboardPayload(fixture, fixture.frames.length - 1);
   invalidAlarmCount.alarms.history_returned_count += 1;
   assert.throws(() => validateDashboardPayload(invalidAlarmCount), PayloadProtocolError);
+});
+
+test('dashboard validator enforces dynamic-obstacle and avoidance boundaries', () => {
+  const frameIndex = fixture.frames.findIndex((frame) => frame.avoidance.available);
+  const valid = buildDashboardPayload(fixture, frameIndex);
+  assert.equal(validateDashboardPayload(valid), valid);
+
+  const boundary = structuredClone(valid);
+  boundary.map.dynamic_obstacles = Array.from({ length: 32 }, (_, index) => ({
+    id: `DYNAMIC_BOUNDARY_${index}`,
+    position: { x_m: index / 100, y_m: index / 200 },
+    radius_m: 0.18,
+    velocity: null,
+  }));
+  assert.equal(validateDashboardPayload(boundary), boundary);
+  const overflow = structuredClone(boundary);
+  overflow.map.dynamic_obstacles.push({
+    id: 'DYNAMIC_BOUNDARY_32',
+    position: { x_m: 0, y_m: 0 },
+    radius_m: 0.18,
+    velocity: null,
+  });
+  assert.throws(() => validateDashboardPayload(overflow), PayloadProtocolError);
+
+  const duplicate = structuredClone(valid);
+  duplicate.map.dynamic_obstacles[1].id = duplicate.map.dynamic_obstacles[0].id;
+  assert.throws(() => validateDashboardPayload(duplicate), PayloadProtocolError);
+
+  const oversized = structuredClone(valid);
+  oversized.map.dynamic_obstacles[0].radius_m = 1.750001;
+  assert.throws(() => validateDashboardPayload(oversized), PayloadProtocolError);
+
+  const outside = structuredClone(valid);
+  outside.map.dynamic_obstacles[0].position.x_m = -2.25
+    + outside.map.dynamic_obstacles[0].radius_m
+    - 0.000002;
+  assert.throws(() => validateDashboardPayload(outside), PayloadProtocolError);
+
+  const toleratedBoundary = structuredClone(valid);
+  toleratedBoundary.map.dynamic_obstacles[0].position.x_m = -2.25
+    + toleratedBoundary.map.dynamic_obstacles[0].radius_m
+    - 0.0000005;
+  assert.equal(validateDashboardPayload(toleratedBoundary), toleratedBoundary);
+
+  const future = structuredClone(valid);
+  future.avoidance.measured_at_s = future.run.simulation_time_s + 1;
+  assert.throws(() => validateDashboardPayload(future), PayloadProtocolError);
+
+  const inconsistent = structuredClone(valid);
+  inconsistent.avoidance.safety_shield.intervention += 0.2;
+  assert.throws(() => validateDashboardPayload(inconsistent), PayloadProtocolError);
 });
 
 test('payload gate pins run_id and rejects foreign evidence', () => {

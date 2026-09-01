@@ -33,6 +33,15 @@ const cloudbaseConfig = JSON.parse(
 const cleanupConfig = cloudbaseConfig.functions.find(
   (definition) => definition.name === 'cleanupPatrolNonces',
 );
+const ingestConfig = cloudbaseConfig.functions.find(
+  (definition) => definition.name === 'ingestPatrol',
+);
+assert.ok(ingestConfig, 'ingestPatrol must be present in cloudbaserc.json');
+assert.equal(
+  Object.hasOwn(ingestConfig.envVariables || {}, 'PATROL_RELAY_UPLOAD_SECRET'),
+  false,
+  'cloudbaserc.json must not contain a deployable upload-secret placeholder',
+);
 assert.ok(cleanupConfig, 'cleanupPatrolNonces must be present in cloudbaserc.json');
 assert.deepEqual(cleanupConfig.triggers, [{
   name: 'cleanup-patrol-nonces-minutely',

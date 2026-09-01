@@ -64,8 +64,58 @@
       <patrol-map map="{{dashboardMap}}" compact="{{false}}"></patrol-map>
       <view class="map-legend">
         <view class="map-legend__item"><text class="legend-dot legend-dot--robot"></text>机器人</view>
+        <view class="map-legend__item"><text class="legend-dot legend-dot--dynamic"></text>动态障碍</view>
         <view class="map-legend__item"><text class="legend-dot legend-dot--done"></text>已巡检</view>
         <view class="map-legend__item"><text class="legend-dot legend-dot--pending"></text>待巡检</view>
+      </view>
+    </view>
+
+    <view class="section-card avoidance-card avoidance-card--{{avoidanceTone}}">
+      <view class="section-heading">
+        <view>
+          <text class="section-title">避障决策</text>
+          <text class="avoidance-card__sub">PPO → 安全过滤 → 机器人执行</text>
+        </view>
+        <view class="avoidance-status avoidance-status--{{avoidanceTone}}">
+          {{avoidanceStatus}}
+        </view>
+      </view>
+      <text class="avoidance-card__summary">{{avoidanceSummary}}</text>
+      <view class="avoidance-metrics">
+        <view class="avoidance-metric">
+          <text class="avoidance-metric__value">{{minimumRangeText}}</text>
+          <text class="avoidance-metric__label">最近障碍</text>
+        </view>
+        <view class="avoidance-metric">
+          <text class="avoidance-metric__value">{{ttcText}}</text>
+          <text class="avoidance-metric__label">稳健 TTC</text>
+        </view>
+        <view class="avoidance-metric">
+          <text class="avoidance-metric__value">{{dynamicObstacleText}}</text>
+          <text class="avoidance-metric__label">动态目标</text>
+        </view>
+      </view>
+      <view class="decision-flow">
+        <view class="decision-step">
+          <text class="decision-step__label">PPO 原始动作</text>
+          <text class="decision-step__value">{{policyActionText}}</text>
+        </view>
+        <text class="decision-flow__arrow">↓</text>
+        <view class="decision-step decision-step--filtered">
+          <view class="decision-step__topline">
+            <text class="decision-step__label">安全过滤动作</text>
+            <text class="decision-step__badge">{{shieldText}}</text>
+          </view>
+          <text class="decision-step__value">{{filteredActionText}}</text>
+        </view>
+        <text class="decision-flow__arrow">↓</text>
+        <view class="decision-step decision-step--executed">
+          <view class="decision-step__topline">
+            <text class="decision-step__label">最终执行速度</text>
+            <text class="decision-step__badge decision-step__badge--guard">{{guardText}}</text>
+          </view>
+          <text class="decision-step__value">{{executedActionText}}</text>
+        </view>
       </view>
     </view>
 

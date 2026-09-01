@@ -34,6 +34,8 @@ from indoor_patrol_rl.application import (
     PatrolFrameCapture,
     PatrolFrameCaptureConfig,
     PatrolLiveAlert,
+    PatrolLiveAvoidance,
+    PatrolLiveDynamicObstacle,
     PatrolLiveOutcome,
     PatrolLiveReadings,
     PatrolLiveSnapshot,
@@ -90,7 +92,9 @@ _emergency_live_failure: Callable[[], None] | None = None
 
 @dataclass
 class MovingObstacleControl:
+    obstacle_id: str
     translation: Any
+    radius_m: float
     axis: int
     lower: float
     upper: float
@@ -458,6 +462,14 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
     live_sequence = -1
     latest_live_readings = PatrolLiveReadings()
     active_live_alerts: dict[str, PatrolLiveAlert] = {}
+    latest_live_avoidance = PatrolLiveAvoidance(
+        measured_control_step=0,
+        measured_at_s=0.0,
+        minimum_lidar_range_m=latest_proximity.minimum_distance_m,
+        robust_ttc_s=latest_proximity.ttc_s,
+        closing_rate_mps=latest_proximity.closing_rate_mps,
+        critical_proximity=latest_proximity.critical,
+    )
     safety_shield_intervention_steps = 0
     ttc_escape_guard_intervention_steps = 0
     ttc_escape_guard_activation_count = 0
@@ -599,6 +611,8 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                     if rule.id in active_live_alerts
                 ),
                 runtime_identity=runtime_identity,
+                dynamic_obstacles=_dynamic_obstacle_live_status(moving_obstacles),
+                avoidance=latest_live_avoidance,
             )
         )
 
@@ -971,7 +985,22 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 obstacle_positions = _dynamic_obstacle_positions(moving_obstacles)
                 if guard_decision.unrecoverable:
                     _stop_robot(supervisor)
-                    if _has_contact_collision(robot_node):
+                    contact_collision = _has_contact_collision(robot_node)
+                    latest_live_avoidance = PatrolLiveAvoidance(
+                        measured_control_step=completed_actions,
+                        measured_at_s=simulation_time_s,
+                        minimum_lidar_range_m=latest_proximity.minimum_distance_m,
+                        robust_ttc_s=latest_proximity.ttc_s,
+                        closing_rate_mps=latest_proximity.closing_rate_mps,
+                        critical_proximity=bool(
+                            latest_proximity.critical and not contact_collision
+                        ),
+                        executed_action=(0.0, 0.0),
+                        escape_guard_active=True,
+                        escape_guard_mode=guard_decision.mode,
+                        escape_guard_unrecoverable=True,
+                    )
+                    if contact_collision:
                         collision_records.append(
                             PatrolCollisionRecord(
                                 collision_index=len(collision_records) + 1,
@@ -1159,6 +1188,20 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
                 dwell_lidar_minimum = latest_proximity.minimum_distance_m
                 obstacle_positions = _dynamic_obstacle_positions(moving_obstacles)
                 contact_collision = _has_contact_collision(robot_node)
+                latest_live_avoidance = PatrolLiveAvoidance(
+                    measured_control_step=completed_actions,
+                    measured_at_s=physics_step_count * basic_time_step / 1000.0,
+                    minimum_lidar_range_m=latest_proximity.minimum_distance_m,
+                    robust_ttc_s=latest_proximity.ttc_s,
+                    closing_rate_mps=latest_proximity.closing_rate_mps,
+                    critical_proximity=bool(
+                        latest_proximity.critical and not contact_collision
+                    ),
+                    executed_action=(current_linear, current_angular),
+                    escape_guard_active=guard_decision.active,
+                    escape_guard_mode=guard_decision.mode,
+                    escape_guard_unrecoverable=guard_decision.unrecoverable,
+                )
                 clearance = (
                     0.0
                     if contact_collision or latest_proximity.critical
@@ -1455,6 +1498,25 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         minimum_lidar_angle_rad = proximity.minimum_angle_rad
         obstacle_positions = _dynamic_obstacle_positions(moving_obstacles)
         critical_proximity = bool(proximity.critical and not contact_collision)
+        latest_live_avoidance = PatrolLiveAvoidance(
+            measured_control_step=control_step,
+            measured_at_s=physics_step_count * basic_time_step / 1000.0,
+            minimum_lidar_range_m=proximity.minimum_distance_m,
+            robust_ttc_s=proximity.ttc_s,
+            closing_rate_mps=proximity.closing_rate_mps,
+            critical_proximity=critical_proximity,
+            policy_action=(float(policy_action[0]), float(policy_action[1])),
+            filtered_action=(
+                float(shielded_action[0]),
+                float(shielded_action[1]),
+            ),
+            executed_action=(current_linear, current_angular),
+            safety_shield_active=shield_result.active,
+            safety_shield_intervention=shield_result.intervention,
+            escape_guard_active=guard_decision.active,
+            escape_guard_mode=guard_decision.mode,
+            escape_guard_unrecoverable=guard_decision.unrecoverable,
+        )
         clearance = (
             0.0
             if contact_collision or critical_proximity
@@ -1665,6 +1727,27 @@ def _initialize_obstacles(
                 f"The Webots world is missing DEF {configuration.def_name}."
             )
         translation = node.getField("translation")
+        bounding_object_field = node.getField("boundingObject")
+        bounding_object = (
+            None
+            if bounding_object_field is None
+            else bounding_object_field.getSFNode()
+        )
+        if bounding_object is None:
+            raise RuntimeError(
+                f"Dynamic obstacle {configuration.def_name} has no boundingObject."
+            )
+        radius_field = bounding_object.getField("radius")
+        if radius_field is None:
+            raise RuntimeError(
+                f"Dynamic obstacle {configuration.def_name} must use a cylindrical "
+                "boundingObject with a radius field."
+            )
+        radius_m = float(radius_field.getSFFloat())
+        if not math.isfinite(radius_m) or radius_m <= 0.0:
+            raise RuntimeError(
+                f"Dynamic obstacle {configuration.def_name} has an invalid radius."
+            )
         values = translation.getSFVec3f()
         values[configuration.axis] = float(
             random.uniform(
@@ -1676,7 +1759,9 @@ def _initialize_obstacles(
         node.resetPhysics()
         result.append(
             MovingObstacleControl(
+                obstacle_id=configuration.def_name,
                 translation=translation,
+                radius_m=radius_m,
                 axis=configuration.axis,
                 lower=configuration.lower_bound_m,
                 upper=configuration.upper_bound_m,
@@ -1800,6 +1885,28 @@ def _dynamic_obstacle_positions(
             raise ValueError("Dynamic-obstacle positions must be finite.")
         positions.append(position)
     return positions[0], positions[1]
+
+
+def _dynamic_obstacle_live_status(
+    obstacles: list[MovingObstacleControl],
+) -> tuple[PatrolLiveDynamicObstacle, ...]:
+    """Capture current simulator truth, including the next commanded velocity."""
+
+    result = []
+    for obstacle in obstacles:
+        values = obstacle.translation.getSFVec3f()
+        position = (float(values[0]), float(values[1]))
+        velocity = [0.0, 0.0]
+        velocity[obstacle.axis] = obstacle.direction * obstacle.speed
+        result.append(
+            PatrolLiveDynamicObstacle(
+                obstacle_id=obstacle.obstacle_id,
+                position=position,
+                radius_m=obstacle.radius_m,
+                velocity_mps=(velocity[0], velocity[1]),
+            )
+        )
+    return tuple(result)
 
 
 def _has_contact_collision(robot_node: Any) -> bool:

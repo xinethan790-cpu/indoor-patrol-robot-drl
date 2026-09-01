@@ -5,7 +5,28 @@ const FIXTURE_SCHEMA_VERSION = 'wechat-patrol-fixture/v1';
 const MAX_DASHBOARD_PAYLOAD_BYTES = 128 * 1024;
 const MAX_TRAJECTORY_POINTS = 300;
 const MAX_ALARM_EVENTS = 200;
+const MAX_DYNAMIC_OBSTACLES = 32;
+const DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M = 1e-6;
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function unavailableAvoidance() {
+  return {
+    available: false,
+    measured_control_step: null,
+    measured_at_s: null,
+    minimum_lidar_range_m: null,
+    robust_ttc_s: null,
+    closing_rate_mps: null,
+    critical_proximity: false,
+    actions: { policy: null, filtered: null, executed: null },
+    safety_shield: { active: false, intervention: 0 },
+    escape_guard: { active: false, mode: 'inactive', unrecoverable: false },
+  };
+}
 
 class PayloadProtocolError extends Error {
   constructor(code, message) {
@@ -98,6 +119,172 @@ function validateSize(value, label) {
   return size;
 }
 
+function validateDynamicObstacles(value, label, map) {
+  if (!Array.isArray(value) || value.length > MAX_DYNAMIC_OBSTACLES) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 必须是最多 32 项的数组`);
+  }
+  const maximumRadiusM = Math.min(map.size.width_m, map.size.height_m) / 2;
+  const minX = map.origin.x_m;
+  const minY = map.origin.y_m;
+  const maxX = minX + map.size.width_m;
+  const maxY = minY + map.size.height_m;
+  const ids = new Set();
+  value.forEach((obstacle, index) => {
+    const itemLabel = `${label}[${index}]`;
+    const item = requireObject(obstacle, itemLabel);
+    const id = requireString(item.id, `${itemLabel}.id`, { maxLength: 64 });
+    if (ids.has(id)) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `动态障碍物 ${id} 重复`);
+    }
+    ids.add(id);
+    validatePoint(item.position, `${itemLabel}.position`);
+    const radiusM = requireFiniteNumber(item.radius_m, `${itemLabel}.radius_m`);
+    if (radiusM <= 0 || radiusM > maximumRadiusM) {
+      throw new PayloadProtocolError(
+        'INVALID_PAYLOAD',
+        `${itemLabel}.radius_m 必须大于 0 且不超过地图短边的一半`,
+      );
+    }
+    const position = item.position;
+    if (position.x_m - radiusM < minX - DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M
+      || position.x_m + radiusM > maxX + DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M
+      || position.y_m - radiusM < minY - DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M
+      || position.y_m + radiusM > maxY + DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${itemLabel} 的圆形包络超出地图边界`);
+    }
+    if (item.velocity !== null) {
+      const velocity = requireObject(item.velocity, `${itemLabel}.velocity`);
+      requireFiniteNumber(velocity.x_mps, `${itemLabel}.velocity.x_mps`);
+      requireFiniteNumber(velocity.y_mps, `${itemLabel}.velocity.y_mps`);
+    }
+  });
+}
+
+function validateNormalizedAction(value, label) {
+  if (value === null) return null;
+  const action = requireObject(value, label);
+  const linear = requireFiniteNumber(action.linear_normalized, `${label}.linear_normalized`);
+  const angular = requireFiniteNumber(action.angular_normalized, `${label}.angular_normalized`);
+  if (linear < -1 || linear > 1 || angular < -1 || angular > 1) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 超出归一化范围`);
+  }
+  return action;
+}
+
+function validateExecutedAction(value, label) {
+  if (value === null) return null;
+  const action = requireObject(value, label);
+  requireFiniteNumber(action.linear_mps, `${label}.linear_mps`);
+  requireFiniteNumber(action.angular_radps, `${label}.angular_radps`);
+  return action;
+}
+
+function validateAvoidance(value, run, label = 'avoidance') {
+  const avoidance = requireObject(value, label);
+  const available = requireBoolean(avoidance.available, `${label}.available`);
+  const actions = requireObject(avoidance.actions, `${label}.actions`);
+  const policy = validateNormalizedAction(actions.policy, `${label}.actions.policy`);
+  const filtered = validateNormalizedAction(actions.filtered, `${label}.actions.filtered`);
+  validateExecutedAction(actions.executed, `${label}.actions.executed`);
+  if ((policy === null) !== (filtered === null)) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 的策略和过滤动作必须同时存在`);
+  }
+  const shield = requireObject(avoidance.safety_shield, `${label}.safety_shield`);
+  const shieldActive = requireBoolean(shield.active, `${label}.safety_shield.active`);
+  const intervention = requireNonNegativeNumber(
+    shield.intervention,
+    `${label}.safety_shield.intervention`,
+  );
+  if (policy === null) {
+    if (shieldActive || intervention !== 0) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 的安全过滤证据缺少动作`);
+    }
+  } else {
+    const expected = Math.hypot(
+      filtered.linear_normalized - policy.linear_normalized,
+      filtered.angular_normalized - policy.angular_normalized,
+    );
+    if (Math.abs(expected - intervention) > 1e-6
+      || shieldActive !== (intervention > 1e-6)) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 的安全过滤状态与动作不一致`);
+    }
+  }
+  const guard = requireObject(avoidance.escape_guard, `${label}.escape_guard`);
+  const guardActive = requireBoolean(guard.active, `${label}.escape_guard.active`);
+  const mode = requireString(guard.mode, `${label}.escape_guard.mode`, { maxLength: 32 });
+  const guardUnrecoverable = requireBoolean(
+    guard.unrecoverable,
+    `${label}.escape_guard.unrecoverable`,
+  );
+  if (!['inactive', 'reverse', 'forward', 'rotate', 'unrecoverable'].includes(mode)
+    || guardActive !== (mode !== 'inactive')
+    || guardUnrecoverable !== (mode === 'unrecoverable')) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 的逃逸保护状态不一致`);
+  }
+  const critical = requireBoolean(avoidance.critical_proximity, `${label}.critical_proximity`);
+  if (!available) {
+    if (avoidance.measured_control_step !== null
+      || avoidance.measured_at_s !== null
+      || avoidance.minimum_lidar_range_m !== null
+      || avoidance.robust_ttc_s !== null
+      || avoidance.closing_rate_mps !== null
+      || policy !== null
+      || filtered !== null
+      || actions.executed !== null
+      || critical
+      || shieldActive
+      || intervention !== 0
+      || guardActive
+      || mode !== 'inactive'
+      || guardUnrecoverable) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 不可用时必须为空且未介入`);
+    }
+    return avoidance;
+  }
+  if (run.control_step === null) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 可用时必须提供 control_step`);
+  }
+  requireIntegerInRange(
+    avoidance.measured_control_step,
+    `${label}.measured_control_step`,
+    0,
+    run.control_step,
+  );
+  const measuredAt = requireNonNegativeNumber(avoidance.measured_at_s, `${label}.measured_at_s`);
+  if (measuredAt > run.simulation_time_s + 1e-9) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 不能来自未来时刻`);
+  }
+  if (requireFiniteNumber(
+    avoidance.minimum_lidar_range_m,
+    `${label}.minimum_lidar_range_m`,
+  ) <= 0) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label}.minimum_lidar_range_m 必须大于 0`);
+  }
+  if (avoidance.robust_ttc_s !== null) {
+    requireNonNegativeNumber(avoidance.robust_ttc_s, `${label}.robust_ttc_s`);
+  }
+  if (avoidance.closing_rate_mps !== null) {
+    requireFiniteNumber(avoidance.closing_rate_mps, `${label}.closing_rate_mps`);
+  }
+  return avoidance;
+}
+
+function normalizeDashboardPayload(payload) {
+  const root = requireObject(payload, 'payload');
+  const run = requireObject(root.run, 'run');
+  const map = requireObject(root.map, 'map');
+  const missingControlStep = !hasOwn(run, 'control_step');
+  const missingDynamicObstacles = !hasOwn(map, 'dynamic_obstacles');
+  const missingAvoidance = !hasOwn(root, 'avoidance');
+  if (!missingControlStep && !missingDynamicObstacles && !missingAvoidance) return root;
+  return {
+    ...root,
+    run: missingControlStep ? { ...run, control_step: null } : run,
+    map: missingDynamicObstacles ? { ...map, dynamic_obstacles: [] } : map,
+    avoidance: missingAvoidance ? unavailableAvoidance() : root.avoidance,
+  };
+}
+
 function validateAlarmEvent(event, label) {
   const value = requireObject(event, label);
   requireString(value.rule_id, `${label}.rule_id`);
@@ -156,8 +343,9 @@ function utf8ByteLength(value) {
 }
 
 function validateDashboardPayload(payload) {
-  const root = requireObject(payload, 'payload');
-  validatePayloadSize(root);
+  const sourcePayload = requireObject(payload, 'payload');
+  validatePayloadSize(sourcePayload);
+  const root = normalizeDashboardPayload(sourcePayload);
   if (root.schema_version !== DASHBOARD_SCHEMA_VERSION) {
     throw new PayloadProtocolError(
       'SCHEMA_MISMATCH',
@@ -179,6 +367,9 @@ function validateDashboardPayload(payload) {
     throw new PayloadProtocolError('INVALID_PAYLOAD', 'run.sequence 必须是非负安全整数');
   }
   requireBoolean(run.terminal, 'run.terminal');
+  if (run.control_step !== null) {
+    requireIntegerInRange(run.control_step, 'run.control_step', 0, Number.MAX_SAFE_INTEGER);
+  }
   requireNonNegativeNumber(run.simulation_time_s, 'run.simulation_time_s');
 
   const map = requireObject(root.map, 'map');
@@ -211,6 +402,7 @@ function validateDashboardPayload(payload) {
     validatePoint(item.center, `map.static_obstacles[${index}].center`);
     validateSize(item.size, `map.static_obstacles[${index}].size`);
   });
+  validateDynamicObstacles(map.dynamic_obstacles, 'map.dynamic_obstacles', map);
   if (!Array.isArray(map.trajectory) || map.trajectory.length > MAX_TRAJECTORY_POINTS) {
     throw new PayloadProtocolError('INVALID_PAYLOAD', 'map.trajectory 必须是数组');
   }
@@ -296,6 +488,8 @@ function validateDashboardPayload(payload) {
     throw new PayloadProtocolError('INVALID_PAYLOAD', '告警计数与告警数组不一致');
   }
 
+  validateAvoidance(root.avoidance, run);
+
   const result = requireObject(root.result, 'result');
   requireBoolean(result.available, 'result.available');
   requireBoolean(result.validated, 'result.validated');
@@ -339,6 +533,9 @@ function validateFixture(fixture) {
     }
     previousSequence = frame.sequence;
     requireFiniteNumber(frame.simulation_time_s, 'frame.simulation_time_s');
+    requireIntegerInRange(frame.control_step, 'frame.control_step', 0, Number.MAX_SAFE_INTEGER);
+    validateDynamicObstacles(frame.dynamic_obstacles, 'frame.dynamic_obstacles', root.map);
+    validateAvoidance(frame.avoidance, frame, 'frame.avoidance');
   }
   if (root.frames[root.frames.length - 1].terminal !== true) {
     throw new PayloadProtocolError('INVALID_FIXTURE', 'fixture 最后一帧必须是终态');
@@ -382,6 +579,7 @@ function createPayloadGate(options) {
           task: value.task,
           sensors: value.sensors,
           alarms: value.alarms,
+          avoidance: value.avoidance,
           result: value.result,
         });
         if (fingerprint !== lastFingerprint) {
@@ -399,6 +597,7 @@ function createPayloadGate(options) {
         task: value.task,
         sensors: value.sensors,
         alarms: value.alarms,
+        avoidance: value.avoidance,
         result: value.result,
       });
       terminal = run.terminal;
@@ -428,6 +627,8 @@ module.exports = {
   MAX_TRAJECTORY_POINTS,
   RUN_ID_PATTERN,
   createPayloadGate,
+  normalizeDashboardPayload,
+  unavailableAvoidance,
   utf8ByteLength,
   validateDashboardPayload,
   validateFixture,

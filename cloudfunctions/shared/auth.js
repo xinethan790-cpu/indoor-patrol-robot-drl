@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const {
   MAX_BODY_BYTES,
   MAX_CLOCK_SKEW_SECONDS,
+  requireUploadSecret,
   SIGNATURE_VERSION,
 } = require('./config');
 const { badRequest, unauthorized } = require('./errors');
@@ -70,9 +71,7 @@ function authenticateUpload(event, config, nowEpochMs) {
     error.statusCode = 405;
     throw error;
   }
-  if (!config.uploadSecret || Buffer.byteLength(config.uploadSecret, 'utf8') < 32) {
-    throw new Error('PATROL_RELAY_UPLOAD_SECRET must contain at least 32 UTF-8 bytes');
-  }
+  const uploadSecret = requireUploadSecret(config.uploadSecret);
 
   const headers = normalizedHeaders(event);
   const signatureVersion = headers['x-patrol-signature-version'];
@@ -124,7 +123,7 @@ function authenticateUpload(event, config, nowEpochMs) {
   }
   const canonical = `${deviceId}\n${timestamp}\n${nonce}\n${actualBodySha256}`;
   const expectedSignature = crypto
-    .createHmac('sha256', config.uploadSecret)
+    .createHmac('sha256', uploadSecret)
     .update(canonical, 'utf8')
     .digest('hex');
   if (!safeHexEqual(suppliedSignature, expectedSignature)) {

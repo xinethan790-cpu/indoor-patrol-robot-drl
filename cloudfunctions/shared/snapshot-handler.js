@@ -7,6 +7,7 @@ const {
   STALE_AFTER_MS,
   runtimeConfig,
 } = require('./config');
+const { validateDashboardPayload } = require('./payload');
 
 function publicSnapshot(document) {
   if (!document) return null;
@@ -20,7 +21,7 @@ function publicSnapshot(document) {
     body_sha256: document.body_sha256,
     received_at_utc: document.received_at_utc,
     received_at_epoch_ms: document.received_at_epoch_ms,
-    payload: document.payload,
+    payload: validateDashboardPayload(document.payload),
   };
 }
 

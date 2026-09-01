@@ -5,7 +5,8 @@ const crypto = require('node:crypto');
 const { SIGNATURE_VERSION } = require('../shared/config');
 
 const TEST_NOW_MS = 1_700_000_000_000;
-const TEST_SECRET = 'graduation-project-test-secret-32-bytes-minimum';
+// Public test fixture only; production uses an independently generated secret.
+const TEST_SECRET = '0ea4b409d63bb2d9d78a4a0620ad582ca9d96024d09007d71bd54a1a516c7f62';
 const TEST_DEVICE_ID = 'macmini-m4';
 
 function validPayload(overrides) {
@@ -20,6 +21,7 @@ function validPayload(overrides) {
       run_id: changes.runId || 'test-run-001',
       sequence: changes.sequence ?? 0,
       terminal: changes.terminal ?? false,
+      control_step: changes.controlStep ?? 0,
       simulation_time_s: changes.simulationTime ?? 0,
     },
     map: {
@@ -33,6 +35,7 @@ function validPayload(overrides) {
         status: terminal ? 'completed' : 'current',
       }],
       static_obstacles: [],
+      dynamic_obstacles: [],
       trajectory: [],
       trajectory_point_count: 0,
     },
@@ -58,6 +61,18 @@ function validPayload(overrides) {
       history_returned_count: 0,
       history_truncated: false,
       history: [],
+    },
+    avoidance: {
+      available: false,
+      measured_control_step: null,
+      measured_at_s: null,
+      minimum_lidar_range_m: null,
+      robust_ttc_s: null,
+      closing_rate_mps: null,
+      critical_proximity: false,
+      actions: { policy: null, filtered: null, executed: null },
+      safety_shield: { active: false, intervention: 0 },
+      escape_guard: { active: false, mode: 'inactive', unrecoverable: false },
     },
     result: terminal
       ? {

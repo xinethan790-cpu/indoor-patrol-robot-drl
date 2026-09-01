@@ -35,9 +35,10 @@ from indoor_patrol_rl.relay import (
     load_upload_secret,
     resolve_device_id,
     validate_https_endpoint,
+    validate_upload_secret,
 )
 
-SECRET = b"s" * 32
+SECRET = b"8gP1yQ6dT9mK3vN7xR2cF5jH0bL4wZsA"
 ENDPOINT = "https://relay.example.test/v1/patrol/dashboard"
 REPOSITORY_ROOT = Path(__file__).absolute().parents[1]
 
@@ -202,7 +203,10 @@ def test_endpoint_rejects_non_https_or_ambiguous_urls(endpoint: str) -> None:
 
 
 def test_secret_and_device_identity_resolve_only_from_safe_inputs() -> None:
-    assert load_upload_secret({"PATROL_RELAY_UPLOAD_SECRET": "x" * 32}) == b"x" * 32
+    valid_secret = "8gP1yQ6dT9mK3vN7xR2cF5jH0bL4wZsA"
+    assert load_upload_secret({"PATROL_RELAY_UPLOAD_SECRET": valid_secret}) == (
+        valid_secret.encode()
+    )
     assert resolve_device_id(environ={}) == DEFAULT_DEVICE_ID
     assert resolve_device_id(
         environ={"PATROL_RELAY_DEVICE_ID": "macmini-m4-lab"}
@@ -214,6 +218,47 @@ def test_secret_and_device_identity_resolve_only_from_safe_inputs() -> None:
         load_upload_secret({})
     with pytest.raises(RelayConfigurationError, match="at least 32"):
         load_upload_secret({"PATROL_RELAY_UPLOAD_SECRET": "short"})
+    for unsafe_secret in (
+        "abcdefgh" + " " * 24,
+        " " + valid_secret,
+        valid_secret + "\n",
+    ):
+        with pytest.raises(RelayConfigurationError, match="whitespace") as error:
+            load_upload_secret({"PATROL_RELAY_UPLOAD_SECRET": unsafe_secret})
+        assert unsafe_secret not in str(error.value)
+    for unsafe_secret in (
+        "{{env.PATROL_RELAY_UPLOAD_SECRET}}",
+        "your-example-default-secret-value-123456",
+        "x" * 32,
+    ):
+        with pytest.raises(RelayConfigurationError) as error:
+            load_upload_secret({"PATROL_RELAY_UPLOAD_SECRET": unsafe_secret})
+        assert unsafe_secret not in str(error.value)
+
+
+def test_all_python_secret_entry_points_reject_padded_short_values_without_disclosure() -> None:
+    unsafe_secret = b"abcdefgh" + b" " * 24
+    with pytest.raises(RelayConfigurationError, match="whitespace") as validation_error:
+        validate_upload_secret(unsafe_secret)
+    assert unsafe_secret.decode() not in str(validation_error.value)
+
+    with pytest.raises(RelayConfigurationError, match="whitespace") as signature_error:
+        build_signature_headers(
+            device_id="macmini-m4",
+            timestamp=1_788_192_000,
+            nonce="0123456789abcdef0123456789abcdef",
+            body=b"{}",
+            secret=unsafe_secret,
+        )
+    assert unsafe_secret.decode() not in str(signature_error.value)
+
+    with pytest.raises(RelayConfigurationError, match="whitespace") as transport_error:
+        HttpRelayTransport(
+            ENDPOINT,
+            device_id="macmini-m4",
+            secret=unsafe_secret,
+        )
+    assert unsafe_secret.decode() not in str(transport_error.value)
 
 
 def test_http_transport_posts_exact_body_and_requires_matching_ack() -> None:

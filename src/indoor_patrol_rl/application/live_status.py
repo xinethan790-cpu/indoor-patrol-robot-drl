@@ -22,9 +22,12 @@ from typing import Any
 from indoor_patrol_rl.application.task import PatrolTaskState
 from indoor_patrol_rl.identifiers import validate_patrol_run_id
 
-LIVE_STATUS_SCHEMA_VERSION = "patrol-live-status/v1"
+LIVE_STATUS_SCHEMA_VERSION = "patrol-live-status/v2"
+LEGACY_LIVE_STATUS_SCHEMA_VERSION = "patrol-live-status/v1"
+MAX_LIVE_DYNAMIC_OBSTACLES = 32
 _SHA256_LENGTH = 64
 _ALERT_SEVERITIES = {"info", "warning", "critical"}
+_ESCAPE_GUARD_MODES = {"inactive", "reverse", "forward", "rotate", "unrecoverable"}
 
 
 class PatrolLiveOutcome(StrEnum):
@@ -164,6 +167,288 @@ class PatrolRuntimeIdentity:
 
 
 @dataclass(frozen=True)
+class PatrolLiveDynamicObstacle:
+    """Ground-truth pose and geometry of one simulator-controlled obstacle."""
+
+    obstacle_id: str
+    position: tuple[float, float]
+    radius_m: float
+    velocity_mps: tuple[float, float] | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "obstacle_id",
+            _non_empty_text(self.obstacle_id, "obstacle_id"),
+        )
+        object.__setattr__(self, "position", _finite_point(self.position, "position"))
+        radius = _finite_number(self.radius_m, "radius_m")
+        if radius <= 0.0:
+            raise ValueError("radius_m must be positive.")
+        object.__setattr__(self, "radius_m", radius)
+        if self.velocity_mps is not None:
+            object.__setattr__(
+                self,
+                "velocity_mps",
+                _finite_point(self.velocity_mps, "velocity_mps"),
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        velocity = None
+        if self.velocity_mps is not None:
+            velocity = {
+                "x_mps": self.velocity_mps[0],
+                "y_mps": self.velocity_mps[1],
+            }
+        return {
+            "id": self.obstacle_id,
+            "position": {"x_m": self.position[0], "y_m": self.position[1]},
+            "radius_m": self.radius_m,
+            "velocity": velocity,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any], *, name: str) -> PatrolLiveDynamicObstacle:
+        value = _mapping(raw, name)
+        _exact_keys(value, {"id", "position", "radius_m", "velocity"}, name)
+        position = _point_mapping(value["position"], f"{name}.position")
+        velocity_raw = value["velocity"]
+        velocity = None
+        if velocity_raw is not None:
+            velocity_mapping = _mapping(velocity_raw, f"{name}.velocity")
+            _exact_keys(
+                velocity_mapping,
+                {"x_mps", "y_mps"},
+                f"{name}.velocity",
+            )
+            velocity = (velocity_mapping["x_mps"], velocity_mapping["y_mps"])
+        return cls(
+            obstacle_id=value["id"],
+            position=(position["x_m"], position["y_m"]),
+            radius_m=value["radius_m"],
+            velocity_mps=velocity,
+        )
+
+
+@dataclass(frozen=True)
+class PatrolLiveAvoidance:
+    """Latest measured risk and command stages used by dynamic avoidance."""
+
+    measured_control_step: int | None = None
+    measured_at_s: float | None = None
+    minimum_lidar_range_m: float | None = None
+    robust_ttc_s: float | None = None
+    closing_rate_mps: float | None = None
+    critical_proximity: bool = False
+    policy_action: tuple[float, float] | None = None
+    filtered_action: tuple[float, float] | None = None
+    executed_action: tuple[float, float] | None = None
+    safety_shield_active: bool = False
+    safety_shield_intervention: float = 0.0
+    escape_guard_active: bool = False
+    escape_guard_mode: str = "inactive"
+    escape_guard_unrecoverable: bool = False
+
+    def __post_init__(self) -> None:
+        available = self.minimum_lidar_range_m is not None
+        provenance = (self.measured_control_step, self.measured_at_s)
+        if available != all(value is not None for value in provenance):
+            raise ValueError(
+                "Avoidance measurement provenance and minimum_lidar_range_m "
+                "must be set together."
+            )
+        if not available:
+            optional_values = (
+                self.robust_ttc_s,
+                self.closing_rate_mps,
+                self.policy_action,
+                self.filtered_action,
+                self.executed_action,
+            )
+            if any(value is not None for value in optional_values):
+                raise ValueError("Unavailable avoidance telemetry cannot contain measurements.")
+            if (
+                self.critical_proximity
+                or self.safety_shield_active
+                or self.safety_shield_intervention != 0.0
+                or self.escape_guard_active
+                or self.escape_guard_mode != "inactive"
+                or self.escape_guard_unrecoverable
+            ):
+                raise ValueError("Unavailable avoidance telemetry must be inactive.")
+            return
+
+        object.__setattr__(
+            self,
+            "measured_control_step",
+            _non_negative_integer(self.measured_control_step, "measured_control_step"),
+        )
+        object.__setattr__(
+            self,
+            "measured_at_s",
+            _non_negative_number(self.measured_at_s, "measured_at_s"),
+        )
+        minimum = _finite_number(self.minimum_lidar_range_m, "minimum_lidar_range_m")
+        if minimum <= 0.0:
+            raise ValueError("minimum_lidar_range_m must be positive.")
+        object.__setattr__(self, "minimum_lidar_range_m", minimum)
+        if self.robust_ttc_s is not None:
+            object.__setattr__(
+                self,
+                "robust_ttc_s",
+                _non_negative_number(self.robust_ttc_s, "robust_ttc_s"),
+            )
+        if self.closing_rate_mps is not None:
+            object.__setattr__(
+                self,
+                "closing_rate_mps",
+                _finite_number(self.closing_rate_mps, "closing_rate_mps"),
+            )
+        if not isinstance(self.critical_proximity, bool):
+            raise TypeError("critical_proximity must be a bool.")
+
+        if (self.policy_action is None) != (self.filtered_action is None):
+            raise ValueError("policy_action and filtered_action must be set together.")
+        if self.policy_action is not None:
+            object.__setattr__(
+                self,
+                "policy_action",
+                _normalized_action(self.policy_action, "policy_action"),
+            )
+            object.__setattr__(
+                self,
+                "filtered_action",
+                _normalized_action(self.filtered_action, "filtered_action"),
+            )
+        if self.executed_action is not None:
+            object.__setattr__(
+                self,
+                "executed_action",
+                _finite_point(self.executed_action, "executed_action"),
+            )
+
+        if not isinstance(self.safety_shield_active, bool):
+            raise TypeError("safety_shield_active must be a bool.")
+        intervention = _non_negative_number(
+            self.safety_shield_intervention,
+            "safety_shield_intervention",
+        )
+        object.__setattr__(self, "safety_shield_intervention", intervention)
+        if self.policy_action is None:
+            if self.safety_shield_active or intervention != 0.0:
+                raise ValueError("Safety-shield evidence requires policy and filtered actions.")
+        else:
+            expected_intervention = math.dist(self.policy_action, self.filtered_action)
+            if not math.isclose(intervention, expected_intervention, abs_tol=1e-6):
+                raise ValueError(
+                    "safety_shield_intervention must equal the policy/filter difference."
+                )
+            if self.safety_shield_active != (intervention > 1e-6):
+                raise ValueError(
+                    "safety_shield_active must match a non-zero action intervention."
+                )
+
+        if not isinstance(self.escape_guard_active, bool):
+            raise TypeError("escape_guard_active must be a bool.")
+        mode = _non_empty_text(self.escape_guard_mode, "escape_guard_mode")
+        if mode not in _ESCAPE_GUARD_MODES:
+            raise ValueError(f"escape_guard_mode must be one of {sorted(_ESCAPE_GUARD_MODES)}.")
+        object.__setattr__(self, "escape_guard_mode", mode)
+        if not isinstance(self.escape_guard_unrecoverable, bool):
+            raise TypeError("escape_guard_unrecoverable must be a bool.")
+        if self.escape_guard_active != (mode != "inactive"):
+            raise ValueError("escape_guard_active must match escape_guard_mode.")
+        if self.escape_guard_unrecoverable != (mode == "unrecoverable"):
+            raise ValueError("escape_guard_unrecoverable must match unrecoverable mode.")
+
+    @property
+    def is_available(self) -> bool:
+        return self.minimum_lidar_range_m is not None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "available": self.is_available,
+            "measured_control_step": self.measured_control_step,
+            "measured_at_s": self.measured_at_s,
+            "minimum_lidar_range_m": self.minimum_lidar_range_m,
+            "robust_ttc_s": self.robust_ttc_s,
+            "closing_rate_mps": self.closing_rate_mps,
+            "critical_proximity": self.critical_proximity,
+            "actions": {
+                "policy": _normalized_action_dict(self.policy_action),
+                "filtered": _normalized_action_dict(self.filtered_action),
+                "executed": _executed_action_dict(self.executed_action),
+            },
+            "safety_shield": {
+                "active": self.safety_shield_active,
+                "intervention": self.safety_shield_intervention,
+            },
+            "escape_guard": {
+                "active": self.escape_guard_active,
+                "mode": self.escape_guard_mode,
+                "unrecoverable": self.escape_guard_unrecoverable,
+            },
+        }
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> PatrolLiveAvoidance:
+        value = _mapping(raw, "avoidance")
+        _exact_keys(
+            value,
+            {
+                "available",
+                "measured_control_step",
+                "measured_at_s",
+                "minimum_lidar_range_m",
+                "robust_ttc_s",
+                "closing_rate_mps",
+                "critical_proximity",
+                "actions",
+                "safety_shield",
+                "escape_guard",
+            },
+            "avoidance",
+        )
+        if not isinstance(value["available"], bool):
+            raise TypeError("avoidance.available must be a bool.")
+        actions = _mapping(value["actions"], "avoidance.actions")
+        _exact_keys(actions, {"policy", "filtered", "executed"}, "avoidance.actions")
+        shield = _mapping(value["safety_shield"], "avoidance.safety_shield")
+        _exact_keys(shield, {"active", "intervention"}, "avoidance.safety_shield")
+        guard = _mapping(value["escape_guard"], "avoidance.escape_guard")
+        _exact_keys(
+            guard,
+            {"active", "mode", "unrecoverable"},
+            "avoidance.escape_guard",
+        )
+        result = cls(
+            measured_control_step=value["measured_control_step"],
+            measured_at_s=value["measured_at_s"],
+            minimum_lidar_range_m=value["minimum_lidar_range_m"],
+            robust_ttc_s=value["robust_ttc_s"],
+            closing_rate_mps=value["closing_rate_mps"],
+            critical_proximity=value["critical_proximity"],
+            policy_action=_parse_normalized_action(
+                actions["policy"], "avoidance.actions.policy"
+            ),
+            filtered_action=_parse_normalized_action(
+                actions["filtered"], "avoidance.actions.filtered"
+            ),
+            executed_action=_parse_executed_action(
+                actions["executed"], "avoidance.actions.executed"
+            ),
+            safety_shield_active=shield["active"],
+            safety_shield_intervention=shield["intervention"],
+            escape_guard_active=guard["active"],
+            escape_guard_mode=guard["mode"],
+            escape_guard_unrecoverable=guard["unrecoverable"],
+        )
+        if result.is_available != value["available"]:
+            raise ValueError("avoidance.available does not match its measurements.")
+        return result
+
+
+@dataclass(frozen=True)
 class PatrolLiveSnapshot:
     """One complete, validated dashboard view of a patrol run.
 
@@ -190,6 +475,8 @@ class PatrolLiveSnapshot:
     latest_readings: PatrolLiveReadings
     active_alerts: tuple[PatrolLiveAlert, ...]
     runtime_identity: PatrolRuntimeIdentity
+    dynamic_obstacles: tuple[PatrolLiveDynamicObstacle, ...] = ()
+    avoidance: PatrolLiveAvoidance = field(default_factory=PatrolLiveAvoidance)
     schema_version: str = field(default=LIVE_STATUS_SCHEMA_VERSION, init=False)
 
     def __post_init__(self) -> None:
@@ -264,6 +551,35 @@ class PatrolLiveSnapshot:
             raise ValueError("active_alerts cannot be raised in the future.")
         if not isinstance(self.runtime_identity, PatrolRuntimeIdentity):
             raise TypeError("runtime_identity must be a PatrolRuntimeIdentity instance.")
+        if not isinstance(self.dynamic_obstacles, tuple):
+            object.__setattr__(self, "dynamic_obstacles", tuple(self.dynamic_obstacles))
+        if not all(
+            isinstance(obstacle, PatrolLiveDynamicObstacle)
+            for obstacle in self.dynamic_obstacles
+        ):
+            raise TypeError(
+                "dynamic_obstacles must contain only PatrolLiveDynamicObstacle values."
+            )
+        if len(self.dynamic_obstacles) > MAX_LIVE_DYNAMIC_OBSTACLES:
+            raise ValueError(
+                "dynamic_obstacles cannot contain more than "
+                f"{MAX_LIVE_DYNAMIC_OBSTACLES} values."
+            )
+        obstacle_ids = [obstacle.obstacle_id for obstacle in self.dynamic_obstacles]
+        if len(obstacle_ids) != len(set(obstacle_ids)):
+            raise ValueError("dynamic_obstacles cannot contain duplicate obstacle_id values.")
+        if not isinstance(self.avoidance, PatrolLiveAvoidance):
+            raise TypeError("avoidance must be a PatrolLiveAvoidance instance.")
+        if (
+            self.avoidance.measured_at_s is not None
+            and self.avoidance.measured_at_s > simulation_time
+        ):
+            raise ValueError("avoidance cannot be measured in the future.")
+        if (
+            self.avoidance.measured_control_step is not None
+            and self.avoidance.measured_control_step > self.control_step
+        ):
+            raise ValueError("avoidance cannot come from a future control step.")
 
     def _validate_checkpoint(
         self,
@@ -363,6 +679,10 @@ class PatrolLiveSnapshot:
                 "safety_shield_id": self.runtime_identity.safety_shield_id,
                 "safety_shield_sha256": self.runtime_identity.safety_shield_sha256,
             },
+            "dynamic_obstacles": [
+                obstacle.to_dict() for obstacle in self.dynamic_obstacles
+            ],
+            "avoidance": self.avoidance.to_dict(),
         }
 
     @classmethod
@@ -370,29 +690,35 @@ class PatrolLiveSnapshot:
         """Parse and strictly validate one on-disk snapshot mapping."""
 
         root = _mapping(raw, "live status")
-        _exact_keys(
-            root,
-            {
-                "schema_version",
-                "run_id",
-                "sequence",
-                "state",
-                "outcome",
-                "seed",
-                "control_step",
-                "simulation_time_s",
-                "position",
-                "checkpoint_progress",
-                "local_navigation",
-                "latest_readings",
-                "active_alerts",
-                "runtime_identity",
-            },
-            "live status",
-        )
-        if root["schema_version"] != LIVE_STATUS_SCHEMA_VERSION:
+        schema_version = root.get("schema_version")
+        base_keys = {
+            "schema_version",
+            "run_id",
+            "sequence",
+            "state",
+            "outcome",
+            "seed",
+            "control_step",
+            "simulation_time_s",
+            "position",
+            "checkpoint_progress",
+            "local_navigation",
+            "latest_readings",
+            "active_alerts",
+            "runtime_identity",
+        }
+        if schema_version == LIVE_STATUS_SCHEMA_VERSION:
+            _exact_keys(
+                root,
+                base_keys | {"dynamic_obstacles", "avoidance"},
+                "live status",
+            )
+        elif schema_version == LEGACY_LIVE_STATUS_SCHEMA_VERSION:
+            _exact_keys(root, base_keys, "live status")
+        else:
             raise ValueError(
-                f"schema_version must be {LIVE_STATUS_SCHEMA_VERSION!r}."
+                "schema_version must be one of "
+                f"{LEGACY_LIVE_STATUS_SCHEMA_VERSION!r} or {LIVE_STATUS_SCHEMA_VERSION!r}."
             )
         position_raw = _point_mapping(root["position"], "position")
         progress_raw = _mapping(root["checkpoint_progress"], "checkpoint_progress")
@@ -463,6 +789,18 @@ class PatrolLiveSnapshot:
             },
             "runtime_identity",
         )
+        dynamic_obstacles: tuple[PatrolLiveDynamicObstacle, ...] = ()
+        avoidance = PatrolLiveAvoidance()
+        if schema_version == LIVE_STATUS_SCHEMA_VERSION:
+            dynamic_raw = _sequence(root["dynamic_obstacles"], "dynamic_obstacles")
+            dynamic_obstacles = tuple(
+                PatrolLiveDynamicObstacle.from_dict(
+                    item,
+                    name=f"dynamic_obstacles[{index}]",
+                )
+                for index, item in enumerate(dynamic_raw)
+            )
+            avoidance = PatrolLiveAvoidance.from_dict(root["avoidance"])
         return cls(
             run_id=root["run_id"],
             sequence=root["sequence"],
@@ -482,6 +820,8 @@ class PatrolLiveSnapshot:
             latest_readings=PatrolLiveReadings(**readings_raw),
             active_alerts=tuple(alerts),
             runtime_identity=PatrolRuntimeIdentity(**runtime_raw),
+            dynamic_obstacles=dynamic_obstacles,
+            avoidance=avoidance,
         )
 
 
@@ -743,6 +1083,41 @@ def _finite_point(value: Any, name: str) -> tuple[float, float]:
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence) or len(value) != 2:
         raise TypeError(f"{name} must contain exactly two coordinates.")
     return (_finite_number(value[0], f"{name}[0]"), _finite_number(value[1], f"{name}[1]"))
+
+
+def _normalized_action(value: Any, name: str) -> tuple[float, float]:
+    action = _finite_point(value, name)
+    if any(component < -1.0 or component > 1.0 for component in action):
+        raise ValueError(f"{name} components must be within [-1, 1].")
+    return action
+
+
+def _normalized_action_dict(value: tuple[float, float] | None) -> dict[str, float] | None:
+    if value is None:
+        return None
+    return {"linear_normalized": value[0], "angular_normalized": value[1]}
+
+
+def _executed_action_dict(value: tuple[float, float] | None) -> dict[str, float] | None:
+    if value is None:
+        return None
+    return {"linear_mps": value[0], "angular_radps": value[1]}
+
+
+def _parse_normalized_action(value: Any, name: str) -> tuple[float, float] | None:
+    if value is None:
+        return None
+    action = _mapping(value, name)
+    _exact_keys(action, {"linear_normalized", "angular_normalized"}, name)
+    return (action["linear_normalized"], action["angular_normalized"])
+
+
+def _parse_executed_action(value: Any, name: str) -> tuple[float, float] | None:
+    if value is None:
+        return None
+    action = _mapping(value, name)
+    _exact_keys(action, {"linear_mps", "angular_radps"}, name)
+    return (action["linear_mps"], action["angular_radps"])
 
 
 def _sha256(value: Any, name: str) -> str:

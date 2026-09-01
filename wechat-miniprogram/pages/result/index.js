@@ -56,9 +56,31 @@ function projectResult(payload) {
 Page({
   data: projectResult(null),
 
+  onLoad() {
+    this._visible = false;
+    this._unsubscribePatrol = getApp().subscribePatrol({
+      onClear: () => {
+        if (this._visible) this.setData(projectResult(null));
+      },
+      onData: (payload) => {
+        if (this._visible) this.setData(projectResult(payload));
+      },
+    });
+  },
+
   onShow() {
+    this._visible = true;
     const payload = getApp().globalData.dashboard;
     this.setData(projectResult(payload));
+  },
+
+  onHide() {
+    this._visible = false;
+  },
+
+  onUnload() {
+    if (this._unsubscribePatrol) this._unsubscribePatrol();
+    this._unsubscribePatrol = null;
   },
 });
 

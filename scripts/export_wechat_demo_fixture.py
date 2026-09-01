@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import sys
@@ -15,6 +16,10 @@ FIXTURE_SCHEMA_VERSION = "wechat-patrol-fixture/v1"
 DASHBOARD_SCHEMA_VERSION = "patrol-dashboard/v1"
 EXPECTED_RUN_ID = "graduation-demo-seed7000-v1"
 DEFAULT_MAX_FRAMES = 90
+_DYNAMIC_OBSTACLE_SPECS = (
+    ("DYNAMIC_OBSTACLE_0", 0.18),
+    ("DYNAMIC_OBSTACLE_1", 0.17),
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -88,11 +93,16 @@ def _frame_signature(event: Mapping[str, Any]) -> tuple[object, ...]:
     )
 
 
-def _sample_indices(events: Sequence[Mapping[str, Any]], limit: int) -> list[int]:
+def _sample_indices(
+    events: Sequence[Mapping[str, Any]],
+    limit: int,
+    *,
+    extra_mandatory: Sequence[int] = (),
+) -> list[int]:
     if len(events) <= limit:
         return list(range(len(events)))
 
-    mandatory = {0, len(events) - 1}
+    mandatory = {0, len(events) - 1, *extra_mandatory}
     previous = _frame_signature(events[0])
     for index, event in enumerate(events[1:], 1):
         signature = _frame_signature(event)
@@ -129,7 +139,182 @@ def _sample_indices(events: Sequence[Mapping[str, Any]], limit: int) -> list[int
     return sorted(selected)
 
 
-def _compact_frame(event: Mapping[str, Any]) -> dict[str, Any]:
+def _empty_avoidance() -> dict[str, Any]:
+    return {
+        "available": False,
+        "measured_control_step": None,
+        "measured_at_s": None,
+        "minimum_lidar_range_m": None,
+        "robust_ttc_s": None,
+        "closing_rate_mps": None,
+        "critical_proximity": False,
+        "actions": {"policy": None, "filtered": None, "executed": None},
+        "safety_shield": {"active": False, "intervention": 0.0},
+        "escape_guard": {
+            "active": False,
+            "mode": "inactive",
+            "unrecoverable": False,
+        },
+    }
+
+
+def _telemetry_key(record: Mapping[str, Any]) -> tuple[int, float]:
+    return (int(record["control_step"]), round(float(record["simulation_time_s"]), 9))
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    return float(value)
+
+
+def _csv_bool(value: Any, label: str) -> bool:
+    if value == "True":
+        return True
+    if value == "False":
+        return False
+    raise ValueError(f"trajectory.csv {label} must be True or False")
+
+
+def _trajectory_telemetry(record: Mapping[str, Any]) -> dict[str, Any]:
+    dynamic_obstacles = []
+    for ordinal, (obstacle_id, radius_m) in enumerate(_DYNAMIC_OBSTACLE_SPECS, 1):
+        dynamic_obstacles.append(
+            {
+                "id": obstacle_id,
+                "position": {
+                    "x_m": float(record[f"dynamic_obstacle_{ordinal}_x_m"]),
+                    "y_m": float(record[f"dynamic_obstacle_{ordinal}_y_m"]),
+                },
+                "radius_m": radius_m,
+                # Historical trajectory evidence contains position but no
+                # per-frame direction; do not reconstruct a velocity claim.
+                "velocity": None,
+            }
+        )
+    guard_mode = str(record["ttc_escape_guard_mode"])
+    return {
+        "dynamic_obstacles": dynamic_obstacles,
+        "avoidance": {
+            "available": True,
+            "measured_control_step": int(record["control_step"]),
+            "measured_at_s": float(record["simulation_time_s"]),
+            "minimum_lidar_range_m": float(record["minimum_lidar_range_m"]),
+            "robust_ttc_s": _optional_float(record["estimated_ttc_s"]),
+            "closing_rate_mps": _optional_float(record["proximity_closing_rate_mps"]),
+            "critical_proximity": _csv_bool(
+                record["critical_proximity"], "critical_proximity"
+            ),
+            "actions": {
+                "policy": {
+                    "linear_normalized": float(record["policy_action_linear"]),
+                    "angular_normalized": float(record["policy_action_angular"]),
+                },
+                "filtered": {
+                    "linear_normalized": float(record["shielded_action_linear"]),
+                    "angular_normalized": float(record["shielded_action_angular"]),
+                },
+                "executed": {
+                    "linear_mps": float(record["executed_linear_mps"]),
+                    "angular_radps": float(record["executed_angular_radps"]),
+                },
+            },
+            "safety_shield": {
+                "active": _csv_bool(
+                    record["safety_shield_active"], "safety_shield_active"
+                ),
+                "intervention": float(record["safety_shield_intervention"]),
+            },
+            "escape_guard": {
+                "active": _csv_bool(
+                    record["ttc_escape_guard_active"], "ttc_escape_guard_active"
+                ),
+                "mode": guard_mode,
+                "unrecoverable": guard_mode == "unrecoverable",
+            },
+        },
+    }
+
+
+def _trajectory_by_key(
+    path: Path,
+) -> tuple[list[dict[str, str]], dict[tuple[int, float], dict[str, Any]]]:
+    with path.open("r", encoding="utf-8", newline="") as stream:
+        records = list(csv.DictReader(stream))
+    if not records:
+        raise ValueError("trajectory.csv must contain at least one data row")
+    telemetry = {_telemetry_key(record): _trajectory_telemetry(record) for record in records}
+    if len(telemetry) != len(records):
+        raise ValueError("trajectory.csv control_step/simulation_time pairs must be unique")
+    return records, telemetry
+
+
+def _avoidance_mandatory_indices(
+    events: Sequence[Mapping[str, Any]],
+    trajectory: Sequence[Mapping[str, Any]],
+) -> list[int]:
+    event_indices: dict[tuple[int, float], list[int]] = {}
+    for index, event in enumerate(events):
+        event_indices.setdefault(_telemetry_key(event), []).append(index)
+
+    mandatory_rows: set[int] = {
+        min(
+            range(len(trajectory)),
+            key=lambda index: float(trajectory[index]["minimum_lidar_range_m"]),
+        )
+    }
+    ttc_rows = [
+        index
+        for index, record in enumerate(trajectory)
+        if record["estimated_ttc_s"] != ""
+    ]
+    if ttc_rows:
+        mandatory_rows.add(
+            min(ttc_rows, key=lambda index: float(trajectory[index]["estimated_ttc_s"]))
+        )
+
+    for index, record in enumerate(trajectory):
+        if record["ttc_escape_guard_active"] == "True" or record["critical_proximity"] == "True":
+            mandatory_rows.add(index)
+
+    # Preserve the onset and peak of every contiguous shield intervention,
+    # rather than attempting to retain hundreds of near-identical active rows.
+    active_episode: list[int] = []
+    for index, record in enumerate(trajectory):
+        if record["safety_shield_active"] == "True":
+            active_episode.append(index)
+        elif active_episode:
+            mandatory_rows.add(active_episode[0])
+            mandatory_rows.add(
+                max(
+                    active_episode,
+                    key=lambda item: float(
+                        trajectory[item]["safety_shield_intervention"]
+                    ),
+                )
+            )
+            active_episode = []
+    if active_episode:
+        mandatory_rows.add(active_episode[0])
+        mandatory_rows.add(
+            max(
+                active_episode,
+                key=lambda item: float(trajectory[item]["safety_shield_intervention"]),
+            )
+        )
+
+    result: set[int] = set()
+    for row_index in mandatory_rows:
+        matches = event_indices.get(_telemetry_key(trajectory[row_index]), [])
+        navigating = [index for index in matches if events[index]["state"] == "navigating"]
+        result.update(navigating or matches)
+    return sorted(result)
+
+
+def _compact_frame(
+    event: Mapping[str, Any],
+    telemetry: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     progress = event["checkpoint_progress"]
     navigation = event["local_navigation"]
     return {
@@ -151,6 +336,18 @@ def _compact_frame(event: Mapping[str, Any]) -> dict[str, Any]:
         },
         "readings": event["latest_readings"],
         "active_alerts": event["active_alerts"],
+        "dynamic_obstacles": list(
+            event.get(
+                "dynamic_obstacles",
+                [] if telemetry is None else telemetry["dynamic_obstacles"],
+            )
+        ),
+        "avoidance": dict(
+            event.get(
+                "avoidance",
+                _empty_avoidance() if telemetry is None else telemetry["avoidance"],
+            )
+        ),
     }
 
 
@@ -224,8 +421,20 @@ def build_fixture(
         raise ValueError("events.jsonl contains a foreign run_id")
     if [event.get("sequence") for event in events] != list(range(len(events))):
         raise ValueError("events.jsonl sequence must be contiguous from zero")
-    indices = _sample_indices(events, max_frames)
-    frames = [_compact_frame(events[index]) for index in indices]
+    trajectory_path = run_directory / "trajectory.csv"
+    trajectory, trajectory_telemetry = _trajectory_by_key(trajectory_path)
+    indices = _sample_indices(
+        events,
+        max_frames,
+        extra_mandatory=_avoidance_mandatory_indices(events, trajectory),
+    )
+    frames = [
+        _compact_frame(
+            events[index],
+            trajectory_telemetry.get(_telemetry_key(events[index])),
+        )
+        for index in indices
+    ]
 
     sample_records = _read_json_lines_as_csv(run_directory / "inspection_samples.csv")
     alarm_records = _read_json_lines(run_directory / "alarm_events.jsonl")
@@ -240,6 +449,7 @@ def build_fixture(
         "trajectory_point_count",
         "trajectory_source_point_count",
         "trajectory_truncated",
+        "dynamic_obstacles",
     ):
         map_payload.pop(key, None)
 
@@ -257,6 +467,8 @@ def build_fixture(
                 run_directory / "inspection_manifest.json"
             ),
             "events_sha256": _sha256(run_directory / "events.jsonl"),
+            "trajectory_sha256": _sha256(trajectory_path),
+            "avoidance_source": "trajectory_exact_step_and_time_match",
             "source_event_count": len(events),
             "exported_frame_count": len(frames),
             "max_frame_count": max_frames,

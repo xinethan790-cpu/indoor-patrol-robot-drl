@@ -22,6 +22,34 @@ function obstacle(index) {
   };
 }
 
+function dynamicObstacle(index) {
+  return {
+    id: `dynamic-${index}`,
+    position: { x_m: index / 100, y_m: index / 200 },
+    radius_m: 0.18,
+    velocity: { x_mps: 0, y_mps: 0.18 },
+  };
+}
+
+function avoidance() {
+  return {
+    available: true,
+    measured_control_step: 8,
+    measured_at_s: 1,
+    minimum_lidar_range_m: 0.31,
+    robust_ttc_s: 0.8,
+    closing_rate_mps: 0.2,
+    critical_proximity: false,
+    actions: {
+      policy: { linear_normalized: 0.8, angular_normalized: 0.2 },
+      filtered: { linear_normalized: 0.2, angular_normalized: 0.2 },
+      executed: { linear_mps: -0.08, angular_radps: 0 },
+    },
+    safety_shield: { active: true, intervention: 0.6 },
+    escape_guard: { active: true, mode: 'reverse', unrecoverable: false },
+  };
+}
+
 function alarmEvent(index) {
   return {
     rule_id: `rule-${index}`,
@@ -40,6 +68,35 @@ function alarmEvent(index) {
 test('accepts the patrol-dashboard/v1 envelope', () => {
   const payload = validPayload({ sequence: 12, simulationTime: 4.8 });
   assert.equal(parseDashboardBody(JSON.stringify(payload)).run.sequence, 12);
+});
+
+test('normalizes legacy v1 telemetry without mutating an old outbox payload', () => {
+  const legacy = validPayload();
+  delete legacy.run.control_step;
+  delete legacy.map.dynamic_obstacles;
+  delete legacy.avoidance;
+
+  const normalized = validateDashboardPayload(legacy);
+
+  assert.notEqual(normalized, legacy);
+  assert.equal(Object.hasOwn(legacy.run, 'control_step'), false);
+  assert.equal(Object.hasOwn(legacy.map, 'dynamic_obstacles'), false);
+  assert.equal(Object.hasOwn(legacy, 'avoidance'), false);
+  assert.equal(normalized.schema_version, 'patrol-dashboard/v1');
+  assert.equal(normalized.run.control_step, null);
+  assert.deepEqual(normalized.map.dynamic_obstacles, []);
+  assert.deepEqual(normalized.avoidance, {
+    available: false,
+    measured_control_step: null,
+    measured_at_s: null,
+    minimum_lidar_range_m: null,
+    robust_ttc_s: null,
+    closing_rate_mps: null,
+    critical_proximity: false,
+    actions: { policy: null, filtered: null, executed: null },
+    safety_shield: { active: false, intervention: 0 },
+    escape_guard: { active: false, mode: 'inactive', unrecoverable: false },
+  });
 });
 
 test('rejects unsupported schemas and malformed run identity', () => {
@@ -157,6 +214,72 @@ test('rejects excessive static obstacles and inconsistent trajectory metadata', 
     () => validateDashboardPayload(sequenceRollback),
     (error) => error.code === 'INVALID_PAYLOAD',
   );
+});
+
+test('validates dynamic-obstacle bounds and complete avoidance audit consistency', () => {
+  const accepted = validPayload({ controlStep: 8, simulationTime: 1 });
+  accepted.map.dynamic_obstacles = Array.from({ length: 32 }, (_, index) => (
+    dynamicObstacle(index)
+  ));
+  accepted.avoidance = avoidance();
+  assert.equal(validateDashboardPayload(accepted), accepted);
+
+  const overflow = structuredClone(accepted);
+  overflow.map.dynamic_obstacles.push(dynamicObstacle(32));
+  assert.throws(() => validateDashboardPayload(overflow), (error) => (
+    error.code === 'INVALID_PAYLOAD'
+  ));
+
+  const unknownControlStep = structuredClone(accepted);
+  unknownControlStep.run.control_step = null;
+  assert.throws(() => validateDashboardPayload(unknownControlStep), (error) => (
+    error.code === 'INVALID_PAYLOAD'
+  ));
+
+  const duplicate = structuredClone(accepted);
+  duplicate.map.dynamic_obstacles[1].id = duplicate.map.dynamic_obstacles[0].id;
+  assert.throws(() => validateDashboardPayload(duplicate), (error) => (
+    error.code === 'INVALID_PAYLOAD'
+  ));
+
+  const boundaryTolerance = structuredClone(accepted);
+  boundaryTolerance.map.dynamic_obstacles = [dynamicObstacle(0)];
+  boundaryTolerance.map.dynamic_obstacles[0].position.x_m = (
+    boundaryTolerance.map.origin.x_m
+    + boundaryTolerance.map.dynamic_obstacles[0].radius_m
+    - 0.5e-6
+  );
+  assert.equal(validateDashboardPayload(boundaryTolerance), boundaryTolerance);
+
+  const outsideEnvelope = structuredClone(boundaryTolerance);
+  outsideEnvelope.map.dynamic_obstacles[0].position.x_m -= 2e-6;
+  assert.throws(() => validateDashboardPayload(outsideEnvelope), (error) => (
+    error.code === 'INVALID_PAYLOAD'
+  ));
+
+  const excessiveRadius = structuredClone(accepted);
+  excessiveRadius.map.dynamic_obstacles = [dynamicObstacle(0)];
+  excessiveRadius.map.dynamic_obstacles[0].position = { x_m: 0, y_m: 0 };
+  excessiveRadius.map.dynamic_obstacles[0].radius_m = 1.750002;
+  assert.throws(() => validateDashboardPayload(excessiveRadius), (error) => (
+    error.code === 'INVALID_PAYLOAD'
+  ));
+
+  const exactMaximumRadius = structuredClone(excessiveRadius);
+  exactMaximumRadius.map.dynamic_obstacles[0].radius_m = 1.75;
+  assert.equal(validateDashboardPayload(exactMaximumRadius), exactMaximumRadius);
+
+  const future = structuredClone(accepted);
+  future.avoidance.measured_at_s = 1.1;
+  assert.throws(() => validateDashboardPayload(future), (error) => (
+    error.code === 'INVALID_PAYLOAD'
+  ));
+
+  const inconsistentShield = structuredClone(accepted);
+  inconsistentShield.avoidance.safety_shield.intervention = 0.1;
+  assert.throws(() => validateDashboardPayload(inconsistentShield), (error) => (
+    error.code === 'INVALID_PAYLOAD'
+  ));
 });
 
 test('rejects alarm-array overflow and every inconsistent alarm count', () => {

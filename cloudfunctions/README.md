@@ -44,7 +44,10 @@ device_id + "\n" + timestamp + "\n" + nonce + "\n" + body_sha256
 
 HMAC 密钥只允许从云函数和 Mac 的 `PATROL_RELAY_UPLOAD_SECRET` 环境变量读取。不得放入
 小程序、配置文件、命令行参数、Git 提交或日志。密钥至少 32 字节；建议由系统安全随机源
-生成 32 字节并保存到 macOS 钥匙串，再注入 relay 进程。
+生成 32 字节并保存到 macOS 钥匙串，再注入 relay 进程。运行时会拒绝空值、少于 32 字节
+的值、首尾包含空白的值、`{{...}}`/`${...}` 模板表达式，以及包含 `change-me`、
+`example`、`default`、`password` 等标记或字符多样性过低的示例密钥。云函数与 Python
+relay 使用相同规则，并且错误和预检输出都不会包含密钥本身。
 
 成功响应始终包含 sidecar 可核验的 ACK：
 
@@ -117,7 +120,9 @@ npm run verify:bundles
 
 测试不依赖云账号或真实密钥，覆盖 HMAC 篡改、时间窗、nonce、请求体上限、协议验证、
 幂等、冲突、回退、终态锁、新运行切换、run ID 防复用、只读快照、陈旧状态，以及 nonce
-清理的到期边界、100 条硬上限与重复执行。
+清理的到期边界、100 条硬上限与重复执行。测试还覆盖空、短、首尾空白、模板、示例和随机
+有效密钥，确保填充空格的短密钥与公开占位符都不能通过鉴权；动态障碍物则覆盖 32/33 项
+边界、地图圆形包络与合理半径约束。
 
 ## 部署前构建
 
@@ -133,6 +138,17 @@ npm run verify:bundles
 开发者工具中关闭并重新打开项目，左侧才会刷新出带云朵标记的三个函数目录。三个函数的
 `package.json` 和 `package-lock.json` 都把 `wx-server-sdk` 精确锁定为 `3.0.1`，
 `npm run verify:bundles` 会同时核验这一点。
+
+部署前还必须用准备写入云函数的同一份钥匙串密钥执行离线预检：
+
+```bash
+PATROL_RELAY_UPLOAD_SECRET="$(security find-generic-password \
+  -a indoor-patrol-relay -s PATROL_RELAY_UPLOAD_SECRET -w)" \
+npm run preflight:secret
+```
+
+预检只输出 `ready`/`not ready`、错误代码和不敏感原因，不输出密钥内容；返回码为 0 才可
+继续。该检查只验证当前本机提供的值，不会连接云端，也不能代替部署后在控制台核对环境变量。
 
 ## 启动 Mac 中转程序
 
@@ -181,7 +197,23 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
 
 也可以使用 CloudBase CLI：先在 `cloudfunctions/` 执行 `tcb login`，然后执行
 `tcb fn deploy --all`。CLI 会读取 [cloudbaserc.json](cloudbaserc.json) 中的 `.dist`
-路径；真实 `PATROL_RELAY_UPLOAD_SECRET` 必须只在当前 shell 和云函数环境中临时注入。
+路径。为避免未展开的公开占位符被误当成真实密钥，`cloudbaserc.json` 有意不包含
+`PATROL_RELAY_UPLOAD_SECRET`；无论使用 CLI 还是开发者工具上传，都必须在上传后通过云开发
+控制台的函数环境变量安全设置真实值。
+
+### 旧版 `patrol-dashboard/v1` 的滚动部署顺序
+
+协议版本号保持不变，但新遥测增加了 `run.control_step`、`map.dynamic_obstacles` 和
+`avoidance`。为避免三端短暂错配，按以下顺序滚动：
+
+1. 先部署新 `ingestPatrol`/`getPatrolSnapshot`；它们会把旧 relay/outbox 缺少的三个字段
+   规范化为 `control_step: null`、空动态障碍数组和明确的“避障证据不可用”对象。
+2. 再发布新版小程序；新版能读取尚未更新的旧云快照，并以相同不可用默认值展示。
+3. 最后更新并启动 Python/Webots 生产端，使它开始上报完整的新字段。已有旧 outbox 可以继续
+   原样重试，HMAC 与请求体哈希仍按原始字节验证，不能为补字段而改写待重试请求体。
+
+默认值只表示旧版未提供证据，不应被解释为“已检测且没有障碍”或“避障功能正常”。回滚时
+反向执行，并在回滚生产端前先停 relay，避免新格式待发数据与更旧的消费者同时运行。
 
 ## 必须在控制台完成的资源配置
 
@@ -192,7 +224,8 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
 2. 给 `ingestPatrol` 设置 `PATROL_CLOUDBASE_ENV_ID`、`PATROL_RELAY_DEVICE_ID`、
    `PATROL_RELAY_UPLOAD_SECRET`；给 `getPatrolSnapshot` 设置前两个变量。真实密钥不得粘贴
    到源码、示例配置、命令参数或日志。给 `cleanupPatrolNonces` 只设置
-   `PATROL_CLOUDBASE_ENV_ID`。
+   `PATROL_CLOUDBASE_ENV_ID`。设置前先通过 `npm run preflight:secret`，设置后确认云端变量
+   既不是空值，也不是花括号模板文本；未设置时 `ingestPatrol` 必须保持 500 失败关闭。
 3. 在云函数“权限控制”应用 [function.rules.json](function.rules.json)：客户端不能直接调用
    `ingestPatrol` 和 `cleanupPatrolNonces`，`getPatrolSnapshot` 只允许具备微信身份的调用。
 4. 在“环境配置 → HTTP 访问服务”把专用 HTTPS 路径（建议
@@ -210,7 +243,9 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
 ## 部署后验证清单
 
 - 三个函数均使用 Node.js 18，云端安装依赖成功；构建前本地已通过 `npm test`、
-  `npm run build` 和 `npm run verify:bundles`。
+  `npm run build`、`npm run verify:bundles` 和真实候选密钥的 `npm run preflight:secret`。
+- `cloudbaserc.json` 不含上传密钥或密钥占位符；云函数控制台中的真实密钥通过本地预检，
+  删除该变量后 `ingestPatrol` 会失败关闭，重新设置后合法 HMAC 请求才恢复成功。
 - `cleanupPatrolNonces` 显示每分钟定时器，且没有 HTTP 路由；从小程序客户端调用它会被
   权限规则拒绝。
 - 在测试环境准备 101 条已过期 nonce 和 1 条未过期 nonce 后，由管理员触发两次清理：

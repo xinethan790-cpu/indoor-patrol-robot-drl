@@ -1,12 +1,8 @@
 "use strict";
 
-const {
-  createCloudPatrolDataSource,
-  createOfflineDataSource,
-  createPollingDataSource,
-} = require("../../services/createDataSource");
 const { getPlatform, resolveModeForPlatform } = require("../../services/modePolicy");
 const { formatNumber } = require("../../utils/format");
+const { buildAvoidanceView, emptyAvoidanceView } = require("../../utils/avoidanceView");
 
 const app = getApp();
 
@@ -131,6 +127,7 @@ function buildView(payload, mode) {
   const boundary = payload.source && payload.source.map_boundary_note;
 
   return {
+    ...buildAvoidanceView(payload.avoidance, map),
     dashboardMap: map,
     runId: run.run_id || "",
     sequenceText: Number.isSafeInteger(run.sequence) ? `SEQ ${run.sequence}` : "",
@@ -198,46 +195,44 @@ Page({
     resultTitle: "",
     resultSummary: "",
     boundaryNote: "本二维地图来自仿真配置，仅用于毕设演示可视化。",
+    ...emptyAvoidanceView(0),
   },
 
   onLoad() {
-    this._source = null;
+    this._visible = false;
     this._sourceMode = null;
-    this._sourceStarted = false;
+    this._replaceSource(app.globalData.mode);
+    this._unsubscribePatrol = app.subscribePatrol(this._callbacks());
   },
 
   onShow() {
+    this._visible = true;
     const resolution = resolveModeForPlatform(app.globalData.mode, getPlatform(wx));
     const mode = resolution.mode;
     if (resolution.downgraded) app.setMode(mode);
-    if (!this._source || this._sourceMode !== mode) {
-      this._replaceSource(mode);
-    }
-    if (!this._sourceStarted) this._startSource();
+    if (this._sourceMode !== mode) this._replaceSource(mode);
+    this._syncSessionState();
   },
 
   onHide() {
-    this._stopSource();
+    this._visible = false;
   },
 
   onUnload() {
-    this._stopSource();
-    if (this._source && typeof this._source.close === "function") this._source.close();
-    this._source = null;
+    if (this._unsubscribePatrol) this._unsubscribePatrol();
+    this._unsubscribePatrol = null;
   },
 
   onPullDownRefresh() {
     if (this._sourceMode === "demo") {
       this.resetDemo();
     } else {
-      this._replaceSource(this._sourceMode);
-      this._startSource();
+      app.resetPatrolSession();
     }
     wx.stopPullDownRefresh();
   },
 
   _replaceSource(mode) {
-    this._stopSource();
     this._sourceMode = mode;
     const modeLabel = mode === "demo" ? "仿真演示" : (mode === "cloud" ? "云端实时" : "本机实时");
     this.setData({
@@ -253,84 +248,94 @@ Page({
       demoControlLabel: "暂停演示",
       cloudReceivedText: "等待首个快照",
     });
-    if (mode === "demo") {
-      this._source = createOfflineDataSource();
-    } else if (mode === "cloud") {
-      try {
-        this._source = createCloudPatrolDataSource({
-          env: app.globalData.cloudEnvId,
-          staleAfterMs: 8000,
-          pollIntervalMs: 2000,
-        });
-      } catch (error) {
-        this._source = null;
-        this.setData({
-          connectionLabel: "云开发初始化失败",
-          connectionTone: "offline",
-          errorMessage: (error && error.message)
-            || app.globalData.cloudInitError
-            || "当前基础库无法连接云开发，请切换到仿真演示模式。",
-        });
-      }
-    } else {
-      const base = app.globalData.apiBaseUrl || "http://127.0.0.1:8765";
-      this._source = createPollingDataSource({
-        endpoint: `${base}/api/dashboard`,
-        intervalMs: 900,
-        timeoutMs: 5000,
+  },
+
+  _clearView(mode) {
+    this._replaceSource(mode || app.globalData.mode);
+    this.setData({
+      runId: "",
+      sequenceText: "",
+      terminal: false,
+      progressText: "0%",
+      progressWidth: 0,
+      progressStyle: "width: 0%;",
+      simulationTimeText: "0.0 s",
+      currentCheckpointText: "—",
+      completedCheckpointText: "0 / 4 巡检点",
+      dashboardMap: null,
+      checkpoints: [],
+      sensorAvailable: false,
+      sensorSourceText: "等待机器人到达巡检点",
+      sensorCards: buildSensorCards(null),
+      activeAlarmCount: 0,
+      activeAlarms: [],
+      resultAvailable: false,
+      resultSuccess: false,
+      resultTitle: "",
+      resultSummary: "",
+      boundaryNote: "本二维地图来自仿真配置，仅用于毕设演示可视化。",
+      ...emptyAvoidanceView(0),
+      cloudReceivedText: "等待首个快照",
+      errorMessage: "",
+    });
+  },
+
+  _applyPayload(payload, sourceMeta) {
+    const sourceMode = (sourceMeta && sourceMeta.mode) || app.globalData.mode;
+    this._sourceMode = sourceMode;
+    const view = buildView(payload, sourceMode);
+    this.setData({
+      ...view,
+      errorMessage: "",
+      cloudReceivedText: sourceMeta && sourceMeta.receivedAtUtc
+        ? formatReceivedTime(sourceMeta.receivedAtUtc)
+        : this.data.cloudReceivedText,
+    });
+  },
+
+  _applyError(error, details) {
+    if (this._sourceMode === "cloud" && details && details.retrying) {
+      this.setData({
+        errorMessage: "",
+        connectionLabel: details.transport === "polling"
+          ? "实时订阅中断，已自动切换轮询"
+          : "云端连接中断，正在恢复",
+        connectionTone: "warning",
+        cloudTransportLabel: "轮询保障",
       });
+      return;
     }
+    this.setData({
+      errorMessage: error && error.message ? error.message : "巡检数据读取失败",
+      connectionLabel: details && details.retrying ? "连接中断，正在重试" : "数据协议校验失败",
+      connectionTone: "offline",
+    });
+  },
+
+  _syncSessionState() {
+    const state = app.getPatrolSessionState();
+    if (!state) return;
+    if (state.payload) this._applyPayload(state.payload, state.meta);
+    else this._clearView(state.mode);
+    this._handleStatus(state.statusEvent || { status: state.status, mode: state.mode });
+    if (state.error) this._applyError(state.error, state.errorDetails);
   },
 
   _callbacks() {
     return {
-      onData: (payload, sourceMeta) => {
-        const view = buildView(payload, this._sourceMode);
-        this.setData({
-          ...view,
-          errorMessage: "",
-          cloudReceivedText: sourceMeta && sourceMeta.receivedAtUtc
-            ? formatReceivedTime(sourceMeta.receivedAtUtc)
-            : this.data.cloudReceivedText,
-        });
-        app.setDashboard(payload, {
-          mode: this._sourceMode,
-          receivedAt: Date.now(),
-          ...(sourceMeta || {}),
-        });
+      onClear: (event) => {
+        if (this._visible) this._clearView(event.mode);
       },
-      onStatus: (event) => this._handleStatus(event),
+      onData: (payload, sourceMeta) => {
+        if (this._visible) this._applyPayload(payload, sourceMeta);
+      },
+      onStatus: (event) => {
+        if (this._visible) this._handleStatus(event);
+      },
       onError: (error, details) => {
-        if (this._sourceMode === "cloud" && details && details.retrying) {
-          this.setData({
-            errorMessage: "",
-            connectionLabel: details.transport === "polling"
-              ? "实时订阅中断，已自动切换轮询"
-              : "云端连接中断，正在恢复",
-            connectionTone: "warning",
-            cloudTransportLabel: "轮询保障",
-          });
-          return;
-        }
-        this.setData({
-          errorMessage: error && error.message ? error.message : "巡检数据读取失败",
-          connectionLabel: details && details.retrying ? "连接中断，正在重试" : "数据协议校验失败",
-          connectionTone: "offline",
-        });
+        if (this._visible) this._applyError(error, details);
       },
     };
-  },
-
-  _startSource() {
-    if (!this._source) return;
-    this._sourceStarted = true;
-    this._source.start(this._callbacks());
-    if (this._sourceMode === "demo") this.setData({ demoControlLabel: "暂停演示" });
-  },
-
-  _stopSource() {
-    if (this._source && this._sourceStarted) this._source.stop();
-    this._sourceStarted = false;
   },
 
   _handleStatus(event) {
@@ -393,6 +398,13 @@ Page({
       });
       return;
     }
+    if (status === "idle") {
+      this.setData({
+        connectionLabel: "正在准备巡检数据",
+        connectionTone: "warning",
+      });
+      return;
+    }
     this.setData({
       connectionLabel: this._sourceMode === "demo"
         ? "仿真证据回放中"
@@ -403,24 +415,24 @@ Page({
   },
 
   toggleDemo() {
-    if (!this._source || this._sourceMode !== "demo") return;
-    const state = this._source.getState();
+    if (this._sourceMode !== "demo") return;
+    const state = app.getPatrolSessionState();
+    if (!state) return;
     if (state.status === "terminal") {
       this.resetDemo();
       return;
     }
-    if (this._sourceStarted) {
-      this._stopSource();
+    if (state.started) {
+      app.pausePatrolSession();
       this.setData({ demoControlLabel: "继续演示" });
     } else {
-      this._startSource();
+      app.resumePatrolSession();
+      this.setData({ demoControlLabel: "暂停演示" });
     }
   },
 
   resetDemo() {
-    if (!this._source || this._sourceMode !== "demo") return;
-    this._stopSource();
-    this._source.reset();
+    if (this._sourceMode !== "demo") return;
     app.setDashboard(null, { mode: "demo" });
     this.setData({
       progressText: "0%",
@@ -433,7 +445,7 @@ Page({
       activeAlarms: [],
       errorMessage: "",
     });
-    this._startSource();
+    app.resetPatrolSession();
   },
 
   chooseMode() {
@@ -453,9 +465,7 @@ Page({
         }
         if (nextMode === this._sourceMode) return;
         app.setMode(nextMode);
-        app.setDashboard(null, { mode: nextMode });
         this._replaceSource(nextMode);
-        this._startSource();
       },
     });
   },

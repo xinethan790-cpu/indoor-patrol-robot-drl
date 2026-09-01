@@ -44,8 +44,15 @@ DEFAULT_DEVICE_ENVIRONMENT_VARIABLE = "PATROL_RELAY_DEVICE_ID"
 DEFAULT_DEVICE_ID = "macmini-m4"
 DEFAULT_RESPONSE_LIMIT_BYTES = 16 * 1024
 MAX_REQUEST_BODY_BYTES = 128 * 1024
+MIN_UPLOAD_SECRET_BYTES = 32
 _DEVICE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}")
 _NONCE_PATTERN = re.compile(r"[A-Za-z0-9._~-]{16,128}")
+_SECRET_TEMPLATE_PATTERN = re.compile(r"(?:\{\{[^{}\r\n]+\}\}|\$\{[^{}\r\n]+\})")
+_EXAMPLE_SECRET_PATTERN = re.compile(
+    r"(?:change.?me|replace.?me|example|sample|default|placeholder|your.?secret|"
+    r"your.?key|test.?secret|demo.?secret|password|not.?for.?production)",
+    re.IGNORECASE,
+)
 _RETRYABLE_HTTP_STATUSES = {
     HTTPStatus.REQUEST_TIMEOUT,
     HTTPStatus.TOO_EARLY,
@@ -222,14 +229,51 @@ def load_upload_secret(
 
     source = os.environ if environ is None else environ
     raw = source.get(variable_name)
-    if raw is None or not raw.strip():
+    if raw is None or raw == "":
         raise RelayConfigurationError(
             f"Required relay secret environment variable {variable_name} is not set."
         )
-    secret = raw.encode("utf-8")
-    if len(secret) < 32:
+    return validate_upload_secret(raw, source_label=f"Relay secret in {variable_name}")
+
+
+def validate_upload_secret(
+    value: str | bytes,
+    *,
+    source_label: str = "Relay secret",
+) -> bytes:
+    """Validate one secret without including its value in errors or logs."""
+
+    if isinstance(value, bytes):
+        try:
+            raw = value.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise RelayConfigurationError(
+                f"{source_label} must be valid UTF-8."
+            ) from error
+    elif isinstance(value, str):
+        raw = value
+    else:
+        raise RelayConfigurationError(f"{source_label} must be text or UTF-8 bytes.")
+    if raw == "":
+        raise RelayConfigurationError(f"{source_label} is not set.")
+    normalized = raw.strip()
+    if raw != normalized:
         raise RelayConfigurationError(
-            f"Relay secret in {variable_name} must contain at least 32 UTF-8 bytes."
+            f"{source_label} must not contain leading or trailing whitespace."
+        )
+    secret = normalized.encode("utf-8")
+    if _SECRET_TEMPLATE_PATTERN.search(normalized) is not None:
+        raise RelayConfigurationError(f"{source_label} contains a template expression.")
+    if len(secret) < MIN_UPLOAD_SECRET_BYTES:
+        raise RelayConfigurationError(
+            f"{source_label} must contain at least {MIN_UPLOAD_SECRET_BYTES} UTF-8 bytes."
+        )
+    if (
+        _EXAMPLE_SECRET_PATTERN.search(normalized) is not None
+        or len(set(normalized)) < 8
+    ):
+        raise RelayConfigurationError(
+            f"{source_label} matches a sample, default, or low-diversity value."
         )
     return secret
 
@@ -282,12 +326,11 @@ def build_signature_headers(
         )
     if not isinstance(body, bytes):
         raise TypeError("body must be bytes.")
-    if not isinstance(secret, bytes) or len(secret) < 32:
-        raise RelayConfigurationError("Relay secret must contain at least 32 bytes.")
+    safe_secret = validate_upload_secret(secret)
     body_sha256 = hashlib.sha256(body).hexdigest()
     timestamp_text = str(timestamp)
     canonical = "\n".join((safe_device_id, timestamp_text, nonce, body_sha256)).encode("utf-8")
-    signature = hmac.new(secret, canonical, hashlib.sha256).hexdigest()
+    signature = hmac.new(safe_secret, canonical, hashlib.sha256).hexdigest()
     return {
         "X-Patrol-Signature-Version": SIGNATURE_VERSION,
         "X-Patrol-Device-Id": safe_device_id,
@@ -315,9 +358,7 @@ class HttpRelayTransport:
     ) -> None:
         self.endpoint = validate_https_endpoint(endpoint)
         self.device_id = validate_device_id(device_id)
-        if not isinstance(secret, bytes) or len(secret) < 32:
-            raise RelayConfigurationError("Relay secret must contain at least 32 bytes.")
-        self._secret = secret
+        self._secret = validate_upload_secret(secret)
         if (
             isinstance(timeout_s, bool)
             or not isinstance(timeout_s, (int, float))

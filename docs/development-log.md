@@ -136,3 +136,32 @@ maximum reset linear/angular speed: 0.075327 m/s / 1.237338 rad/s
 ```
 
 随后只在 validation seeds `5000、5001` 上完成 2 回合集成检查，结果为 2/2 success，且 `summary.json` 已包含相同的 reset-health provenance。该 2 回合运行只验证评测链路，不用于 checkpoint 选择，也不是正式实验结果。完整 Python 测试为 `248 passed`；`10000～10019` held-out test 仍未访问。
+
+## 2026-09-01：避障可解释链路与小程序共享会话
+
+### 已完成
+
+- 将运行状态升级为向后兼容的 `patrol-live-status/v2`，从 Webots 直接记录动态障碍物位置、半径和指令速度；
+- 将最近 LiDAR 距离、稳健 TTC、闭合速度、临界接近、PPO 原始动作、安全过滤动作、最终执行速度、安全盾介入和有界脱困状态贯通到看板 DTO；
+- 从真实 `trajectory.csv` 重新导出 90 帧答辩回放，70 帧含精确控制步/仿真时间匹配的避障遥测，并强制保留最近接近和全部脱困关键帧；
+- 在微信小程序地图绘制动态障碍物与实时速度方向，并新增“避障决策”卡片，直接呈现 `PPO → 安全过滤 → 执行`；
+- 将数据源提升为 App 级共享会话，页面切换不再重启回放或云端订阅；隐藏页面停止高频绘图，返回后一次性刷新；
+- 修复模式切换后旧地图、告警和终态残留，以及终态前后台切换后误显示暂停的问题；
+- 修复 Cloud watch 旧异步错误可能解除新 observer 引用的竞态；
+- 在 Python、Cloud 和小程序统一动态障碍上限、地图包络和半径约束；保留旧 `patrol-dashboard/v1` 快照与 outbox 的受限滚动升级兼容；
+- 移除可部署配置中的密钥占位文本，增加不会输出密钥的预检，并统一拒绝空白填充、模板、示例和低多样性密钥；
+- 增加真实 CloudBase 部署与微信真机验收清单，明确区分“代码/契约验证完成”和“云资源已上线”。
+
+### 可复现结果
+
+```text
+ruff: passed
+Python: 731 passed
+微信小程序: 63 passed
+Cloud Functions: 42 passed
+CloudBase bundles: 3 built and verified
+Webots operational smoke: 4/4 checkpoints, 0 collision, 651 control steps
+minimum LiDAR range: 0.286139 m, escape-guard steps: 9
+```
+
+该 Webots 运行用于确认 R2025a 能读取障碍物真实几何并产出 v2 实时遥测，不新增算法效果结论。真实 CloudBase 资源、合法 HMAC canary 与微信真机仍按[真实链路验收记录](../reports/cloudbase-live-acceptance.md)标记为待验收；本轮代码没有上传为新的微信审核版本。

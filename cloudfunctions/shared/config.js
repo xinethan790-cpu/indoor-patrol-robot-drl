@@ -13,6 +13,10 @@ const MAX_BODY_BYTES = 128 * 1024;
 const MAX_CLOCK_SKEW_SECONDS = 300;
 const NONCE_RETENTION_MS = 24 * 60 * 60 * 1000;
 const STALE_AFTER_MS = 8 * 1000;
+const MIN_UPLOAD_SECRET_BYTES = 32;
+
+const SECRET_TEMPLATE_PATTERN = /(?:\{\{[^{}\r\n]+\}\}|\$\{[^{}\r\n]+\})/;
+const EXAMPLE_SECRET_PATTERN = /(?:change.?me|replace.?me|example|sample|default|placeholder|your.?secret|your.?key|test.?secret|demo.?secret|password|not.?for.?production)/i;
 
 const COLLECTIONS = Object.freeze({
   live: 'patrol_live',
@@ -32,6 +36,63 @@ function runtimeConfig(env) {
   });
 }
 
+function inspectUploadSecret(secret) {
+  if (typeof secret !== 'string' || secret.length === 0) {
+    return Object.freeze({
+      ready: false,
+      code: 'MISSING_SECRET',
+      reason: 'upload secret is not set',
+    });
+  }
+  const normalized = secret.trim();
+  if (secret !== normalized) {
+    return Object.freeze({
+      ready: false,
+      code: 'WHITESPACE_SECRET',
+      reason: 'upload secret must not contain leading or trailing whitespace',
+    });
+  }
+  if (SECRET_TEMPLATE_PATTERN.test(normalized)) {
+    return Object.freeze({
+      ready: false,
+      code: 'TEMPLATE_SECRET',
+      reason: 'upload secret still contains a template expression',
+    });
+  }
+  if (Buffer.byteLength(normalized, 'utf8') < MIN_UPLOAD_SECRET_BYTES) {
+    return Object.freeze({
+      ready: false,
+      code: 'SHORT_SECRET',
+      reason: `upload secret must contain at least ${MIN_UPLOAD_SECRET_BYTES} UTF-8 bytes`,
+    });
+  }
+  const uniqueCharacters = new Set([...normalized]).size;
+  if (
+    normalized.length === 0
+    || EXAMPLE_SECRET_PATTERN.test(normalized)
+    || uniqueCharacters < 8
+  ) {
+    return Object.freeze({
+      ready: false,
+      code: 'LOW_QUALITY_SECRET',
+      reason: 'upload secret matches a sample, default, or low-diversity value',
+    });
+  }
+  return Object.freeze({
+    ready: true,
+    code: 'READY',
+    reason: 'upload secret passed local readiness checks',
+  });
+}
+
+function requireUploadSecret(secret) {
+  const inspection = inspectUploadSecret(secret);
+  if (!inspection.ready) {
+    throw new Error(`PATROL_RELAY_UPLOAD_SECRET is not ready: ${inspection.reason}`);
+  }
+  return secret;
+}
+
 module.exports = {
   CLOUD_ENV_ID,
   COLLECTIONS,
@@ -40,6 +101,7 @@ module.exports = {
   LIVE_DOCUMENT_ID,
   MAX_BODY_BYTES,
   MAX_CLOCK_SKEW_SECONDS,
+  MIN_UPLOAD_SECRET_BYTES,
   NONCE_RETENTION_MS,
   NONCE_SCHEMA_VERSION,
   RELAY_STATE_SCHEMA_VERSION,
@@ -47,5 +109,7 @@ module.exports = {
   SIGNATURE_VERSION,
   SNAPSHOT_SCHEMA_VERSION,
   STALE_AFTER_MS,
+  inspectUploadSecret,
+  requireUploadSecret,
   runtimeConfig,
 };

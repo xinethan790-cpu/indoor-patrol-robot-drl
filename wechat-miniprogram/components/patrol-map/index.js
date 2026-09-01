@@ -11,6 +11,9 @@ const COLORS = Object.freeze({
   obstacleFillBottom: "#0d2537",
   obstacleStroke: "rgba(93, 199, 232, 0.56)",
   obstacleText: "#a9d4e4",
+  dynamicObstacle: "#ff8d5c",
+  dynamicObstacleFill: "rgba(255, 92, 75, 0.28)",
+  dynamicObstacleVelocity: "rgba(255, 209, 102, 0.92)",
   routeShadow: "rgba(24, 211, 255, 0.16)",
   route: "#35d8ff",
   routeHead: "rgba(174, 244, 255, 0.92)",
@@ -32,6 +35,7 @@ const CHECKPOINT_STATUS = new Set(["completed", "current", "pending"]);
 const MAX_GRID_LINES_PER_AXIS = 32;
 const GRID_SPACING_M = 0.5;
 const MIN_DRAW_SIZE_PX = 48;
+const DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M = 1e-6;
 
 function finiteNumber(value) {
   return typeof value === "number" && Number.isFinite(value);
@@ -262,6 +266,7 @@ Component({
       this._drawGrid(ctx, map, frame);
       this._drawObstacles(ctx, map, frame);
       this._drawTrajectory(ctx, map, frame);
+      this._drawDynamicObstacles(ctx, map, frame);
       this._drawCheckpoints(ctx, map, frame);
       this._drawLocalGoal(ctx, map, frame);
       this._drawRobot(ctx, map, frame);
@@ -448,6 +453,98 @@ Component({
       ctx.fillStyle = COLORS.routeHead;
       ctx.fill();
       ctx.restore();
+    },
+
+    _drawDynamicObstacles(ctx, map, frame) {
+      safeArray(map.dynamic_obstacles).forEach((obstacle, index) => {
+        if (!obstacle || !isPoint(obstacle.position) || !positiveNumber(obstacle.radius_m)) {
+          return;
+        }
+        const position = {
+          x: finiteNumber(obstacle.position.x_m) ? obstacle.position.x_m : obstacle.position.x,
+          y: finiteNumber(obstacle.position.y_m) ? obstacle.position.y_m : obstacle.position.y,
+        };
+        const bounds = frame && frame.bounds;
+        const maximumRadiusM = bounds ? Math.min(bounds.widthM, bounds.heightM) / 2 : 0;
+        const safeRadiusM = Math.min(obstacle.radius_m, maximumRadiusM);
+        if (
+          !bounds
+          || safeRadiusM <= 0
+          || position.x - safeRadiusM < bounds.minX - DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M
+          || position.x + safeRadiusM > bounds.maxX + DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M
+          || position.y - safeRadiusM < bounds.minY - DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M
+          || position.y + safeRadiusM > bounds.maxY + DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M
+        ) return;
+        let contextSaved = false;
+        try {
+          const center = this._mapPoint(obstacle.position, map, frame);
+          const frameRadiusLimit = Math.max(
+            4,
+            Math.min(frame.width, frame.height) / 4,
+          );
+          const radius = clamp(obstacle.radius_m * frame.scale, 4, frameRadiusLimit);
+          ctx.save();
+          contextSaved = true;
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, radius + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(255, 141, 92, 0.28)";
+          ctx.setLineDash([3, 3]);
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = COLORS.dynamicObstacleFill;
+          ctx.fill();
+          ctx.strokeStyle = COLORS.dynamicObstacle;
+          ctx.lineWidth = 2;
+          ctx.shadowColor = COLORS.dynamicObstacle;
+          ctx.shadowBlur = 8;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+
+          const velocity = obstacle.velocity;
+          if (velocity && finiteNumber(velocity.x_mps) && finiteNumber(velocity.y_mps)) {
+            const speed = Math.hypot(velocity.x_mps, velocity.y_mps);
+            if (speed > 1e-6) {
+              const arrowLength = clamp(speed * frame.scale * 1.2, 10, 28);
+              const unitX = velocity.x_mps / speed;
+              const unitY = -velocity.y_mps / speed;
+              const endX = center.x + unitX * arrowLength;
+              const endY = center.y + unitY * arrowLength;
+              ctx.beginPath();
+              ctx.moveTo(center.x, center.y);
+              ctx.lineTo(endX, endY);
+              ctx.strokeStyle = COLORS.dynamicObstacleVelocity;
+              ctx.lineWidth = 1.7;
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(endX, endY);
+              ctx.lineTo(endX - unitX * 5 - unitY * 3, endY - unitY * 5 + unitX * 3);
+              ctx.lineTo(endX - unitX * 5 + unitY * 3, endY - unitY * 5 - unitX * 3);
+              ctx.closePath();
+              ctx.fillStyle = COLORS.dynamicObstacleVelocity;
+              ctx.fill();
+            }
+          }
+
+          if (!this.properties.compact) {
+            ctx.fillStyle = COLORS.dynamicObstacleVelocity;
+            ctx.font = "600 9px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "bottom";
+            ctx.fillText(
+              String(obstacle.id || `D${index + 1}`).slice(0, 10),
+              center.x,
+              center.y - radius - 5,
+            );
+          }
+        } catch (error) {
+          // Keep drawing the rest of the verified frame if one obstacle is malformed.
+        } finally {
+          if (contextSaved) ctx.restore();
+        }
+      });
     },
 
     _drawCheckpoints(ctx, map, frame) {

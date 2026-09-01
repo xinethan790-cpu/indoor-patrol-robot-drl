@@ -103,6 +103,23 @@ test('cloud snapshot validates its envelope and unchanged dashboard payload', ()
   );
 });
 
+test('new mini accepts and normalizes a legacy cloud snapshot during rolling deployment', () => {
+  const legacy = createSnapshot(2);
+  delete legacy.payload.run.control_step;
+  delete legacy.payload.map.dynamic_obstacles;
+  delete legacy.payload.avoidance;
+
+  const result = validateCloudSnapshot(legacy);
+
+  assert.notEqual(result.snapshot, legacy);
+  assert.notEqual(result.payload, legacy.payload);
+  assert.equal(result.snapshot.payload, result.payload);
+  assert.equal(result.payload.run.control_step, null);
+  assert.deepEqual(result.payload.map.dynamic_obstacles, []);
+  assert.equal(result.payload.avoidance.available, false);
+  assert.equal(Object.hasOwn(legacy.payload, 'avoidance'), false);
+});
+
 test('polling freshness metadata is internally consistent and fails closed when forged', () => {
   const result = createPollingResult(0, { ageMs: 5000 });
   assert.deepEqual(validatePollingFreshness(result, result.snapshot), {
@@ -192,6 +209,47 @@ test('watch failure avoids re-closing the SDK observer and falls back to cloud-f
   source.stop();
   assert.equal(source.getState().status, 'stopped');
   assert.equal(scheduler.pending().length, 0);
+});
+
+test('a delayed error from an old watch cannot detach the restarted watch', () => {
+  const watchCallbacks = [];
+  const closeCounts = [];
+  const document = {
+    watch(callbacks) {
+      const index = watchCallbacks.length;
+      watchCallbacks.push(callbacks);
+      closeCounts.push(0);
+      return {
+        close() { closeCounts[index] += 1; },
+      };
+    },
+  };
+  const wxApi = {
+    cloud: {
+      callFunction() {
+        throw new Error('polling must not start for an obsolete watch');
+      },
+      database() {
+        return {
+          collection() {
+            return { doc() { return document; } };
+          },
+        };
+      },
+    },
+  };
+  const source = createCloudDataSource({ env: ENV_ID, wxApi });
+
+  source.start({});
+  const oldWatch = watchCallbacks[0];
+  source.stop();
+  source.start({});
+  oldWatch.onError({ errMsg: 'late error from closed watch' });
+  source.stop();
+
+  assert.equal(watchCallbacks.length, 2);
+  assert.deepEqual(closeCounts, [1, 1]);
+  assert.equal(source.getState().status, 'stopped');
 });
 
 test('cloud-function polling backs off on failure and slows down after terminal', async () => {

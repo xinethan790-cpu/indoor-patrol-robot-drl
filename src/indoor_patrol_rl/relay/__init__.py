@@ -15,6 +15,7 @@ from indoor_patrol_rl.relay.publisher import (
     DEFAULT_DEVICE_ID,
     DEFAULT_SECRET_ENVIRONMENT_VARIABLE,
     MAX_REQUEST_BODY_BYTES,
+    MIN_UPLOAD_SECRET_BYTES,
     SIGNATURE_VERSION,
     HttpRelayTransport,
     PatrolRelayPublisher,
@@ -31,6 +32,7 @@ from indoor_patrol_rl.relay.publisher import (
     load_upload_secret,
     resolve_device_id,
     validate_https_endpoint,
+    validate_upload_secret,
 )
 
 __all__ = [
@@ -38,6 +40,7 @@ __all__ = [
     "DEFAULT_DEVICE_ID",
     "DEFAULT_SECRET_ENVIRONMENT_VARIABLE",
     "MAX_REQUEST_BODY_BYTES",
+    "MIN_UPLOAD_SECRET_BYTES",
     "MAX_OUTBOX_STATE_BYTES",
     "MAX_RELAY_SEQUENCE",
     "RELAY_OUTBOX_DIRECTORY_NAME",
@@ -62,4 +65,5 @@ __all__ = [
     "load_upload_secret",
     "resolve_device_id",
     "validate_https_endpoint",
+    "validate_upload_secret",
 ]

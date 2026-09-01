@@ -10,7 +10,11 @@ import pytest
 
 import indoor_patrol_rl.application.live_status as live_status_module
 from indoor_patrol_rl.application import (
+    LEGACY_LIVE_STATUS_SCHEMA_VERSION,
+    MAX_LIVE_DYNAMIC_OBSTACLES,
     PatrolLiveAlert,
+    PatrolLiveAvoidance,
+    PatrolLiveDynamicObstacle,
     PatrolLiveOutcome,
     PatrolLiveReadings,
     PatrolLiveSnapshot,
@@ -177,6 +181,103 @@ def test_safety_stop_is_a_replayable_failure_outcome() -> None:
     )
 
     assert PatrolLiveSnapshot.from_dict(terminal.to_dict()) == terminal
+
+
+def test_dynamic_avoidance_round_trip_keeps_geometry_risk_and_action_stages() -> None:
+    obstacle = PatrolLiveDynamicObstacle(
+        obstacle_id="DYNAMIC_OBSTACLE_0",
+        position=(-0.92, -0.24),
+        radius_m=0.18,
+        velocity_mps=(0.0, 0.18),
+    )
+    avoidance = PatrolLiveAvoidance(
+        measured_control_step=4,
+        measured_at_s=0.512,
+        minimum_lidar_range_m=0.31,
+        robust_ttc_s=0.74,
+        closing_rate_mps=0.22,
+        policy_action=(0.8, 0.2),
+        filtered_action=(0.2, 0.2),
+        executed_action=(-0.08, 0.0),
+        safety_shield_active=True,
+        safety_shield_intervention=0.6,
+        escape_guard_active=True,
+        escape_guard_mode="reverse",
+    )
+    snapshot = replace(
+        _snapshot(sequence=4, control_step=4, simulation_time_s=0.512),
+        dynamic_obstacles=(obstacle,),
+        avoidance=avoidance,
+    )
+
+    restored = PatrolLiveSnapshot.from_dict(snapshot.to_dict())
+
+    assert restored == snapshot
+    assert restored.dynamic_obstacles[0].velocity_mps == (0.0, 0.18)
+    assert restored.avoidance.robust_ttc_s == pytest.approx(0.74)
+    assert restored.to_dict()["avoidance"]["actions"]["executed"] == {
+        "linear_mps": -0.08,
+        "angular_radps": 0.0,
+    }
+
+
+def test_dynamic_obstacle_production_boundary_accepts_32_and_rejects_33() -> None:
+    def obstacle(index: int) -> PatrolLiveDynamicObstacle:
+        return PatrolLiveDynamicObstacle(
+            obstacle_id=f"DYNAMIC_OBSTACLE_{index}",
+            position=(index / 100.0, index / 200.0),
+            radius_m=0.18,
+        )
+
+    boundary = replace(
+        _snapshot(),
+        dynamic_obstacles=tuple(
+            obstacle(index) for index in range(MAX_LIVE_DYNAMIC_OBSTACLES)
+        ),
+    )
+    assert len(boundary.dynamic_obstacles) == MAX_LIVE_DYNAMIC_OBSTACLES
+
+    with pytest.raises(ValueError, match="cannot contain more than 32"):
+        replace(
+            _snapshot(),
+            dynamic_obstacles=tuple(
+                obstacle(index) for index in range(MAX_LIVE_DYNAMIC_OBSTACLES + 1)
+            ),
+        )
+
+
+def test_legacy_v1_snapshot_is_upgraded_without_inventing_avoidance_data() -> None:
+    legacy = _snapshot().to_dict()
+    legacy["schema_version"] = LEGACY_LIVE_STATUS_SCHEMA_VERSION
+    legacy.pop("dynamic_obstacles")
+    legacy.pop("avoidance")
+
+    restored = PatrolLiveSnapshot.from_dict(legacy)
+
+    assert restored.dynamic_obstacles == ()
+    assert restored.avoidance.is_available is False
+    assert restored.to_dict()["schema_version"] == "patrol-live-status/v2"
+
+
+def test_avoidance_rejects_inconsistent_shield_and_escape_evidence() -> None:
+    with pytest.raises(ValueError, match="policy/filter difference"):
+        PatrolLiveAvoidance(
+            measured_control_step=1,
+            measured_at_s=0.1,
+            minimum_lidar_range_m=0.4,
+            policy_action=(0.8, 0.0),
+            filtered_action=(0.2, 0.0),
+            safety_shield_active=True,
+            safety_shield_intervention=0.1,
+        )
+    with pytest.raises(ValueError, match="escape_guard_active"):
+        PatrolLiveAvoidance(
+            measured_control_step=1,
+            measured_at_s=0.1,
+            minimum_lidar_range_m=0.4,
+            escape_guard_active=False,
+            escape_guard_mode="reverse",
+        )
 
 
 def test_writer_resumes_existing_stream_and_keeps_event_order(tmp_path: Path) -> None:

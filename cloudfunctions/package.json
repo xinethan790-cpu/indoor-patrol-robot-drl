@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "node scripts/build-bundles.js",
+    "preflight:secret": "node scripts/preflight-secret.js",
     "test": "node --test tests/*.test.js",
     "verify:bundles": "node scripts/verify-bundles.js"
   }
