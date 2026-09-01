@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "巡检总览",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "patrol-map": "/components/patrol-map/index"
+  }
+}

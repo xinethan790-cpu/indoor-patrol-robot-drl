@@ -1,0 +1,259 @@
+.about-page {
+  min-height: 100vh;
+}
+
+.brand-card {
+  margin-bottom: 20rpx;
+  padding: 38rpx 30rpx;
+  border-radius: 30rpx;
+  background: linear-gradient(150deg, #061a2b, #0b3d5c);
+  color: #ffffff;
+  text-align: center;
+  box-shadow: 0 14rpx 36rpx rgba(8, 35, 57, 0.16);
+}
+
+.brand-card__logo {
+  display: block;
+  width: 128rpx;
+  height: 128rpx;
+  margin: 0 auto 20rpx;
+  border: 4rpx solid rgba(255, 255, 255, 0.16);
+  border-radius: 31rpx;
+  box-shadow: 0 12rpx 28rpx rgba(0, 0, 0, 0.2);
+}
+
+.brand-card__eyebrow,
+.brand-card__title,
+.brand-card__subtitle {
+  display: block;
+}
+
+.brand-card__eyebrow {
+  color: #68bfe8;
+  font-size: 17rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.brand-card__title {
+  margin-top: 7rpx;
+  font-size: 40rpx;
+  font-weight: 740;
+}
+
+.brand-card__subtitle {
+  margin-top: 8rpx;
+  color: #94b3c5;
+  font-size: 21rpx;
+}
+
+.brand-card__badges {
+  display: flex;
+  justify-content: center;
+  gap: 10rpx;
+  margin-top: 22rpx;
+}
+
+.brand-card__badges text {
+  padding: 7rpx 13rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.12);
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.07);
+  color: #bad5e3;
+  font-size: 18rpx;
+}
+
+.capability-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 23rpx;
+}
+
+.capability-item:last-child {
+  margin-bottom: 0;
+}
+
+.capability-item__icon {
+  display: flex;
+  flex: 0 0 70rpx;
+  align-items: center;
+  justify-content: center;
+  width: 70rpx;
+  height: 70rpx;
+  margin-right: 19rpx;
+  border-radius: 21rpx;
+  background: #e7f2ff;
+  color: #0878f9;
+  font-size: 30rpx;
+}
+
+.capability-item__icon--mint {
+  background: #e7f8f1;
+  color: #11a56c;
+}
+
+.capability-item__icon--amber {
+  background: #fff3dd;
+  color: #c37b05;
+}
+
+.capability-item__icon--violet {
+  background: #f2ecff;
+  color: #7950d6;
+}
+
+.capability-item__title,
+.capability-item__text {
+  display: block;
+}
+
+.capability-item__title {
+  color: #283f55;
+  font-weight: 660;
+}
+
+.capability-item__text {
+  margin-top: 5rpx;
+  color: #82909e;
+  font-size: 21rpx;
+  line-height: 1.45;
+}
+
+.mode-option {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 13rpx;
+  padding: 21rpx;
+  border: 1rpx solid #dfe7ee;
+  border-radius: 21rpx;
+  background: #f8fafc;
+}
+
+.mode-option--active {
+  border-color: #86bdf9;
+  background: #eef6ff;
+}
+
+.mode-option radio {
+  margin-top: 2rpx;
+  transform: scale(0.82);
+}
+
+.mode-option__body {
+  margin-left: 9rpx;
+}
+
+.mode-option__title,
+.mode-option__text {
+  display: block;
+}
+
+.mode-option__title {
+  color: #2c4358;
+  font-weight: 650;
+}
+
+.mode-option__text {
+  margin-top: 5rpx;
+  color: #7d8e9e;
+  font-size: 20rpx;
+  line-height: 1.45;
+}
+
+.api-setting {
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #e8edf1;
+}
+
+.api-setting__label,
+.api-setting__hint {
+  display: block;
+}
+
+.api-setting__label {
+  margin-bottom: 9rpx;
+  color: #596f82;
+  font-size: 21rpx;
+}
+
+.api-setting__input {
+  height: 74rpx;
+  padding: 0 19rpx;
+  border: 1rpx solid #d3dee7;
+  border-radius: 17rpx;
+  background: #f7fafc;
+  color: #2b4358;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 21rpx;
+}
+
+.api-setting__hint {
+  margin-top: 10rpx;
+  color: #a17b3a;
+  font-size: 19rpx;
+  line-height: 1.5;
+}
+
+.boundary-card {
+  display: flex;
+  background: #fff8ea;
+}
+
+.boundary-card__icon {
+  display: flex;
+  flex: 0 0 48rpx;
+  align-items: center;
+  justify-content: center;
+  width: 48rpx;
+  height: 48rpx;
+  margin-right: 15rpx;
+  border-radius: 50%;
+  background: #efb444;
+  color: #ffffff;
+  font-family: Georgia, serif;
+  font-weight: 800;
+}
+
+.boundary-card__title,
+.boundary-card__text {
+  display: block;
+}
+
+.boundary-card__title {
+  color: #73511c;
+  font-weight: 680;
+}
+
+.boundary-card__text {
+  margin-top: 6rpx;
+  color: #927749;
+  font-size: 21rpx;
+  line-height: 1.55;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 17rpx 0;
+  border-bottom: 1rpx solid #eef2f5;
+  color: #728393;
+  font-size: 22rpx;
+}
+
+.info-row text:last-child {
+  color: #314a60;
+  font-weight: 600;
+}
+
+.info-row--last {
+  border-bottom: 0;
+}
+
+.copyright {
+  display: block;
+  padding: 6rpx 0 22rpx;
+  color: #9ca7b1;
+  font-size: 19rpx;
+  text-align: center;
+}

@@ -1,0 +1,93 @@
+<view class="page-shell about-page">
+  <view class="brand-card">
+    <image class="brand-card__logo" src="/assets/miniprogram-avatar.png" mode="aspectFill"></image>
+    <text class="brand-card__eyebrow">GRADUATION PROJECT</text>
+    <text class="brand-card__title">室内智能巡检</text>
+    <text class="brand-card__subtitle">基于深度强化学习的动态避障仿真系统</text>
+    <view class="brand-card__badges">
+      <text>机器学习</text>
+      <text>强化学习</text>
+      <text>物联网应用</text>
+    </view>
+  </view>
+
+  <view class="section-card">
+    <view class="section-heading">
+      <text class="section-title">系统能力</text>
+      <text class="section-caption">轻硬件 · 重软件</text>
+    </view>
+    <view class="capability-list">
+      <view wx:for="{{capabilities}}" wx:key="title" class="capability-item">
+        <view class="capability-item__icon capability-item__icon--{{item.tone}}">{{item.icon}}</view>
+        <view>
+          <text class="capability-item__title">{{item.title}}</text>
+          <text class="capability-item__text">{{item.text}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section-card mode-card">
+    <view class="section-heading">
+      <text class="section-title">数据模式</text>
+      <text class="tag">{{modeLabel}}</text>
+    </view>
+    <radio-group bindchange="changeMode">
+      <label class="mode-option {{mode === 'demo' ? 'mode-option--active' : ''}}">
+        <radio value="demo" checked="{{mode === 'demo'}}" color="#0878f9"></radio>
+        <view class="mode-option__body">
+          <text class="mode-option__title">仿真演示回放</text>
+          <text class="mode-option__text">内置已校验的完整巡检证据，无网络也能演示</text>
+        </view>
+      </label>
+      <label class="mode-option {{mode === 'local' ? 'mode-option--active' : ''}}">
+        <radio value="local" checked="{{mode === 'local'}}" color="#0878f9"></radio>
+        <view class="mode-option__body">
+          <text class="mode-option__title">电脑本地实时</text>
+          <text class="mode-option__text">仅微信开发者工具连接 Mac 本机接口</text>
+        </view>
+      </label>
+    </radio-group>
+
+    <view class="api-setting" wx:if="{{mode === 'local'}}">
+      <text class="api-setting__label">接口地址</text>
+      <input
+        class="api-setting__input"
+        value="{{apiBaseUrl}}"
+        placeholder="http://127.0.0.1:8765"
+        bindinput="editApiBaseUrl"
+        bindblur="saveApiBaseUrl"
+      ></input>
+      <text class="api-setting__hint">真机中的 127.0.0.1 指向手机本身，不能访问 Mac。</text>
+    </view>
+  </view>
+
+  <view class="section-card boundary-card">
+    <view class="boundary-card__icon">i</view>
+    <view>
+      <text class="boundary-card__title">演示边界</text>
+      <text class="boundary-card__text">二维地图来自仿真配置，不代表真实场地测绘或导航安全边界；本小程序当前只读展示，不提供机器人远程控制。</text>
+    </view>
+  </view>
+
+  <view class="section-card info-card">
+    <view class="info-row">
+      <text>数据协议</text>
+      <text>patrol-dashboard/v1</text>
+    </view>
+    <view class="info-row">
+      <text>巡检点位</text>
+      <text>P1–P4</text>
+    </view>
+    <view class="info-row">
+      <text>环境指标</text>
+      <text>温度 / 烟雾 / CO</text>
+    </view>
+    <view class="info-row info-row--last">
+      <text>客户端版本</text>
+      <text>1.0.0</text>
+    </view>
+  </view>
+
+  <text class="copyright">室内巡检机器人毕业设计 · 微信小程序演示端</text>
+</view>

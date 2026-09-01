@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "巡检结果",
+  "usingComponents": {
+    "patrol-map": "/components/patrol-map/index"
+  }
+}

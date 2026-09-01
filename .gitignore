@@ -12,6 +12,10 @@ dist/
 build/
 *.egg-info/
 
+# WeChat Developer Tools per-machine settings
+wechat-miniprogram/project.private.config.json
+wechat-miniprogram/miniprogram_npm/
+
 # Generated training and evaluation outputs
 artifacts/logs/*
 artifacts/models/*

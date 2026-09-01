@@ -1,0 +1,73 @@
+<view class="page-shell alarm-page">
+  <view class="alarm-hero">
+    <view>
+      <text class="alarm-hero__eyebrow">ALARM CENTER</text>
+      <text class="alarm-hero__title">异常记录</text>
+      <text class="alarm-hero__subtitle">环境告警的触发与解除过程</text>
+    </view>
+    <view class="alarm-hero__count">
+      <text class="alarm-hero__number">{{historyCount}}</text>
+      <text class="alarm-hero__unit">条事件</text>
+    </view>
+  </view>
+
+  <view class="mode-notice">
+    <view class="mode-notice__dot mode-notice__dot--{{modeTone}}"></view>
+    <text>{{sourceLabel}}</text>
+  </view>
+
+  <scroll-view
+    class="filter-scroll"
+    scroll-x="{{true}}"
+    enhanced="{{true}}"
+    show-scrollbar="{{false}}"
+  >
+    <view class="filter-row">
+      <view
+        wx:for="{{filters}}"
+        wx:key="value"
+        class="filter-pill {{activeFilter === item.value ? 'filter-pill--active' : ''}}"
+        data-value="{{item.value}}"
+        bindtap="selectFilter"
+      >{{item.label}}</view>
+    </view>
+  </scroll-view>
+
+  <view class="empty-state section-card" wx:if="{{!filteredEvents.length}}">
+    <view class="empty-state__icon">✓</view>
+    <text class="empty-state__title">暂无对应记录</text>
+    <text class="empty-state__text">巡检产生的告警事件会显示在这里</text>
+  </view>
+
+  <view wx:else class="timeline">
+    <view wx:for="{{filteredEvents}}" wx:key="event_id" class="timeline-item">
+      <view class="timeline-item__rail">
+        <view class="timeline-item__dot timeline-item__dot--{{item.tone}}"></view>
+        <view class="timeline-item__line" wx:if="{{index < filteredEvents.length - 1}}"></view>
+      </view>
+      <view class="event-card">
+        <view class="event-card__top">
+          <view class="event-card__tags">
+            <text class="event-tag event-tag--{{item.tone}}">{{item.eventLabel}}</text>
+            <text class="event-tag event-tag--plain">{{item.severityLabel}}</text>
+          </view>
+          <text class="event-card__time">{{item.timeText}}</text>
+        </view>
+        <text class="event-card__title">{{item.sensorLabel}}</text>
+        <text class="event-card__point">{{item.checkpointLabel}}</text>
+        <view class="event-card__measurement">
+          <view>
+            <text class="measurement__label">观测值</text>
+            <text class="measurement__value">{{item.observedText}}</text>
+          </view>
+          <view class="measurement__divider"></view>
+          <view>
+            <text class="measurement__label">阈值</text>
+            <text class="measurement__value measurement__value--muted">{{item.thresholdText}}</text>
+          </view>
+        </view>
+        <text class="event-card__message">{{item.message}}</text>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,38 @@
+{
+  "pages": [
+    "pages/dashboard/index",
+    "pages/alarms/index",
+    "pages/result/index",
+    "pages/about/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "室内智能巡检",
+    "navigationBarBackgroundColor": "#061a2b",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f2f6fa",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#748497",
+    "selectedColor": "#0878f9",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/dashboard/index",
+        "text": "巡检"
+      },
+      {
+        "pagePath": "pages/alarms/index",
+        "text": "告警"
+      },
+      {
+        "pagePath": "pages/about/index",
+        "text": "项目"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

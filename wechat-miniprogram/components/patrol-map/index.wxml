@@ -1,0 +1,16 @@
+<view
+  class="patrol-map-shell {{compact ? 'patrol-map-shell--compact' : ''}}"
+  role="img"
+  aria-label="{{ariaLabel}}"
+>
+  <canvas
+    id="patrol-map-canvas"
+    class="patrol-map-canvas"
+    type="2d"
+    disable-scroll="true"
+  ></canvas>
+  <view wx:if="{{!hasMap}}" class="patrol-map-empty" aria-hidden="true">
+    <view class="patrol-map-empty__radar"></view>
+    <text class="patrol-map-empty__text">等待巡检地图数据</text>
+  </view>
+</view>

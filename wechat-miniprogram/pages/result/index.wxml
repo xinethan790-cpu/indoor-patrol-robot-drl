@@ -1,0 +1,60 @@
+<view class="page-shell result-page">
+  <view class="result-hero result-hero--{{resultTone}}">
+    <view class="result-hero__icon">{{resultIcon}}</view>
+    <text class="result-hero__eyebrow">VERIFIED PATROL RESULT</text>
+    <text class="result-hero__title">{{resultTitle}}</text>
+    <text class="result-hero__summary">{{resultSummary}}</text>
+    <view class="result-hero__identity">{{validationLabel}}</view>
+  </view>
+
+  <view class="section-card">
+    <view class="section-heading">
+      <text class="section-title">核心指标</text>
+      <text class="section-caption">本次运行</text>
+    </view>
+    <view class="metric-grid">
+      <view wx:for="{{metrics}}" wx:key="label" class="metric-card metric-card--{{item.tone}}">
+        <text class="metric-card__label">{{item.label}}</text>
+        <text class="metric-card__value">{{item.value}}</text>
+        <text class="metric-card__hint">{{item.hint}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="section-card">
+    <view class="section-heading">
+      <text class="section-title">最终轨迹</text>
+      <text class="tag tag--success">FINAL</text>
+    </view>
+    <patrol-map map="{{dashboardMap}}" compact="{{true}}"></patrol-map>
+  </view>
+
+  <view class="section-card identity-card">
+    <view class="section-heading">
+      <text class="section-title">运行身份</text>
+      <text class="section-caption">可审计组件</text>
+    </view>
+    <view class="identity-row">
+      <text class="identity-row__label">运行编号</text>
+      <text class="identity-row__value">{{runId}}</text>
+    </view>
+    <view class="identity-row">
+      <text class="identity-row__label">随机种子</text>
+      <text class="identity-row__value">{{seed}}</text>
+    </view>
+    <view class="identity-row">
+      <text class="identity-row__label">策略模型</text>
+      <text class="identity-row__value identity-row__value--hash">{{modelHash}}</text>
+    </view>
+    <view class="identity-row">
+      <text class="identity-row__label">安全组件</text>
+      <text class="identity-row__value">{{shieldId}}</text>
+    </view>
+    <view class="identity-row identity-row--last">
+      <text class="identity-row__label">失败原因</text>
+      <text class="identity-row__value">{{failureReason}}</text>
+    </view>
+  </view>
+
+  <text class="result-note">本页面展示仿真系统产生并经完整性校验的巡检结果，不构成真实场地安全认证。</text>
+</view>

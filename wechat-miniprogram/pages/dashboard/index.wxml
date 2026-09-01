@@ -1,0 +1,156 @@
+<view class="dashboard-page">
+  <view class="hero">
+    <view class="hero__glow hero__glow--one"></view>
+    <view class="hero__glow hero__glow--two"></view>
+    <view class="hero__topline">
+      <view>
+        <text class="hero__eyebrow">INDOOR PATROL · DIGITAL TWIN</text>
+        <text class="hero__title">室内智能巡检</text>
+      </view>
+      <view class="hero__mode {{mode === 'demo' ? 'hero__mode--demo' : 'hero__mode--live'}}">
+        {{modeLabel}}
+      </view>
+    </view>
+
+    <view class="connection">
+      <view class="connection__dot connection__dot--{{connectionTone}}"></view>
+      <text>{{connectionLabel}}</text>
+      <text class="connection__run" wx:if="{{runId}}">{{runId}}</text>
+    </view>
+
+    <view class="hero__metrics">
+      <view class="hero-metric">
+        <text class="hero-metric__value">{{progressText}}</text>
+        <text class="hero-metric__label">任务进度</text>
+      </view>
+      <view class="hero-metric hero-metric--middle">
+        <text class="hero-metric__value">{{simulationTimeText}}</text>
+        <text class="hero-metric__label">仿真时间</text>
+      </view>
+      <view class="hero-metric">
+        <text class="hero-metric__value">{{currentCheckpointText}}</text>
+        <text class="hero-metric__label">当前点位</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="content page-shell">
+    <view class="error-banner" wx:if="{{errorMessage}}">
+      <text class="error-banner__title">数据暂不可用</text>
+      <text class="error-banner__message">{{errorMessage}}</text>
+    </view>
+
+    <view class="section-card map-card">
+      <view class="section-heading">
+        <view>
+          <text class="section-title">巡检空间</text>
+          <text class="map-card__sub">轨迹、点位与机器人实时位置</text>
+        </view>
+        <view class="tag {{terminal ? 'tag--success' : ''}}">{{mapModeLabel}}</view>
+      </view>
+      <patrol-map map="{{dashboardMap}}" compact="{{false}}"></patrol-map>
+      <view class="map-legend">
+        <view class="map-legend__item"><text class="legend-dot legend-dot--robot"></text>机器人</view>
+        <view class="map-legend__item"><text class="legend-dot legend-dot--done"></text>已巡检</view>
+        <view class="map-legend__item"><text class="legend-dot legend-dot--pending"></text>待巡检</view>
+      </view>
+    </view>
+
+    <view class="demo-controls" wx:if="{{mode === 'demo'}}">
+      <button class="primary-button demo-controls__main" bindtap="toggleDemo">
+        {{demoControlLabel}}
+      </button>
+      <button class="secondary-button demo-controls__reset" bindtap="resetDemo">重新演示</button>
+    </view>
+
+    <view class="section-card task-card">
+      <view class="section-heading">
+        <text class="section-title">巡检任务</text>
+        <text class="section-caption">{{completedCheckpointText}}</text>
+      </view>
+      <view class="progress-track" aria-label="巡检任务进度">
+        <view class="progress-fill" style="width: {{progressWidth}}%;"></view>
+      </view>
+      <view class="checkpoint-row">
+        <view
+          wx:for="{{checkpoints}}"
+          wx:key="id"
+          class="checkpoint checkpoint--{{item.status}}"
+        >
+          <view class="checkpoint__mark">{{item.ordinal}}</view>
+          <text class="checkpoint__name">{{item.id}}</text>
+          <text class="checkpoint__status">{{item.statusLabel}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card sensor-section">
+      <view class="section-heading">
+        <view>
+          <text class="section-title">环境感知</text>
+          <text class="section-caption sensor-section__source">{{sensorSourceText}}</text>
+        </view>
+        <view class="tag {{sensorAvailable ? 'tag--success' : ''}}">
+          {{sensorAvailable ? '已采样' : '等待采样'}}
+        </view>
+      </view>
+      <view class="sensor-grid">
+        <view wx:for="{{sensorCards}}" wx:key="key" class="sensor-card sensor-card--{{item.tone}}">
+          <view class="sensor-card__icon">{{item.icon}}</view>
+          <text class="sensor-card__name">{{item.label}}</text>
+          <view class="sensor-card__reading">
+            <text class="sensor-card__value">{{item.value}}</text>
+            <text class="sensor-card__unit">{{item.unit}}</text>
+          </view>
+          <text class="sensor-card__state">{{item.state}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card alarm-section">
+      <view class="section-heading">
+        <text class="section-title">当前告警</text>
+        <view class="tag {{activeAlarmCount ? 'tag--critical' : 'tag--success'}}">
+          {{activeAlarmCount}} 条
+        </view>
+      </view>
+      <view class="alarm-clear" wx:if="{{!activeAlarmCount}}">
+        <view class="alarm-clear__icon">✓</view>
+        <view>
+          <text class="alarm-clear__title">当前环境状态正常</text>
+          <text class="alarm-clear__text">未检测到活动告警</text>
+        </view>
+      </view>
+      <view wx:else>
+        <view wx:for="{{activeAlarms}}" wx:key="rule_id" class="active-alarm active-alarm--{{item.severity}}">
+          <view class="active-alarm__top">
+            <text class="active-alarm__title">{{item.title}}</text>
+            <text class="active-alarm__point">{{item.checkpoint}}</text>
+          </view>
+          <text class="active-alarm__message">{{item.message}}</text>
+          <text class="active-alarm__value">{{item.valueText}}</text>
+        </view>
+      </view>
+      <button class="alarm-link" bindtap="openAlarms">查看全部异常记录 →</button>
+    </view>
+
+    <view class="result-banner {{resultSuccess ? 'result-banner--success' : 'result-banner--running'}}" wx:if="{{resultAvailable}}" bindtap="openResult">
+      <view>
+        <text class="result-banner__eyebrow">VERIFIED RESULT</text>
+        <text class="result-banner__title">{{resultTitle}}</text>
+        <text class="result-banner__text">{{resultSummary}}</text>
+      </view>
+      <text class="result-banner__arrow">›</text>
+    </view>
+
+    <view class="mode-switch" bindtap="chooseMode">
+      <view>
+        <text class="mode-switch__title">数据来源</text>
+        <text class="mode-switch__text">{{modeDescription}}</text>
+      </view>
+      <text class="mode-switch__action">切换</text>
+    </view>
+
+    <text class="boundary-note">{{boundaryNote}}</text>
+  </view>
+</view>
