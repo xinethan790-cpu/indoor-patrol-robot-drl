@@ -68,3 +68,55 @@ python scripts/run_webots_patrol_campaign.py \
 
 原始逐步结果保存在本机对应 `artifacts/results/` 目录；仓库提交本记录和复现入口，
 避免把大体积、机器生成的逐帧与逐步文件直接纳入 Git 历史。
+
+五个回合的环境巡检证据包均通过 `scripts/verify_inspection_bundle.py` 校验。
+
+## Guard v2 二十种子应用验收
+
+五种子回归通过后，在 Git revision
+`6512236566052d957c8bae9197e6cf1689c49a5a` 上冻结代码，并一次性运行此前未使用的
+`7100～7119` 二十个 operational 场景 seed：
+
+```bash
+python scripts/run_webots_patrol_campaign.py \
+  --scenario operational \
+  --seed-start 7100 \
+  --episodes 20 \
+  --output-dir artifacts/results/patrol-operational-application-acceptance-seeds7100-7119-v1 \
+  --port 1262 \
+  --episode-wall-timeout-s 600
+```
+
+| 指标 | 结果 | 门禁 |
+| --- | ---: | ---: |
+| 回合数 | 20 | 至少 20 |
+| 完成 | 19（95%） | 至少 75% |
+| 碰撞 | 1（5%） | 不高于 15% |
+| safety stop | 0（0%） | 记录但不单独设阈值 |
+| 超时 | 0（0%） | 记录但不单独设阈值 |
+| 执行错误 | 0（0%） | 必须为 0% |
+| 平均仿真用时 | 85.9664 s | 描述性指标 |
+| 平均路径 | 11.5452 m | 描述性指标 |
+
+批量器给出 `acceptance_status=pass`，四项门禁检查全部为真，
+`acceptance_failures=[]`。20 个环境巡检证据包也全部通过独立完整性校验。
+
+唯一失败为 seed 7116：机器人在前往 P1 的第 194 个控制步、仿真时间
+`24.8 s`、位置 `(-0.782393, -0.727599)` 发生 Webots 物理接触；最近 LiDAR
+读数为 `0.123389 m`，动态障碍 0 位于 `(-0.92, -0.50752)`。该回合以
+`collision` 原样计入汇总，没有重跑或排除。碰撞前 Guard 已激活，最终执行
+`rotate`，进一步根因以同一回合的 `trajectory.csv`、`collisions.csv` 和
+`ttc_escape_guard_events.csv` 为准。
+
+固定证据与归档标识：
+
+- `episodes.csv` SHA-256：`7bebd141017ea2616136159cbe4c67393496c3b6de12c0dd6a81931381716e29`
+- `summary.json` SHA-256：`ed4e7826331389b8de4e9582acacca2966949a71d3fb9863cea2627adf2c3f27`
+- 完整证据压缩包 SHA-256：`5981668c4874372f7ccf5382ab5159b4efd667850f942882f9a4b7069e90d745`
+- 模型 SHA-256：`051d1e2f07bb147d247c91ded821e58af5b87987bedc2cee4e287fdbdfcdcbe0`
+- 部署档案 SHA-256：`f0d5bf258057589ac5f2da9fcd7e211c4b7a5639d147b61588bd6572ee579383`
+- 场景配置 SHA-256：`1a110da80f26bf944d07362d201da591f2e86bbb9569bda4d1df6b7ea256ca57`
+
+本节结论是固定 operational 四点巡检场景的**应用性能门禁通过**。运行摘要仍明确
+记录 `patrol_scenario_qualified=false`；它不是形式化安全认证，也不替代三训练 seed、
+多算法、多工况的受保护论文正式测试。
