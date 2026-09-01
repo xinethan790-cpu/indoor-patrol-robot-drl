@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>室内智能巡检看板</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <script src="/static/dashboard.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">INDOOR PATROL · DIGITAL TWIN</p>
+        <h1>室内智能巡检看板</h1>
+      </div>
+      <div class="connection" role="status" aria-live="polite" aria-atomic="true">
+        <span id="connection-dot" class="connection-dot" aria-hidden="true"></span>
+        <div><strong id="connection-label">正在连接</strong><small id="updated-at">等待数据</small></div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero-grid">
+        <article class="panel map-panel">
+          <div class="panel-heading">
+            <div><span class="section-index">01</span><h2>空间态势</h2></div>
+            <span id="map-mode" class="pill">LIVE</span>
+          </div>
+          <div id="map-stage" class="map-stage" aria-label="机器人二维位置和巡检轨迹">
+            <svg id="patrol-map" viewBox="0 0 1000 680" role="img" aria-label="巡检二维地图"></svg>
+            <div class="map-legend">
+              <span><i class="legend-robot"></i>机器人</span>
+              <span><i class="legend-route"></i>运行轨迹</span>
+              <span><i class="legend-point"></i>巡检点</span>
+            </div>
+          </div>
+          <p id="map-note" class="boundary-note">正在加载演示地图边界说明…</p>
+        </article>
+
+        <aside class="side-stack">
+          <article class="panel mission-panel">
+            <div class="panel-heading"><div><span class="section-index">02</span><h2>任务进度</h2></div><span id="state-pill" class="pill neutral">—</span></div>
+            <div class="progress-summary"><strong id="progress-percent">0%</strong><span id="progress-fraction">0 / 4 巡检点</span></div>
+            <div class="progress-track"><progress id="progress-fill" max="100" value="0" aria-label="巡检点完成进度"></progress></div>
+            <ol id="checkpoint-list" class="checkpoint-list"></ol>
+            <div class="mission-meta"><span>仿真时间 <strong id="simulation-time">—</strong></span><span>控制步 <strong id="control-step">—</strong></span></div>
+          </article>
+
+          <article class="panel sensor-panel">
+            <div class="panel-heading"><div><span class="section-index">03</span><h2>环境感知</h2></div><span id="sensor-source" class="quiet-pill">尚未采样</span></div>
+            <div class="sensor-grid">
+              <div class="sensor-card temperature"><span>温度</span><strong id="temperature-value">—</strong><small>°C</small></div>
+              <div class="sensor-card smoke"><span>烟雾</span><strong id="smoke-value">—</strong><small>%/m</small></div>
+              <div class="sensor-card co"><span>CO</span><strong id="co-value">—</strong><small>ppm</small></div>
+            </div>
+            <p id="sensor-provenance" class="sensor-provenance">上次巡检点采样 · 等待数据</p>
+          </article>
+        </aside>
+      </section>
+
+      <section class="lower-grid">
+        <article class="panel alarm-panel">
+          <div class="panel-heading"><div><span class="section-index">04</span><h2>活动告警</h2></div><span id="active-count" class="alarm-count">0</span></div>
+          <div id="active-alarms" class="active-alarms empty-state" aria-live="polite">当前无活动告警</div>
+        </article>
+
+        <article class="panel history-panel">
+          <div class="panel-heading"><div><span class="section-index">05</span><h2>异常记录</h2></div><span id="history-source" class="quiet-pill">快照差分</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>时间</th><th>巡检点</th><th>级别</th><th>状态</th><th>异常内容</th></tr></thead>
+              <tbody id="alarm-history"><tr><td colspan="5" class="empty-cell">暂无异常记录</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel result-panel">
+          <div class="panel-heading"><div><span class="section-index">06</span><h2>运行结果</h2></div><span id="result-badge" class="pill neutral">进行中</span></div>
+          <div id="result-content" class="result-waiting" aria-live="polite">
+            <span class="pulse-ring"></span>
+            <p>巡检任务正在执行</p>
+            <small>终态后展示已校验汇总结果</small>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <div id="error-banner" class="error-banner" role="alert" aria-live="assertive" hidden></div>
+  </body>
+</html>

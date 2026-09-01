@@ -26,7 +26,7 @@
 - [x] 实现 operational/stress 场景、TTC 有界脱困和可审计多种子巡检评测
 - [x] 实现 Webots 逐帧采集与 90 秒中文 1080p 汇报视频生成
 - [x] 完成 7100～7119 二十种子应用验收：完成率 95%，碰撞率 5%，门禁通过
-- [ ] 完成本地巡检看板
+- [x] 完成本地巡检看板：地图、轨迹、任务进度、环境数据、告警与终态结果
 - [ ] 完成 Webots 三 seed 正式训练、统一批量评测、泛化和奖励消融
 
 轻量二维环境不是最终实验平台。它用于快速验证状态、动作、奖励、随机种子、训练和测试代码，并为 Webots 提供策略热启动。当前验证集选择的是 stage 2（557,056 steps），不是训练最久的 stage 3；完整选择依据见[当前实验进展](reports/current-progress.md)。正式论文效果结论仍以 Webots 批量实验为准。
@@ -66,9 +66,21 @@
 python scripts/verify_inspection_bundle.py artifacts/results/<巡检结果目录>
 ```
 
-该证据包提供完整性校验和确定性复放，不把普通文件哈希描述成数字签名或身份认证。环境巡检现已接入 Webots 四点控制器：机器人在每个巡检点驻留并采样，产生读数、告警、巡检点进度和异常证据；下一阶段将这些数据汇总到本地实时看板。
+该证据包提供完整性校验和确定性复放，不把普通文件哈希描述成数字签名或身份认证。环境巡检现已接入 Webots 四点控制器：机器人在每个巡检点驻留并采样，产生读数、告警、巡检点进度和异常证据；本地看板会将这些文件汇总成二维轨迹、任务进度、环境读数、活动告警、异常历史和终态指标。
 
 四点任务另外提供 `operational` 与 `stress` 两套动态障碍配置，并记录每一步 LiDAR 距离、稳健 TTC、PPO 动作、安全过滤动作、最终轮速与有界脱困事件。TTC 脱困只属于当前巡检应用的探索性保护层，不继承 R2a 单障碍组件资格，也不构成形式化安全保证。
+
+## 本地巡检看板
+
+看板只监听本机 `127.0.0.1`，并要求明确指定一个运行结果目录，不会自动读取其他项目文件。以下命令可直接展示毕业汇报用的成功运行：
+
+```bash
+python scripts/run_patrol_dashboard.py \
+  --run-dir artifacts/results/graduation-demo-seed7000-v1 \
+  --port 8765
+```
+
+随后访问 `http://127.0.0.1:8765`。页面每 0.75 秒刷新一次；任务运行中显示最新快照和快照差分告警，任务结束后改用 `summary.json`、`inspection_summary.json` 与 `alarm_events.jsonl` 的权威终态记录。二维地图来自当前仿真配置，仅用于毕设演示，不代表真实场地测绘或形式化安全边界。
 
 ## 架构
 
@@ -210,6 +222,8 @@ python scripts/run_webots_patrol_campaign.py \
 Guard v2 已在 `7000～7004` 五个开发 seed 上取得 `5/5` 完成、`0` 碰撞、`0` safety stop 和 `0` 超时；该结果仍按协议标记为 `insufficient_evidence`。逐回合数据、固定哈希和边界说明见[四点巡检应用验证记录](reports/patrol-application-validation.md)。
 
 随后冻结代码并一次性运行 `7100～7119` 二十个新 seed，取得 `19/20` 完成、`1/20` 碰撞、无 safety stop、无超时和无执行错误，应用门禁结果为 `pass`。该结论仅覆盖固定 operational 四点应用场景，不是形式化安全认证，也不替代受保护的论文正式测试。
+
+[下载二十种子完整应用验收证据（私有仓库，需登录 GitHub）](https://github.com/xinethan790-cpu/indoor-patrol-robot-drl/releases/tag/patrol-application-acceptance-v1)
 
 ## 目录结构
 

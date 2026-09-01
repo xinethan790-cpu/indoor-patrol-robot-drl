@@ -30,6 +30,9 @@ video = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"indoor_patrol_rl.dashboard" = ["static/*.html", "static/*.css", "static/*.js"]
+
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
