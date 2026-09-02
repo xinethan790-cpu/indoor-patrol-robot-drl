@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const fixture = require('../data/graduation-demo-seed7000-v1.js');
-const { buildDashboardPayload } = require('../services/offlineReplay');
+const { buildDashboardPayload, identifyReplayKeyEvents } = require('../services/offlineReplay');
 
 function instantiatePage(definition) {
   return {
@@ -30,6 +30,8 @@ function loadPage(modulePath, app, wxApi) {
 function createAppHarness(mode) {
   const subscribers = [];
   let unsubscribeCount = 0;
+  let jumpCount = 0;
+  const playbackRates = [];
   let sessionState = {
     mode: mode || 'cloud',
     status: 'running',
@@ -59,12 +61,16 @@ function createAppHarness(mode) {
     resetPatrolSession() {},
     pausePatrolSession() {},
     resumePatrolSession() {},
+    jumpToNextDemoKeyEvent() { jumpCount += 1; return { run: { sequence: 98 } }; },
+    setDemoPlaybackRate(rate) { playbackRates.push(rate); return rate; },
   };
   return {
     app,
     subscribers,
     setSessionState(update) { sessionState = { ...sessionState, ...update }; },
     get unsubscribeCount() { return unsubscribeCount; },
+    get jumpCount() { return jumpCount; },
+    get playbackRates() { return playbackRates; },
   };
 }
 
@@ -108,6 +114,48 @@ test('dashboard subscribes once and page unload does not stop the shared session
 
   page.onUnload();
   assert.equal(harness.unsubscribeCount, 1);
+});
+
+test('dashboard exposes accessible demo key-event and playback controls without affecting cloud', () => {
+  const keyEvent = identifyReplayKeyEvents(fixture)[0];
+  const demoHarness = createAppHarness('demo');
+  const toasts = [];
+  const demoPage = loadPage('../pages/dashboard/index.js', demoHarness.app, {
+    getDeviceInfo: () => ({ platform: 'devtools' }),
+    showToast: (options) => toasts.push(options.title),
+  });
+  demoPage.onLoad();
+  demoPage.onShow();
+  demoHarness.subscribers[0].onData(buildDashboardPayload(fixture, keyEvent.frameIndex), {
+    mode: 'demo',
+    replay: {
+      playbackRate: 1,
+      keyEvent,
+      keyEventCount: 7,
+      keyEventHoldMs: 1800,
+    },
+  });
+  assert.equal(demoPage.data.demoKeyEventActive, true);
+  assert.equal(demoPage.data.demoKeyEventLabel, '脱困保护介入');
+  assert.match(demoPage.data.demoKeyEventPositionText, /1 \/ 7/);
+
+  demoPage.setDemoPlaybackRate({ currentTarget: { dataset: { rate: '0.5' } } });
+  assert.deepEqual(demoHarness.playbackRates, [0.5]);
+  assert.equal(demoPage.data.demoHalfSpeedActive, true);
+  demoPage.jumpToNextDemoEvent();
+  assert.equal(demoHarness.jumpCount, 1);
+  assert.deepEqual(toasts, []);
+
+  const cloudHarness = createAppHarness('cloud');
+  const cloudPage = loadPage('../pages/dashboard/index.js', cloudHarness.app, {
+    getDeviceInfo: () => ({ platform: 'ios' }),
+  });
+  cloudPage.onLoad();
+  cloudPage.onShow();
+  cloudPage.setDemoPlaybackRate({ currentTarget: { dataset: { rate: '0.5' } } });
+  cloudPage.jumpToNextDemoEvent();
+  assert.deepEqual(cloudHarness.playbackRates, []);
+  assert.equal(cloudHarness.jumpCount, 0);
 });
 
 test('visible pages atomically clear old demo values when cloud has no snapshot', () => {

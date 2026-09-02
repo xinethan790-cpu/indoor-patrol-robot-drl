@@ -15,6 +15,8 @@ function createSourceFactory() {
       stops: 0,
       resets: 0,
       closes: 0,
+      jumps: 0,
+      playbackRates: [],
       start(callbacks) {
         this.callbacks = callbacks;
         this.starts += 1;
@@ -23,6 +25,8 @@ function createSourceFactory() {
       stop() { this.stops += 1; },
       reset() { this.resets += 1; },
       close() { this.closes += 1; },
+      jumpToNextKeyEvent() { this.jumps += 1; return { jumped: true }; },
+      setPlaybackRate(rate) { this.playbackRates.push(rate); return rate; },
       getState() { return { status: 'running', mode }; },
       emit(payload, meta) { this.callbacks.onData(payload, meta); },
     };
@@ -126,6 +130,24 @@ test('demo pause, resume, and reset preserve explicit playback semantics', () =>
   assert.equal(demo.starts, 3);
   assert.equal(session.getState().started, true);
   assert.equal(session.getState().payload, null);
+});
+
+test('demo presentation controls are delegated only to the offline source', () => {
+  const demoFactory = createSourceFactory();
+  const demo = createPatrolSession({ initialMode: 'demo', createSource: demoFactory.createSource });
+  demo.start();
+  assert.equal(demo.setPlaybackRate(0.5), 0.5);
+  assert.deepEqual(demo.jumpToNextKeyEvent(), { jumped: true });
+  assert.deepEqual(demoFactory.created[0].playbackRates, [0.5]);
+  assert.equal(demoFactory.created[0].jumps, 1);
+
+  const cloudFactory = createSourceFactory();
+  const cloud = createPatrolSession({ initialMode: 'cloud', createSource: cloudFactory.createSource });
+  cloud.start();
+  assert.equal(cloud.setPlaybackRate(0.5), null);
+  assert.equal(cloud.jumpToNextKeyEvent(), null);
+  assert.deepEqual(cloudFactory.created[0].playbackRates, []);
+  assert.equal(cloudFactory.created[0].jumps, 0);
 });
 
 for (const mode of ['demo', 'local']) {

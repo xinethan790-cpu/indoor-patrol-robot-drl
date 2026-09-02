@@ -101,6 +101,27 @@ function buildActiveAlarms(payload) {
   }));
 }
 
+function buildDemoPresentation(sourceMeta, terminal) {
+  const replay = sourceMeta && sourceMeta.replay ? sourceMeta.replay : {};
+  const keyEvent = replay.keyEvent || null;
+  const playbackRate = replay.playbackRate === 0.5 ? 0.5 : 1;
+  return {
+    demoPlaybackRate: playbackRate,
+    demoHalfSpeedActive: playbackRate === 0.5,
+    demoNormalSpeedActive: playbackRate === 1,
+    demoKeyEventActive: Boolean(keyEvent),
+    demoKeyEventTone: keyEvent ? keyEvent.tone : "normal",
+    demoKeyEventLabel: keyEvent ? keyEvent.label : "答辩演示回放",
+    demoKeyEventDescription: keyEvent
+      ? keyEvent.description
+      : "关键避障与环境告警事件将自动停留，便于观察和讲解",
+    demoKeyEventPositionText: keyEvent
+      ? `关键事件 ${keyEvent.ordinal} / ${keyEvent.total} · ${formatNumber(keyEvent.simulationTimeS, 1, "0.0")} s`
+      : `${Number(replay.keyEventCount) || 0} 个关键事件`,
+    demoNextEventDisabled: terminal === true,
+  };
+}
+
 function buildView(payload, mode) {
   const run = payload.run || {};
   const task = payload.task || {};
@@ -195,6 +216,7 @@ Page({
     resultTitle: "",
     resultSummary: "",
     boundaryNote: "本二维地图来自仿真配置，仅用于毕设演示可视化。",
+    ...buildDemoPresentation(null, false),
     ...emptyAvoidanceView(0),
   },
 
@@ -247,6 +269,7 @@ Page({
       errorMessage: "",
       demoControlLabel: "暂停演示",
       cloudReceivedText: "等待首个快照",
+      ...buildDemoPresentation(null, false),
     });
   },
 
@@ -274,6 +297,7 @@ Page({
       resultTitle: "",
       resultSummary: "",
       boundaryNote: "本二维地图来自仿真配置，仅用于毕设演示可视化。",
+      ...buildDemoPresentation(null, false),
       ...emptyAvoidanceView(0),
       cloudReceivedText: "等待首个快照",
       errorMessage: "",
@@ -286,6 +310,9 @@ Page({
     const view = buildView(payload, sourceMode);
     this.setData({
       ...view,
+      ...(sourceMode === "demo"
+        ? buildDemoPresentation(sourceMeta, payload.run && payload.run.terminal === true)
+        : buildDemoPresentation(null, false)),
       errorMessage: "",
       cloudReceivedText: sourceMeta && sourceMeta.receivedAtUtc
         ? formatReceivedTime(sourceMeta.receivedAtUtc)
@@ -318,6 +345,14 @@ Page({
     if (state.payload) this._applyPayload(state.payload, state.meta);
     else this._clearView(state.mode);
     this._handleStatus(state.statusEvent || { status: state.status, mode: state.mode });
+    if (state.mode === "demo" && state.sourceState) {
+      const playbackRate = state.sourceState.playbackRate === 0.5 ? 0.5 : 1;
+      this.setData({
+        demoPlaybackRate: playbackRate,
+        demoHalfSpeedActive: playbackRate === 0.5,
+        demoNormalSpeedActive: playbackRate === 1,
+      });
+    }
     if (state.error) this._applyError(state.error, state.errorDetails);
   },
 
@@ -448,6 +483,29 @@ Page({
     app.resetPatrolSession();
   },
 
+  jumpToNextDemoEvent() {
+    if (this._sourceMode !== "demo" || this.data.terminal) return;
+    const state = app.getPatrolSessionState();
+    if (!state || !state.started) {
+      wx.showToast({ title: "请先继续演示", icon: "none" });
+      return;
+    }
+    const payload = app.jumpToNextDemoKeyEvent();
+    if (!payload) wx.showToast({ title: "已到最后一个关键事件", icon: "none" });
+  },
+
+  setDemoPlaybackRate(event) {
+    if (this._sourceMode !== "demo") return;
+    const rate = Number(event.currentTarget.dataset.rate);
+    const appliedRate = app.setDemoPlaybackRate(rate);
+    if (appliedRate === null) return;
+    this.setData({
+      demoPlaybackRate: appliedRate,
+      demoHalfSpeedActive: appliedRate === 0.5,
+      demoNormalSpeedActive: appliedRate === 1,
+    });
+  },
+
   chooseMode() {
     wx.showActionSheet({
       itemList: ["云端实时同步（推荐）", "仿真演示回放", "电脑本地实时接口"],
@@ -481,6 +539,7 @@ Page({
 });
 
 module.exports = {
+  buildDemoPresentation,
   buildSensorCards,
   buildView,
   formatReceivedTime,

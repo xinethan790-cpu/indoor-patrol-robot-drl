@@ -70,6 +70,59 @@
       </view>
     </view>
 
+    <view class="demo-presentation" wx:if="{{mode === 'demo'}}">
+      <view
+        class="demo-event demo-event--{{demoKeyEventActive ? demoKeyEventTone : 'normal'}}"
+        role="status"
+        aria-live="polite"
+        aria-label="{{demoKeyEventLabel}}，{{demoKeyEventDescription}}"
+      >
+        <view class="demo-event__topline">
+          <text class="demo-event__label">{{demoKeyEventLabel}}</text>
+          <text class="demo-event__position">{{demoKeyEventPositionText}}</text>
+        </view>
+        <text class="demo-event__description">{{demoKeyEventDescription}}</text>
+      </view>
+      <view class="demo-controls">
+        <button
+          class="primary-button demo-controls__main"
+          bindtap="toggleDemo"
+          aria-label="{{demoControlLabel}}仿真演示"
+        >{{demoControlLabel}}</button>
+        <button
+          class="secondary-button demo-controls__next {{demoNextEventDisabled ? 'demo-controls__next--disabled' : ''}}"
+          bindtap="jumpToNextDemoEvent"
+          disabled="{{demoNextEventDisabled}}"
+          aria-label="跳转到下一个关键事件"
+        >下一个关键事件</button>
+      </view>
+      <view class="demo-options">
+        <view class="demo-speed" role="group" aria-label="演示播放速度">
+          <text class="demo-speed__label">播放速度</text>
+          <button
+            class="demo-speed__button {{demoHalfSpeedActive ? 'demo-speed__button--active' : ''}}"
+            data-rate="0.5"
+            bindtap="setDemoPlaybackRate"
+            aria-label="以零点五倍速度播放"
+            aria-pressed="{{demoHalfSpeedActive}}"
+          >0.5×</button>
+          <button
+            class="demo-speed__button {{demoNormalSpeedActive ? 'demo-speed__button--active' : ''}}"
+            data-rate="1"
+            bindtap="setDemoPlaybackRate"
+            aria-label="以正常速度播放"
+            aria-pressed="{{demoNormalSpeedActive}}"
+          >1×</button>
+        </view>
+        <button
+          wx:if="{{!terminal}}"
+          class="demo-reset"
+          bindtap="resetDemo"
+          aria-label="从头重新演示"
+        >重新演示</button>
+      </view>
+    </view>
+
     <view class="section-card avoidance-card avoidance-card--{{avoidanceTone}}">
       <view class="section-heading">
         <view>
@@ -117,17 +170,6 @@
           <text class="decision-step__value">{{executedActionText}}</text>
         </view>
       </view>
-    </view>
-
-    <view class="demo-controls" wx:if="{{mode === 'demo'}}">
-      <button class="primary-button demo-controls__main" bindtap="toggleDemo">
-        {{demoControlLabel}}
-      </button>
-      <button
-        wx:if="{{!terminal}}"
-        class="secondary-button demo-controls__reset"
-        bindtap="resetDemo"
-      >重新演示</button>
     </view>
 
     <view class="section-card task-card">

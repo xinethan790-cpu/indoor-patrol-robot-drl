@@ -157,4 +157,14 @@ App({
   resetPatrolSession() {
     if (this.patrolSession) this.patrolSession.reset({ restart: true });
   },
+
+  jumpToNextDemoKeyEvent() {
+    if (!this.patrolSession || this.globalData.mode !== "demo") return null;
+    return this.patrolSession.jumpToNextKeyEvent();
+  },
+
+  setDemoPlaybackRate(rate) {
+    if (!this.patrolSession || this.globalData.mode !== "demo") return null;
+    return this.patrolSession.setPlaybackRate(rate);
+  },
 });

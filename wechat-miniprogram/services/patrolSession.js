@@ -105,6 +105,12 @@ function createPatrolSession(options) {
     notify('onClear', { mode, reason: reason || 'clear' });
   }
 
+  function callSource(method, ...args) {
+    const activeSource = ensureSource();
+    if (typeof activeSource[method] !== 'function') return null;
+    return activeSource[method](...args);
+  }
+
   const session = {
     subscribe(callbacks) {
       if (closed) throw new Error('巡检会话已关闭');
@@ -173,6 +179,16 @@ function createPatrolSession(options) {
       clearSnapshot('reset');
       publishStatus({ status: 'idle', reason: 'reset' });
       if (shouldRestart) session.start();
+    },
+
+    jumpToNextKeyEvent() {
+      if (closed || mode !== 'demo') return null;
+      return callSource('jumpToNextKeyEvent');
+    },
+
+    setPlaybackRate(rate) {
+      if (closed || mode !== 'demo') return null;
+      return callSource('setPlaybackRate', rate);
     },
 
     close() {

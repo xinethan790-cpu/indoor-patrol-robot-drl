@@ -328,10 +328,76 @@
   background: #ffffff;
 }
 
+.demo-presentation {
+  margin-bottom: 20rpx;
+  padding: 20rpx;
+  border: 1rpx solid #d7e5f0;
+  border-radius: 24rpx;
+  background: #ffffff;
+}
+
+.demo-event {
+  padding: 19rpx 20rpx;
+  border-left: 6rpx solid #2c9bd6;
+  border-radius: 17rpx;
+  background: #eef8fd;
+}
+
+.demo-event--guard {
+  border-left-color: #7952be;
+  background: #f3effc;
+}
+
+.demo-event--warning {
+  border-left-color: #d28a12;
+  background: #fff7e8;
+}
+
+.demo-event--critical {
+  border-left-color: #d94655;
+  background: #fff0f2;
+}
+
+.demo-event--success {
+  border-left-color: #168d63;
+  background: #ebf9f3;
+}
+
+.demo-event__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.demo-event__label,
+.demo-event__description {
+  display: block;
+}
+
+.demo-event__label {
+  color: #183b57;
+  font-size: 27rpx;
+  font-weight: 700;
+}
+
+.demo-event__position {
+  margin-left: 16rpx;
+  color: #52738b;
+  font-size: 21rpx;
+  white-space: nowrap;
+}
+
+.demo-event__description {
+  margin-top: 8rpx;
+  color: #597084;
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+
 .demo-controls {
   display: flex;
   gap: 16rpx;
-  margin-bottom: 20rpx;
+  margin-top: 18rpx;
 }
 
 .avoidance-card {
@@ -510,11 +576,58 @@
 }
 
 .demo-controls__main {
-  flex: 1.55;
+  flex: 1;
 }
 
-.demo-controls__reset {
+.demo-controls__next {
   flex: 1;
+}
+
+.demo-controls__next--disabled {
+  color: #9caab6;
+  background: #edf1f4;
+}
+
+.demo-options,
+.demo-speed {
+  display: flex;
+  align-items: center;
+}
+
+.demo-options {
+  justify-content: space-between;
+  margin-top: 16rpx;
+}
+
+.demo-speed__label {
+  margin-right: 10rpx;
+  color: #61788c;
+  font-size: 22rpx;
+}
+
+.demo-speed__button,
+.demo-reset {
+  height: 58rpx;
+  margin: 0 0 0 8rpx;
+  padding: 0 20rpx;
+  border-radius: 15rpx;
+  font-size: 22rpx;
+  line-height: 58rpx;
+}
+
+.demo-speed__button {
+  background: #edf3f8;
+  color: #526b80;
+}
+
+.demo-speed__button--active {
+  background: #0878f9;
+  color: #ffffff;
+}
+
+.demo-reset {
+  background: transparent;
+  color: #39647f;
 }
 
 .progress-track {

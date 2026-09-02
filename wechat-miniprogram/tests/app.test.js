@@ -1,7 +1,20 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
+
+test('tracked project pins the review base library and demo controls expose accessible names', () => {
+  const root = path.resolve(__dirname, '..');
+  const project = JSON.parse(fs.readFileSync(path.join(root, 'project.config.json'), 'utf8'));
+  const dashboard = fs.readFileSync(path.join(root, 'pages/dashboard/index.wxml'), 'utf8');
+  assert.equal(project.libVersion, '3.17.2');
+  assert.match(dashboard, /aria-live="polite"/);
+  assert.match(dashboard, /aria-label="跳转到下一个关键事件"/);
+  assert.match(dashboard, /aria-label="演示播放速度"/);
+  assert.match(dashboard, /aria-pressed="\{\{demoHalfSpeedActive\}\}"/);
+});
 
 test('app initializes the declared CloudBase environment and safely restores mode', () => {
   const stored = {
@@ -57,6 +70,10 @@ test('app owns one patrol session and keeps it alive when page subscribers chang
   assert.deepEqual(second, [0]);
   assert.equal(definition.getPatrolSessionState.call(definition).started, true);
   assert.equal(definition.getPatrolSessionState.call(definition).subscriberCount, 2);
+  assert.equal(definition.setDemoPlaybackRate.call(definition, 0.5), 0.5);
+  const jumped = definition.jumpToNextDemoKeyEvent.call(definition);
+  assert.equal(jumped.run.sequence, 98);
+  assert.deepEqual(second, [0, 98]);
   definition.onHide.call(definition);
   assert.equal(definition.getPatrolSessionState.call(definition).started, false);
 });

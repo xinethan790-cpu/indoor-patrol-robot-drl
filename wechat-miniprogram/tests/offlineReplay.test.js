@@ -4,7 +4,12 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const fixture = require('../data/graduation-demo-seed7000-v1.js');
-const { buildDashboardPayload, createOfflineReplay } = require('../services/offlineReplay');
+const {
+  DEFAULT_KEY_EVENT_HOLD_MS,
+  buildDashboardPayload,
+  createOfflineReplay,
+  identifyReplayKeyEvents,
+} = require('../services/offlineReplay');
 const { createManualScheduler } = require('./helpers');
 
 test('offline projection grows trajectory and reveals alarms by simulation time', () => {
@@ -54,4 +59,65 @@ test('offline replay reset returns to the first frame', () => {
   source.start({ onData: (payload) => sequences.push(payload.run.sequence) });
   source.stop();
   assert.deepEqual(sequences, [0, 0]);
+});
+
+test('offline replay identifies a bounded set of guard, alarm, and terminal key events', () => {
+  const events = identifyReplayKeyEvents(fixture);
+  assert.equal(events.length, 7);
+  assert.deepEqual(events.map((event) => event.type), [
+    'guard',
+    'alarm',
+    'alarm-critical',
+    'guard',
+    'guard',
+    'alarm-cleared',
+    'terminal',
+  ]);
+  assert.equal(events[0].sequence, 98);
+  assert.equal(events.at(-1).sequence, 822);
+  assert.ok(events.every((event, index) => (
+    event.ordinal === index + 1 && event.total === events.length
+  )));
+});
+
+test('key-event jump holds evidence and playback rate changes only ordinary frame timing', () => {
+  const scheduler = createManualScheduler();
+  const received = [];
+  const source = createOfflineReplay({ fixture, intervalMs: 100, scheduler });
+  source.start({
+    onData: (payload, meta) => received.push({ sequence: payload.run.sequence, replay: meta.replay }),
+  });
+
+  assert.equal(scheduler.pending()[0].delay, 100);
+  source.jumpToNextKeyEvent();
+  assert.equal(received.at(-1).sequence, 98);
+  assert.equal(received.at(-1).replay.keyEvent.type, 'guard');
+  assert.equal(scheduler.pending()[0].delay, DEFAULT_KEY_EVENT_HOLD_MS);
+
+  assert.equal(source.setPlaybackRate(0.5), 0.5);
+  assert.equal(scheduler.pending()[0].delay, DEFAULT_KEY_EVENT_HOLD_MS);
+  scheduler.runNext();
+  assert.equal(scheduler.pending()[0].delay, 200);
+  assert.equal(source.getState().playbackRate, 0.5);
+  assert.throws(() => source.setPlaybackRate(2), /0.5x.*1x/);
+});
+
+test('offline replay validates the fixture once instead of rescanning every emitted frame', () => {
+  let iteratorCount = 0;
+  const frames = new Proxy(fixture.frames, {
+    get(target, property, receiver) {
+      if (property === Symbol.iterator) {
+        iteratorCount += 1;
+        if (iteratorCount > 1) throw new Error('fixture frames were revalidated');
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  const scheduler = createManualScheduler();
+  const source = createOfflineReplay({ fixture: { ...fixture, frames }, intervalMs: 1, scheduler });
+  source.start({ onData() {} });
+  scheduler.runNext();
+  scheduler.runNext();
+  source.stop();
+  assert.equal(iteratorCount, 1);
 });
