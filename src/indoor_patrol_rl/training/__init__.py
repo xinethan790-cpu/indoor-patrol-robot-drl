@@ -5,6 +5,11 @@ from indoor_patrol_rl.training.curriculum import (
     CurriculumStage,
     load_curriculum,
 )
+from indoor_patrol_rl.training.warm_start_preflight import (
+    WarmStartPreflightError,
+    WarmStartVerification,
+    verify_warm_start_requirement,
+)
 from indoor_patrol_rl.training.webots_curriculum import (
     ModelSnapshot,
     ValidationGate,
@@ -35,6 +40,8 @@ __all__ = [
     "WebotsCurriculumConfig",
     "WebotsCurriculumRunner",
     "WebotsStage",
+    "WarmStartPreflightError",
+    "WarmStartVerification",
     "apply_preferred_resume_overrides",
     "choose_available_port",
     "discover_model_snapshots",
@@ -50,4 +57,5 @@ __all__ = [
     "select_stage_completed_snapshot",
     "snapshot_matches_stage",
     "validate_evaluation_run_name",
+    "verify_warm_start_requirement",
 ]

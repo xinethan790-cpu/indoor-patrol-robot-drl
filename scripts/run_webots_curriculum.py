@@ -8,11 +8,13 @@ import sys
 from pathlib import Path
 
 from indoor_patrol_rl.training import (
+    WarmStartPreflightError,
     WebotsCurriculumRunner,
     apply_preferred_resume_overrides,
     load_webots_curriculum,
     resolve_stage_index,
     resolve_webots_executable,
+    verify_warm_start_requirement,
 )
 
 
@@ -50,6 +52,13 @@ def main() -> int:
     config_path = args.config if args.config.is_absolute() else repository_root / args.config
     config = load_webots_curriculum(config_path)
     config = apply_preferred_resume_overrides(config, args.preferred_resume)
+    try:
+        verify_warm_start_requirement(
+            repository_root=repository_root,
+            config=config,
+        )
+    except WarmStartPreflightError as error:
+        parser.error(str(error))
     start_stage = resolve_stage_index(config.stages, args.start_stage, 0)
     stop_after_stage = resolve_stage_index(
         config.stages, args.stop_after_stage, len(config.stages) - 1

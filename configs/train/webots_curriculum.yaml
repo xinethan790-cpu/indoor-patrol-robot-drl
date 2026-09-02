@@ -1,5 +1,6 @@
 schema_version: 1
 transfer_model: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+warm_start_requirement: configs/models/webots_formal_warm_start_requirement.yaml
 port_base: 12490
 validation:
   split: validation

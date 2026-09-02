@@ -207,6 +207,9 @@ def save_validation_result(
 def test_repository_webots_curriculum_has_required_w0_w2_schedule() -> None:
     config = load_webots_curriculum(Path("configs/train/webots_curriculum.yaml"))
 
+    assert config.warm_start_requirement == Path(
+        "configs/models/webots_formal_warm_start_requirement.yaml"
+    )
     assert [stage.stage_id for stage in config.stages] == ["W0", "W1", "W2"]
     assert [stage.obstacle_count for stage in config.stages] == [0, 1, 3]
     assert [stage.training_steps for stage in config.stages] == [50_000, 150_000, 300_000]

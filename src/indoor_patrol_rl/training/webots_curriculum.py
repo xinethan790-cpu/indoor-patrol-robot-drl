@@ -127,6 +127,8 @@ class WebotsCurriculumConfig:
     stages: tuple[WebotsStage, ...]
     model_variant: str | None = None
     policy_transfer_model: Path | None = None
+    warm_start_requirement: Path | None = None
+    source_path: Path | None = None
 
     def __post_init__(self) -> None:
         if not 1024 <= self.port_base <= 65500:
@@ -334,6 +336,7 @@ def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
         raise ValueError("model_variant must be a string when provided.")
     model_variant = model_variant_value
     policy_transfer_value = raw.get("policy_transfer_model")
+    warm_start_requirement_value = raw.get("warm_start_requirement")
     return WebotsCurriculumConfig(
         transfer_model=Path(str(raw["transfer_model"])),
         port_base=int(raw.get("port_base", 12490)),
@@ -342,6 +345,12 @@ def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
         policy_transfer_model=(
             Path(str(policy_transfer_value)) if policy_transfer_value else None
         ),
+        warm_start_requirement=(
+            Path(str(warm_start_requirement_value))
+            if warm_start_requirement_value
+            else None
+        ),
+        source_path=path,
     )
 
 
@@ -961,6 +970,14 @@ class WebotsCurriculumRunner:
     ) -> None:
         self.repository_root = repository_root.absolute()
         self.config = config
+        from indoor_patrol_rl.training.warm_start_preflight import (
+            verify_warm_start_requirement,
+        )
+
+        self.warm_start_verification = verify_warm_start_requirement(
+            repository_root=self.repository_root,
+            config=self.config,
+        )
         self.webots_executable = webots_executable.absolute()
         self.seed = seed
         manifest_path = manifest_path.absolute()
@@ -1017,6 +1034,14 @@ class WebotsCurriculumRunner:
             ),
             "policy_transfer_model": _semantic_relative_path(
                 self.config.policy_transfer_model, self.repository_root
+            ),
+            "warm_start_requirement": _semantic_relative_path(
+                self.config.warm_start_requirement, self.repository_root
+            ),
+            "warm_start_requirement_sha256": (
+                self.warm_start_verification.requirement_sha256
+                if self.warm_start_verification is not None
+                else None
             ),
             "model_variant": self.config.model_variant,
             "port_base": self.config.port_base,
