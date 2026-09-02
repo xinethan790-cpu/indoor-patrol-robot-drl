@@ -100,11 +100,19 @@ clean commit `3335fa3...` 上重新训练 `40,960` 步，PPO 与完整前向制�
 
 该结果只比两个门槛各多 `0.01`，即一个 episode，因此应表述为“可追溯的单 seed
 开发基线通过”，不能表述为稳健、正式或多 seed 结论。RB2A 已允许生成哈希绑定的
-RB2B 续训配置。该配置现已锁定：它复制并绑定 RB2A 更新后端点模型的完整
-`f52a4691...06c2c` SHA-256，保留优化器和已学习动作分布，只把障碍速度提高到
-`0.18～0.25 m/s`，其余奖励、PPO、安全盾、路线和验证门槛保持不变。完整证据见
-[`RB2A 端点报告`](webots_r2ab_targeted/r2a_rebaseline_v1_report.md)
-和[`新基线协议`](webots_r2ab_targeted/rebaseline_protocol_2026-09-02.md)。
+RB2B 续训配置。RB2B 已从完整 `f52a4691...06c2c` 端点副本恢复优化器和已学习动作
+分布，只把障碍速度提高到 `0.18～0.25 m/s`，其余奖励、PPO、安全盾、路线和验证
+门槛保持不变。在 clean commit `5c9102b...` 上额外训练 `40,960` 步后，端点模型
+累计 `81,920` 步，SHA-256 为 `498d970c...a86cfa`。
+
+RB2B 在相同编号的 `6000～6099` 开发验证网格得到 `85 成功 / 15 碰撞 / 0 超时 /
+0 错误`，成功率 `0.85`、碰撞率 `0.15`，两个门槛均有 `0.10` 余量。训练/验证
+reset health 分别为 `396/396` 与 `100/100`，保留测试集仍未执行。由于 RB2A 与
+RB2B 的障碍速度分布不同，`76/24` 到 `85/15` 只能作为跨阶段描述，不能包装成
+严格配对因果提升。完整证据见
+[`RB2A 端点报告`](webots_r2ab_targeted/r2a_rebaseline_v1_report.md)、
+[`RB2B 端点报告`](webots_r2ab_targeted/r2b_rebaseline_v1_report.md)和
+[`新基线协议`](webots_r2ab_targeted/rebaseline_protocol_2026-09-02.md)。
 
 ## 5. 应用展示链路状态
 

@@ -1,0 +1,270 @@
+schema_version: 2
+seed: 11
+model_variant: r2b_rebaseline_v1
+curriculum_config_sha256: 86e5ee467b121ccc329db14c43d9050b37022ce48edaf0dfcba251e3722a55ed
+curriculum_config:
+  semantic_schema_version: 1
+  seed: 11
+  transfer_model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip
+  policy_transfer_model: null
+  warm_start_requirement: null
+  warm_start_requirement_sha256: null
+  model_variant: r2b_rebaseline_v1
+  port_base: 14220
+  automatic_split: validation
+  evaluation_world: webots_ppo_evaluate.wbt
+  gate_overrides:
+    seed_start: null
+    episodes: null
+    min_success_rate: null
+    max_collision_rate: null
+  stages:
+  - id: RB2B
+    name: verified_single_medium_high_resume_baseline
+    world: webots_ppo_train.wbt
+    obstacle_count: 1
+    training_steps: 40960
+    gate:
+      seed_start: 6000
+      episodes: 100
+      min_success_rate: 0.75
+      max_collision_rate: 0.25
+    controller_env:
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_OBSTACLE_SPEED_MAX: '0.25'
+      WEBOTS_OBSTACLE_SPEED_MIN: '0.18'
+      WEBOTS_PPO_BATCH_SIZE: '128'
+      WEBOTS_PPO_ENT_COEF: '0.001'
+      WEBOTS_PPO_GAMMA: '0.995'
+      WEBOTS_PPO_LEARNING_RATE: '0.00003'
+      WEBOTS_PPO_N_EPOCHS: '5'
+      WEBOTS_PPO_N_STEPS: '2048'
+      WEBOTS_PPO_TARGET_KL: '0.02'
+      WEBOTS_REWARD_COLLISION_PENALTY: '-30.0'
+      WEBOTS_REWARD_GOAL: '30.0'
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: '0.70'
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: '0.80'
+      WEBOTS_REWARD_SAFETY_DISTANCE: '0.35'
+      WEBOTS_REWARD_SAFETY_WEIGHT: '-0.60'
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: '-0.005'
+      WEBOTS_REWARD_TIMEOUT_PENALTY: '-5.0'
+      WEBOTS_RUN_ID: r2b_rebaseline_v1
+      WEBOTS_SAFETY_SHIELD: 'true'
+      WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: '0.0'
+      WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: '0.75'
+      WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: '0.24'
+      WEBOTS_SAFETY_SHIELD_INTERVENTION_EPSILON: 1e-06
+      WEBOTS_SAFETY_SHIELD_SIDE_DEADBAND: '0.03'
+      WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_SIDE_OUTER_ANGLE: '1.8325957145940461'
+      WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE: '0.32'
+      WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: '1.0'
+      WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE: '0.12'
+      WEBOTS_SAFETY_SHIELD_SIDE_TURN_WEIGHT: '0.55'
+      WEBOTS_SAFETY_SHIELD_TURN_BLEND: '0.0'
+      WEBOTS_SAFETY_SHIELD_TURN_GAIN: '0.9'
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.10'
+    preferred_resume_model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip
+    preferred_resume_sha256: f52a4691dbe7d787f6a9dfdb02383d206f597999e15f991063bc812a66706c2c
+  require_clean_git: true
+created_at: '2026-09-02T04:16:01+00:00'
+updated_at: '2026-09-02T04:21:23+00:00'
+status: completed
+webots_executable: /Applications/Webots.app/Contents/MacOS/webots
+automatic_split: validation
+test_split_was_run: false
+stages:
+- id: RB2B
+  name: verified_single_medium_high_resume_baseline
+  world: webots_ppo_train.wbt
+  obstacle_count: 1
+  training_steps: 40960
+  controller_env:
+    WEBOTS_RUN_ID: r2b_rebaseline_v1
+    WEBOTS_OBSTACLE_SPEED_MIN: '0.18'
+    WEBOTS_OBSTACLE_SPEED_MAX: '0.25'
+    WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.10'
+    WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.10'
+    WEBOTS_SAFETY_SHIELD: 'true'
+    WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: '0.24'
+    WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: '0.75'
+    WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE: '0.12'
+    WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE: '0.32'
+    WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: '1.0471975511965976'
+    WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: '1.0471975511965976'
+    WEBOTS_SAFETY_SHIELD_SIDE_OUTER_ANGLE: '1.8325957145940461'
+    WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: '0.0'
+    WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: '1.0'
+    WEBOTS_SAFETY_SHIELD_SIDE_TURN_WEIGHT: '0.55'
+    WEBOTS_SAFETY_SHIELD_TURN_GAIN: '0.9'
+    WEBOTS_SAFETY_SHIELD_TURN_BLEND: '0.0'
+    WEBOTS_SAFETY_SHIELD_SIDE_DEADBAND: '0.03'
+    WEBOTS_SAFETY_SHIELD_INTERVENTION_EPSILON: 1e-06
+    WEBOTS_REWARD_SAFETY_DISTANCE: '0.35'
+    WEBOTS_REWARD_PROXIMITY_DISTANCE: '0.70'
+    WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: '0.80'
+    WEBOTS_REWARD_SAFETY_WEIGHT: '-0.60'
+    WEBOTS_REWARD_SMOOTHNESS_WEIGHT: '-0.005'
+    WEBOTS_REWARD_GOAL: '30.0'
+    WEBOTS_REWARD_COLLISION_PENALTY: '-30.0'
+    WEBOTS_REWARD_TIMEOUT_PENALTY: '-5.0'
+    WEBOTS_PPO_N_STEPS: '2048'
+    WEBOTS_PPO_BATCH_SIZE: '128'
+    WEBOTS_PPO_N_EPOCHS: '5'
+    WEBOTS_PPO_LEARNING_RATE: '0.00003'
+    WEBOTS_PPO_ENT_COEF: '0.001'
+    WEBOTS_PPO_GAMMA: '0.995'
+    WEBOTS_PPO_TARGET_KL: '0.02'
+  preferred_resume_model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip
+  status: completed
+  training_attempts:
+  - started_at: '2026-09-02T04:16:01+00:00'
+    command:
+    - /Applications/Webots.app/Contents/MacOS/webots
+    - --port=14220
+    - --batch
+    - --mode=fast
+    - --no-rendering
+    - --stdout
+    - --stderr
+    - /Users/a1/Documents/Codex/2026-08-28/new-chat/outputs/indoor-patrol-robot-drl/worlds/webots_ppo_train.wbt
+    environment:
+      WEBOTS_RUN_ID: r2b_rebaseline_v1
+      WEBOTS_OBSTACLE_SPEED_MIN: '0.18'
+      WEBOTS_OBSTACLE_SPEED_MAX: '0.25'
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_SAFETY_SHIELD: 'true'
+      WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: '0.24'
+      WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: '0.75'
+      WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE: '0.12'
+      WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE: '0.32'
+      WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_SIDE_OUTER_ANGLE: '1.8325957145940461'
+      WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: '0.0'
+      WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: '1.0'
+      WEBOTS_SAFETY_SHIELD_SIDE_TURN_WEIGHT: '0.55'
+      WEBOTS_SAFETY_SHIELD_TURN_GAIN: '0.9'
+      WEBOTS_SAFETY_SHIELD_TURN_BLEND: '0.0'
+      WEBOTS_SAFETY_SHIELD_SIDE_DEADBAND: '0.03'
+      WEBOTS_SAFETY_SHIELD_INTERVENTION_EPSILON: 1e-06
+      WEBOTS_REWARD_SAFETY_DISTANCE: '0.35'
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: '0.70'
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: '0.80'
+      WEBOTS_REWARD_SAFETY_WEIGHT: '-0.60'
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: '-0.005'
+      WEBOTS_REWARD_GOAL: '30.0'
+      WEBOTS_REWARD_COLLISION_PENALTY: '-30.0'
+      WEBOTS_REWARD_TIMEOUT_PENALTY: '-5.0'
+      WEBOTS_PPO_N_STEPS: '2048'
+      WEBOTS_PPO_BATCH_SIZE: '128'
+      WEBOTS_PPO_N_EPOCHS: '5'
+      WEBOTS_PPO_LEARNING_RATE: '0.00003'
+      WEBOTS_PPO_ENT_COEF: '0.001'
+      WEBOTS_PPO_GAMMA: '0.995'
+      WEBOTS_PPO_TARGET_KL: '0.02'
+      WEBOTS_TRAIN_SEED: '11'
+      WEBOTS_TRAIN_STEPS: '40960'
+      WEBOTS_OBSTACLE_COUNT: '1'
+      WEBOTS_MODEL_VARIANT: r2b_rebaseline_v1
+      WEBOTS_RESUME_MODEL: artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip
+    port: 14220
+    baseline_steps: 40960
+    progressed_steps_before_attempt: 0
+    additional_steps_requested: 40960
+    preferred_resume_model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip
+    preferred_resume_sha256: f52a4691dbe7d787f6a9dfdb02383d206f597999e15f991063bc812a66706c2c
+    preferred_resume_actual_sha256: f52a4691dbe7d787f6a9dfdb02383d206f597999e15f991063bc812a66706c2c
+    resume_model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip
+    resume_model_sha256: f52a4691dbe7d787f6a9dfdb02383d206f597999e15f991063bc812a66706c2c
+    finished_at: '2026-09-02T04:20:04+00:00'
+    exit_code: 0
+    status: completed
+  preferred_resume_sha256: f52a4691dbe7d787f6a9dfdb02383d206f597999e15f991063bc812a66706c2c
+  stage_start_steps: 40960
+  training:
+    status: completed
+    baseline_steps: 40960
+    target_model_steps: 81920
+    final_model_steps: 81920
+    model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/ppo_webots_s11_step000081920.zip
+    metadata: artifacts/models/webots/seed_11/r2b_rebaseline_v1/run_metadata.yaml
+    source_model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip
+    source_model_sha256: f52a4691dbe7d787f6a9dfdb02383d206f597999e15f991063bc812a66706c2c
+  validation:
+    started_at: '2026-09-02T04:20:04+00:00'
+    command:
+    - /Applications/Webots.app/Contents/MacOS/webots
+    - --port=14221
+    - --batch
+    - --mode=fast
+    - --no-rendering
+    - --stdout
+    - --stderr
+    - /Users/a1/Documents/Codex/2026-08-28/new-chat/outputs/indoor-patrol-robot-drl/worlds/webots_ppo_evaluate.wbt
+    environment:
+      WEBOTS_OBSTACLE_SPEED_MIN: '0.18'
+      WEBOTS_OBSTACLE_SPEED_MAX: '0.25'
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: '1.10'
+      WEBOTS_SAFETY_SHIELD: 'true'
+      WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: '0.24'
+      WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: '0.75'
+      WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE: '0.12'
+      WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE: '0.32'
+      WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: '1.0471975511965976'
+      WEBOTS_SAFETY_SHIELD_SIDE_OUTER_ANGLE: '1.8325957145940461'
+      WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: '0.0'
+      WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: '1.0'
+      WEBOTS_SAFETY_SHIELD_SIDE_TURN_WEIGHT: '0.55'
+      WEBOTS_SAFETY_SHIELD_TURN_GAIN: '0.9'
+      WEBOTS_SAFETY_SHIELD_TURN_BLEND: '0.0'
+      WEBOTS_SAFETY_SHIELD_SIDE_DEADBAND: '0.03'
+      WEBOTS_SAFETY_SHIELD_INTERVENTION_EPSILON: 1e-06
+      WEBOTS_MODEL_SEED: '11'
+      WEBOTS_EVAL_MODEL: artifacts/models/webots/seed_11/r2b_rebaseline_v1/ppo_webots_s11_step000081920.zip
+      WEBOTS_EVAL_EPISODES: '100'
+      WEBOTS_EVAL_SEED_START: '6000'
+      WEBOTS_EVAL_SPLIT: validation
+      WEBOTS_EVAL_CONDITION: RB2B
+      WEBOTS_EVAL_PLANNER_LABEL: ppo_rb2b_step81920
+      WEBOTS_EVAL_RUN_NAME: webots_validation_rb2b_final_step81920_seed11
+      WEBOTS_OBSTACLE_COUNT: '1'
+      WEBOTS_MODEL_VARIANT: r2b_rebaseline_v1
+    port: 14221
+    model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/ppo_webots_s11_step000081920.zip
+    model_sha256: 498d970cfcf539d55943ace88dcbaad83445713ad852291098b391fd38a86cfa
+    expected_safety_shield_enabled: true
+    expected_safety_shield_config:
+      lidar_max_range: 3.5
+      front_stop_distance: 0.24
+      front_slowdown_distance: 0.75
+      side_stop_distance: 0.12
+      side_slowdown_distance: 0.32
+      front_half_angle: 1.0471975511965976
+      side_inner_angle: 1.0471975511965976
+      side_outer_angle: 1.8325957145940461
+      clearance_quantile: 0.0
+      side_speed_floor: 1.0
+      side_turn_weight: 0.55
+      turn_gain: 0.9
+      turn_blend: 0.0
+      side_deadband: 0.03
+      intervention_epsilon: 1.0e-06
+    gate:
+      episodes: 100
+      min_success_rate: 0.75
+      max_collision_rate: 0.25
+    finished_at: '2026-09-02T04:21:23+00:00'
+    exit_code: 0
+    status: passed
+    summary: artifacts/results/webots_validation_rb2b_final_step81920_seed11/summary.json
+    metrics:
+      episodes: 100
+      success_rate: 0.85
+      collision_rate: 0.15
+    passed: true
+source_git_revision: 5c9102b67e2abfd64741eb5660970141151ad88e

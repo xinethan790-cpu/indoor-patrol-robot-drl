@@ -1,0 +1,26 @@
+schema_version: 1
+evidence_class: post_run_runtime_inventory
+observed_date: "2026-09-02"
+source_git_revision: 5c9102b67e2abfd64741eb5660970141151ad88e
+note: >-
+  This inventory was independently captured after the completed run. Runtime
+  library versions are also present in the versioned model metadata; the Webots
+  executable hash is supplementary host evidence rather than a launch-manifest
+  field.
+host:
+  architecture: arm64
+  operating_system: macOS
+  operating_system_version: "26.3"
+  operating_system_build: 25D125
+webots:
+  version: R2025a
+  executable: /Applications/Webots.app/Contents/MacOS/webots
+  executable_format: Mach-O universal binary (x86_64, arm64)
+  executable_sha256: 0ba7fdf2603a0b5cc2cac628e590c6f8afddbc85a8f1b1f5329056183c57a642
+python_runtime:
+  python: 3.11.15
+  stable_baselines3: 2.9.0
+  torch: 2.13.0
+  gymnasium: 1.3.0
+  numpy: 2.4.6
+dependency_check: no_broken_requirements

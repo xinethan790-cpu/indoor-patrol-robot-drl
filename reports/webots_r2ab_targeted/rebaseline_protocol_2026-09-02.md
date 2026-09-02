@@ -1,6 +1,6 @@
 # R2a/R2b verified rebaseline protocol
 
-Status: **RB2A completed and passed; RB2B is authorized but not yet claimed**.
+Status: **RB2A and RB2B completed and passed; development chain archived**.
 
 Outcome update (2026-09-02): the pre-registered RB2A endpoint completed from the
 clean source revision and produced `76 success / 24 collision / 0 timeout / 0
@@ -8,6 +8,13 @@ error` on the exact 100-seed validation grid. Both locked gates pass by `0.01`.
 See [`r2a_rebaseline_v1_report.md`](r2a_rebaseline_v1_report.md) for the bound
 model, raw evidence, hashes and limitations. The protocol text below remains the
 pre-observation design; this outcome note does not redefine its thresholds.
+
+RB2B outcome update (2026-09-02): the hash-bound continuation completed on clean
+revision `5c9102b...ad88e` and produced `85 success / 15 collision / 0 timeout /
+0 error` on the exact 100-seed validation grid. Its post-update 81,920-step model
+SHA-256 is `498d970c...a86cfa`; both gates pass with `0.10` margin. See
+[`r2b_rebaseline_v1_report.md`](r2b_rebaseline_v1_report.md) for the raw evidence,
+hashes, cross-stage context and limitations.
 
 Date: 2026-09-02. This protocol supersedes the legacy R2a/R2b chain as the active
 training path. The legacy files are retained as an audit trail, but their claimed
