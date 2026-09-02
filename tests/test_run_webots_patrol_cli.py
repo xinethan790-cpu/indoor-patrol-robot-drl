@@ -227,6 +227,33 @@ def test_stress_scenario_is_forwarded_to_controller(
     )
 
 
+def test_auto_quit_preserves_rendering_and_exits_after_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_webots_environment(monkeypatch)
+    launches = _capture_launches(monkeypatch)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(RUNNER_PATH),
+            "--run-id",
+            "auto-quit-run",
+            "--output-dir",
+            str(tmp_path / "auto-quit-run"),
+            "--auto-quit",
+        ],
+    )
+
+    assert RUNNER.main() == 0
+
+    command, launch = launches[0]
+    assert launch["env"]["WEBOTS_AUTO_QUIT"] == "1"
+    assert "--batch" not in command
+    assert "--no-rendering" not in command
+
+
 def test_frame_capture_uses_rendered_realtime_batch_mode(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

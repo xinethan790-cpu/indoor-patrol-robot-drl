@@ -10,6 +10,12 @@ from indoor_patrol_rl.relay.outbox import (
     RelayOutboxAcknowledgement,
     RelayOutboxPending,
 )
+from indoor_patrol_rl.relay.process_supervisor import (
+    SUPERVISOR_DRAIN_TIMEOUT_EXIT_CODE,
+    SUPERVISOR_RELAY_FAILURE_EXIT_CODE,
+    PatrolProcessSupervisor,
+    PatrolSupervisorOutcome,
+)
 from indoor_patrol_rl.relay.publisher import (
     DEFAULT_DEVICE_ENVIRONMENT_VARIABLE,
     DEFAULT_DEVICE_ID,
@@ -47,8 +53,12 @@ __all__ = [
     "RELAY_OUTBOX_SCHEMA_VERSION",
     "RELAY_OUTBOX_STATE_FILENAME",
     "SIGNATURE_VERSION",
+    "SUPERVISOR_DRAIN_TIMEOUT_EXIT_CODE",
+    "SUPERVISOR_RELAY_FAILURE_EXIT_CODE",
     "HttpRelayTransport",
     "PatrolRelayPublisher",
+    "PatrolProcessSupervisor",
+    "PatrolSupervisorOutcome",
     "PublishResult",
     "RelayAcknowledgement",
     "RelayBackoff",

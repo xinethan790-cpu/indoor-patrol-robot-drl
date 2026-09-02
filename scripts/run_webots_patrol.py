@@ -62,6 +62,11 @@ def parse_args() -> argparse.Namespace:
         help="Run in batch fast mode, write results, and exit automatically.",
     )
     parser.add_argument(
+        "--auto-quit",
+        action="store_true",
+        help="Exit Webots after the terminal patrol result while keeping normal rendering.",
+    )
+    parser.add_argument(
         "--capture-frames-dir",
         type=Path,
         help=(
@@ -177,7 +182,7 @@ def main() -> int:
         environment["WEBOTS_PATROL_CAPTURE_FRAMES_DIR"] = str(capture_frames_directory)
         environment["WEBOTS_PATROL_CAPTURE_FPS"] = f"{args.capture_fps:g}"
         environment["WEBOTS_AUTO_QUIT"] = "1"
-    elif args.headless:
+    elif args.headless or args.auto_quit:
         environment["WEBOTS_AUTO_QUIT"] = "1"
 
     command = [str(webots), f"--port={args.port}", "--stdout", "--stderr"]
