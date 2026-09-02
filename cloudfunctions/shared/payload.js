@@ -9,6 +9,7 @@ const MAX_STATIC_OBSTACLES = 128;
 const MAX_DYNAMIC_OBSTACLES = 32;
 const MAX_ALARM_EVENTS = 200;
 const DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M = 1e-6;
+const MAP_BOUNDARY_TOLERANCE_M = 1e-6;
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const RUNTIME_ABORT_EVIDENCE_SCOPE = 'runtime_abort_minimal_evidence';
 const RUNTIME_ABORT_REASON_CODE = 'unhandled_controller_exception';
@@ -22,6 +23,12 @@ const TERMINAL_RESULT_OUTCOME_BY_RUN_OUTCOME = new Map([
   ['inspection_failed', 'error'],
   ['error', 'error'],
 ]);
+const ALARM_SEVERITIES = new Set(['info', 'warning', 'critical']);
+const INSPECTION_SENSOR_SPEC = Object.freeze({
+  temperature: Object.freeze({ displayName: '温度', unit: '°C' }),
+  smoke_obscuration: Object.freeze({ displayName: '烟雾遮蔽率', unit: '%/m' }),
+  carbon_monoxide: Object.freeze({ displayName: '一氧化碳浓度', unit: 'ppm' }),
+});
 
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key);
@@ -42,6 +49,15 @@ function unavailableAvoidance() {
   };
 }
 
+function unavailableInspection() {
+  return {
+    available: false,
+    sample_count: null,
+    visit_count: 0,
+    visits: [],
+  };
+}
+
 function isPlainObject(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
@@ -55,6 +71,17 @@ function invalidPayload(message, code) {
 function requireObject(value, label) {
   if (!isPlainObject(value)) invalidPayload(`${label} must be an object`);
   return value;
+}
+
+function requireExactKeys(value, expected, label) {
+  const object = requireObject(value, label);
+  const actual = Object.keys(object).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length
+      || actual.some((key, index) => key !== wanted[index])) {
+    invalidPayload(`${label} contains unsupported or missing fields`);
+  }
+  return object;
 }
 
 function requireFiniteNumber(value, label, minimum) {
@@ -279,13 +306,200 @@ function normalizeDashboardPayload(payload) {
   const missingControlStep = !hasOwn(run, 'control_step');
   const missingDynamicObstacles = !hasOwn(map, 'dynamic_obstacles');
   const missingAvoidance = !hasOwn(root, 'avoidance');
-  if (!missingControlStep && !missingDynamicObstacles && !missingAvoidance) return root;
+  const missingInspection = !hasOwn(root, 'inspection');
+  if (!missingControlStep
+      && !missingDynamicObstacles
+      && !missingAvoidance
+      && !missingInspection) return root;
   return {
     ...root,
     run: missingControlStep ? { ...run, control_step: null } : run,
     map: missingDynamicObstacles ? { ...map, dynamic_obstacles: [] } : map,
     avoidance: missingAvoidance ? unavailableAvoidance() : root.avoidance,
+    inspection: missingInspection ? unavailableInspection() : root.inspection,
   };
+}
+
+function validateInspection(value, context) {
+  const inspection = requireExactKeys(
+    value,
+    ['available', 'sample_count', 'visit_count', 'visits'],
+    'inspection',
+  );
+  const available = requireBoolean(inspection.available, 'inspection.available');
+  if (!available) {
+    if (inspection.sample_count !== null
+        || inspection.visit_count !== 0
+        || !Array.isArray(inspection.visits)
+        || inspection.visits.length !== 0) {
+      invalidPayload('unavailable inspection evidence must use the fixed empty representation');
+    }
+    return inspection;
+  }
+
+  const {
+    alarms,
+    checkpointIds,
+    checkpointSequence,
+    result,
+    run,
+    task,
+  } = context;
+  const ordinaryTerminal = context.ordinaryTerminal === true
+    || (run.terminal === true
+      && result.available === true
+      && result.validated === true
+      && result.incomplete !== true);
+  if (!ordinaryTerminal
+      || result.available !== true
+      || result.validated !== true
+      || result.incomplete === true) {
+    invalidPayload('available inspection evidence requires an ordinary validated terminal run');
+  }
+  const sampleCount = requireIntegerInRange(
+    inspection.sample_count,
+    'inspection.sample_count',
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  const visitCount = requireIntegerInRange(
+    inspection.visit_count,
+    'inspection.visit_count',
+    0,
+    MAX_CHECKPOINTS,
+  );
+  if (!Array.isArray(inspection.visits)
+      || inspection.visits.length !== visitCount) {
+    invalidPayload('inspection.visit_count does not match inspection.visits');
+  }
+  if (visitCount !== task.completed_checkpoint_count) {
+    invalidPayload('inspection visits do not match completed checkpoint progress');
+  }
+  if (result.sample_count !== sampleCount) {
+    invalidPayload('inspection.sample_count does not match result.sample_count');
+  }
+  if (sampleCount < visitCount * Object.keys(INSPECTION_SENSOR_SPEC).length) {
+    invalidPayload('inspection does not contain a complete three-sensor sample per visit');
+  }
+
+  let previousVisitIndex = 0;
+  let previousControlStep = -1;
+  let previousSimulationTime = -1;
+  let alarmEventCount = 0;
+  const visitedCheckpoints = new Set();
+  const sampleIndexes = new Set();
+  let previousVisitSampleEnd = 0;
+  inspection.visits.forEach((rawVisit, index) => {
+    const label = `inspection.visits[${index}]`;
+    const visit = requireExactKeys(rawVisit, [
+      'visit_index',
+      'checkpoint_id',
+      'control_step',
+      'simulation_time_s',
+      'alarm_event_count',
+      'highest_active_severity',
+      'readings',
+    ], label);
+    const visitIndex = requireIntegerInRange(
+      visit.visit_index,
+      `${label}.visit_index`,
+      1,
+      MAX_CHECKPOINTS,
+    );
+    if (visitIndex !== index + 1 || visitIndex <= previousVisitIndex) {
+      invalidPayload('inspection visit_index values must be contiguous from one');
+    }
+    previousVisitIndex = visitIndex;
+    const checkpointId = requireString(
+      visit.checkpoint_id,
+      `${label}.checkpoint_id`,
+      { maxLength: 64 },
+    );
+    if (!checkpointIds.has(checkpointId) || visitedCheckpoints.has(checkpointId)) {
+      invalidPayload('inspection checkpoints must be known and unique');
+    }
+    if (Array.isArray(checkpointSequence) && checkpointId !== checkpointSequence[index]) {
+      invalidPayload('inspection checkpoint order does not match the patrol route');
+    }
+    visitedCheckpoints.add(checkpointId);
+    const controlStep = requireIntegerInRange(
+      visit.control_step,
+      `${label}.control_step`,
+      0,
+      run.control_step,
+    );
+    const simulationTime = requireFiniteNumber(
+      visit.simulation_time_s,
+      `${label}.simulation_time_s`,
+      0,
+    );
+    if (controlStep < previousControlStep
+        || simulationTime < previousSimulationTime
+        || simulationTime > run.simulation_time_s + 1e-9) {
+      invalidPayload('inspection visits must be ordered within the terminal runtime');
+    }
+    previousControlStep = controlStep;
+    previousSimulationTime = simulationTime;
+    alarmEventCount += requireIntegerInRange(
+      visit.alarm_event_count,
+      `${label}.alarm_event_count`,
+      0,
+      MAX_ALARM_EVENTS,
+    );
+    if (visit.highest_active_severity !== null
+        && !ALARM_SEVERITIES.has(visit.highest_active_severity)) {
+      invalidPayload(`${label}.highest_active_severity is invalid`);
+    }
+
+    const readings = requireExactKeys(
+      visit.readings,
+      Object.keys(INSPECTION_SENSOR_SPEC),
+      `${label}.readings`,
+    );
+    const readingIndexes = {};
+    for (const [sensorId, spec] of Object.entries(INSPECTION_SENSOR_SPEC)) {
+      const readingLabel = `${label}.readings.${sensorId}`;
+      const reading = requireExactKeys(
+        readings[sensorId],
+        ['display_name', 'value', 'unit', 'quality', 'sample_index'],
+        readingLabel,
+      );
+      if (reading.display_name !== spec.displayName || reading.unit !== spec.unit) {
+        invalidPayload(`${readingLabel} display metadata is invalid`);
+      }
+      requireFiniteNumber(reading.value, `${readingLabel}.value`);
+      if (reading.quality !== 'ok') invalidPayload(`${readingLabel}.quality is invalid`);
+      const sampleIndex = requireIntegerInRange(
+        reading.sample_index,
+        `${readingLabel}.sample_index`,
+        1,
+        sampleCount,
+      );
+      if (sampleIndexes.has(sampleIndex)) {
+        invalidPayload('inspection reading sample_index values must be unique');
+      }
+      sampleIndexes.add(sampleIndex);
+      readingIndexes[sensorId] = sampleIndex;
+    }
+    const temperatureIndex = readingIndexes.temperature;
+    const smokeIndex = readingIndexes.smoke_obscuration;
+    const carbonMonoxideIndex = readingIndexes.carbon_monoxide;
+    if (smokeIndex !== temperatureIndex + 1
+        || carbonMonoxideIndex !== smokeIndex + 1
+        || carbonMonoxideIndex % 3 !== 0
+        || carbonMonoxideIndex - previousVisitSampleEnd < 3
+        || (carbonMonoxideIndex - previousVisitSampleEnd) % 3 !== 0) {
+      invalidPayload('inspection latest-reading indexes do not match the sensor sampling order');
+    }
+    previousVisitSampleEnd = carbonMonoxideIndex;
+  });
+  if (previousVisitSampleEnd !== sampleCount) {
+    invalidPayload('inspection sample_count does not end at the final visit reading');
+  }
+  if (alarmEventCount !== alarms.history_count) {
+    invalidPayload('inspection alarm-event total does not match alarms.history_count');
+  }
+  return inspection;
 }
 
 function validateAlarmEvent(event, label) {
@@ -642,6 +856,14 @@ function validateDashboardPayload(payload) {
       invalidPayload('runtime abort elapsed time does not match the terminal run');
     }
   }
+  validateInspection(root.inspection, {
+    alarms,
+    checkpointIds,
+    checkpointSequence: map.checkpoints.map((checkpoint) => checkpoint.id),
+    result,
+    run,
+    task,
+  });
   return root;
 }
 
@@ -665,9 +887,12 @@ module.exports = {
   RUN_ID_PATTERN,
   RUNTIME_ABORT_EVIDENCE_SCOPE,
   RUNTIME_ABORT_REASON_CODE,
+  INSPECTION_SENSOR_SPEC,
   isPlainObject,
   normalizeDashboardPayload,
   parseDashboardBody,
   unavailableAvoidance,
+  unavailableInspection,
+  validateInspection,
   validateDashboardPayload,
 };

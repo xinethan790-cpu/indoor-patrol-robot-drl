@@ -36,6 +36,7 @@ function runDocument(overrides) {
     incomplete: false,
     result_outcome: terminal ? 'completed' : null,
     result_validated: terminal,
+    report_available: false,
     latest_body_sha256: 'a'.repeat(64),
     terminal_payload: { nonce: 'private', secret: 'private' },
     relay_nonce: 'private',
@@ -213,6 +214,7 @@ test('public history projection distinguishes active, completed, aborted, and in
       'latest_sequence',
       'outcome',
       'progress_percent',
+      'report_available',
       'result_outcome',
       'result_validated',
       'run_id',
@@ -221,6 +223,23 @@ test('public history projection distinguishes active, completed, aborted, and in
       'terminal',
     ]);
   }
+});
+
+test('history advertises a stored report only for a validated ordinary terminal run', () => {
+  const report = publicHistoryItem(runDocument({
+    report_available: true,
+  }), DEVICE_ID, BASE_MS + 20_000);
+  assert.equal(report.report_available, true);
+
+  assert.throws(
+    () => publicHistoryItem(runDocument({
+      terminal: false,
+      result_outcome: null,
+      result_validated: false,
+      report_available: true,
+    }), DEVICE_ID, BASE_MS + 20_000),
+    /only a validated ordinary terminal run can expose a report/,
+  );
 });
 
 test('a real legacy runtime-abort archive stays visible as an unknown terminal without reading its payload', () => {
@@ -276,6 +295,27 @@ test('history storage failures return one fixed safe error without internal deta
     repository: {
       async getPatrolHistoryPage() {
         throw new Error('database password and collection internals');
+      },
+    },
+  });
+
+  assert.deepEqual(await handler({ page_size: 10, cursor: null }), {
+    ok: false,
+    error: 'HISTORY_UNAVAILABLE',
+    message: 'Patrol history is temporarily unavailable',
+  });
+});
+
+test('a malformed history storage envelope is not presented as an empty history page', async () => {
+  const handler = createHistoryHandler({
+    env: {
+      PATROL_RELAY_DEVICE_ID: DEVICE_ID,
+      PATROL_RELAY_UPLOAD_SECRET: TEST_SECRET,
+    },
+    getWxContext: () => ({ OPENID: 'wx-openid' }),
+    repository: {
+      async getPatrolHistoryPage() {
+        return { documents: { unexpected: 'object' }, hasMore: false, nextOffset: 0 };
       },
     },
   });

@@ -10,6 +10,7 @@
 Webots → Mac relay → HTTPS/HMAC → ingestPatrol
        → patrol_live/main → 小程序 watch
        → patrol_runs      → getPatrolHistory → 小程序历史页
+                          └→ getPatrolReport  → 完整巡检报告
 timer → cleanupPatrolNonces → 分批删除过期 nonce
 ```
 
@@ -19,9 +20,11 @@ timer → cleanupPatrolNonces → 分批删除过期 nonce
   快照，并返回服务端计算的陈旧状态。
 - `getPatrolHistory`：登录用户调用的只读分页接口；固定按已配置设备读取轻量任务摘要，
   不返回原始请求体、nonce、请求哈希、上传密钥或终态负载。
+- `getPatrolReport`：登录用户按严格 `run_id` 读取固定设备的完整巡检报告。仅普通已验证终态且
+  具备完整点位档案的新记录可读；活动任务、异常中止和旧记录统一返回脱敏的不可用错误。
 - `cleanupPatrolNonces`：仅由云端每分钟定时器触发的维护函数；每次最多删除 100 条过期 nonce，
   可安全重复执行，客户端不可调用。
-- `shared/`：四个函数共用的协议、鉴权、状态机、数据库事务和清理实现。
+- `shared/`：五个函数共用的协议、鉴权、状态机、数据库事务和清理实现。
 - `.dist/`：`npm run build` 生成的 CloudBase CLI 自包含部署目录，不纳入 Git。
 - `../wechat-miniprogram/cloudfunctions/`：同一次构建生成的微信开发者工具部署镜像，也不纳入 Git。
 
@@ -73,6 +76,12 @@ relay 使用相同规则，并且错误和预检输出都不会包含密钥本�
 `completed + success` 或 `failed + 明确失败结果`，并同时具有匹配的验证范围、巡检点计数和
 由计数推导出的进度比例。受控的运行时异常中止仍使用独立的最小证据分支。任何相互矛盾的
 状态都会在写入终态锁之前失败关闭。
+
+`patrol-dashboard/v1` 的可选 `inspection` 字段在云端会严格校验。旧 v1 缺少该字段时只会
+归一化为 `available: false, sample_count: null, visit_count: 0, visits: []`，不会伪造点位读数，
+也不会生成可点击的完整报告。新终态会把已验证负载投影为独立
+`patrol-report/v1`：仅包含来源说明、安全运行身份、任务与结果公开指标、点位读数、
+正序告警历史和最终地图/轨迹。接口不从 `terminal_payload` 临时透传数据。
 
 ## 云数据库
 
@@ -145,7 +154,7 @@ npm run verify:bundles
 
 这会同时生成 CLI 用的 `.dist/` 和微信开发者工具可见的
 `../wechat-miniprogram/cloudfunctions/`。构建不读取也不写入真实密钥。重新构建后，在微信
-开发者工具中关闭并重新打开项目，左侧才会刷新出带云朵标记的四个函数目录。四个函数的
+开发者工具中关闭并重新打开项目，左侧才会刷新出带云朵标记的五个函数目录。五个函数的
 `package.json` 和 `package-lock.json` 都把 `wx-server-sdk` 精确锁定为 `3.0.1`，
 `npm run verify:bundles` 会同时核验这一点。
 
@@ -209,7 +218,7 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
 
 1. 先完成上面的构建，再重新打开 `wechat-miniprogram` 项目并选择环境
    `cloud1-5gpkygv2be4de05a`。
-2. 依次右键 `ingestPatrol`、`getPatrolSnapshot`、`getPatrolHistory`、
+2. 依次右键 `ingestPatrol`、`getPatrolSnapshot`、`getPatrolHistory`、`getPatrolReport`、
    `cleanupPatrolNonces`，选择“上传并部署：云端安装依赖”。
 3. 开发者工具只上传函数代码，不会读取 [cloudbaserc.json](cloudbaserc.json)，因此函数
    内存、超时和环境变量仍需在云开发控制台核对。
@@ -222,13 +231,14 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
 
 ### 旧版 `patrol-dashboard/v1` 的滚动部署顺序
 
-协议版本号保持不变，但新遥测增加了 `run.control_step`、`map.dynamic_obstacles` 和
-`avoidance`。为避免三端短暂错配，按以下顺序滚动：
+协议版本号保持不变，但新遥测增加了 `run.control_step`、`map.dynamic_obstacles`、
+`avoidance` 和 `inspection`。为避免三端短暂错配，按以下顺序滚动：
 
-1. 先部署新 `ingestPatrol`、`getPatrolSnapshot` 和 `getPatrolHistory`；前两个会把旧
+1. 先部署新 `ingestPatrol`、`getPatrolSnapshot`、`getPatrolHistory` 和 `getPatrolReport`；前两个会把旧
    relay/outbox 缺少的三个字段规范化为 `control_step: null`、空动态障碍数组和明确的
    “避障证据不可用”对象。历史接口会把尚无轻量摘要字段的既有终态记录标为“旧版终态”，
-   不读取 `terminal_payload` 猜测类型，也不会把它误标为正常完成。
+   不读取 `terminal_payload` 猜测类型，也不会把它误标为正常完成。旧记录没有完整点位档案，
+   因此 `report_available` 为 `false`。
 2. 再发布新版小程序；新版能读取尚未更新的旧云快照，并以相同不可用默认值展示。
 3. 最后更新并启动 Python/Webots 生产端，使它开始上报完整的新字段。已有旧 outbox 可以继续
    原样重试，HMAC 与请求体哈希仍按原始字节验证，不能为补字段而改写待重试请求体。
@@ -244,13 +254,13 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
    并逐一应用 `database/rules/` 中的规则。
 2. 给 `ingestPatrol` 设置 `PATROL_CLOUDBASE_ENV_ID`、`PATROL_RELAY_DEVICE_ID`、
    `PATROL_RELAY_UPLOAD_SECRET`；给 `getPatrolHistory` 设置相同的三个变量，其中密钥只用于
-   域隔离的 HMAC 分页游标签名；给 `getPatrolSnapshot` 设置前两个变量。真实密钥不得粘贴到
+   域隔离的 HMAC 分页游标签名；给 `getPatrolSnapshot` 和 `getPatrolReport` 设置前两个变量。真实密钥不得粘贴到
    源码、示例配置、命令参数或日志。给 `cleanupPatrolNonces` 只设置
    `PATROL_CLOUDBASE_ENV_ID`。设置前先通过 `npm run preflight:secret`，设置后确认云端变量
    既不是空值，也不是花括号模板文本；缺少密钥时两个需要密钥的函数都必须失败关闭。密钥
    轮换后，旧分页游标会失效；在历史页下拉刷新即可从第一页重新读取。
 3. 在云函数“权限控制”应用 [function.rules.json](function.rules.json)：客户端不能直接调用
-   `ingestPatrol` 和 `cleanupPatrolNonces`，`getPatrolSnapshot` 与 `getPatrolHistory` 只允许
+   `ingestPatrol` 和 `cleanupPatrolNonces`，`getPatrolSnapshot`、`getPatrolHistory` 与 `getPatrolReport` 只允许
    具备微信身份的调用。
 4. 在“环境配置 → HTTP 访问服务”把专用 HTTPS 路径（建议
    `/api/patrol/ingest`）路由到普通事件函数 `ingestPatrol`。只允许 `POST`，单 IP 限频不高于
@@ -259,7 +269,7 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
 5. 核对 `cleanupPatrolNonces` 的每分钟定时触发器为七段 cron `0 * * * * * *`。不要为它创建
    HTTP 路由，也不要授予小程序调用权限；管理员需要补清积压时可在云函数控制台手工触发。
    同时确认约 1,440 次调用/天的预计用量在预算内，并启用调用量与账单告警。
-6. 不要为 `getPatrolSnapshot` 或 `getPatrolHistory` 创建公网 HTTP 路由；实时订阅断开时，
+6. 不要为 `getPatrolSnapshot`、`getPatrolHistory` 或 `getPatrolReport` 创建公网 HTTP 路由；实时订阅断开时，
    小程序通过前者只读轮询，历史页通过后者读取固定设备的分页摘要。
 7. 先上传一条非终态和一条终态测试快照，确认 `patrol_live/main`、`patrol_runs` 和小程序
    陈旧提示正确；确认历史页能区分正在巡检、失联中断、异常中止、正常完成、未验证的任务
@@ -267,7 +277,7 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
 
 ## 部署后验证清单
 
-- 四个函数均使用 Node.js 18，云端安装依赖成功；构建前本地已通过 `npm test`、
+- 五个函数均使用 Node.js 18，云端安装依赖成功；构建前本地已通过 `npm test`、
   `npm run build`、`npm run verify:bundles` 和真实候选密钥的 `npm run preflight:secret`。
 - `cloudbaserc.json` 不含上传密钥或密钥占位符；云函数控制台中的真实密钥通过本地预检，
   删除该变量后 `ingestPatrol` 会失败关闭，重新设置后合法 HMAC 请求才恢复成功。
@@ -284,6 +294,9 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
   不会改变历史排序，新增任务造成的跨页重复由客户端按 `run_id` 去重；上报期间可下拉刷新
   重建最新顺序。响应中没有 `terminal_payload`、
   `body_sha256`、nonce、签名或密钥字段。
+- `getPatrolReport` 只接受一个 `run_id`，且返回 `patrol-report-response/v1`；活动任务、旧记录、
+  异常中止或篡改的存储报告均返回同一脱敏错误。响应中没有 `terminal_payload`、
+  上传 body 哈希、nonce、签名或密钥。
 
 `.env.example` 只展示变量名称。真实 `.env`、构建产物和 `node_modules` 已被忽略。
 

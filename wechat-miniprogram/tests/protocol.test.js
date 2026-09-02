@@ -60,6 +60,7 @@ test('new mini protocol normalizes a legacy patrol-dashboard/v1 payload', () => 
   delete legacy.run.control_step;
   delete legacy.map.dynamic_obstacles;
   delete legacy.avoidance;
+  delete legacy.inspection;
 
   const normalized = validateDashboardPayload(legacy);
 
@@ -67,7 +68,60 @@ test('new mini protocol normalizes a legacy patrol-dashboard/v1 payload', () => 
   assert.equal(normalized.run.control_step, null);
   assert.deepEqual(normalized.map.dynamic_obstacles, []);
   assert.equal(normalized.avoidance.available, false);
+  assert.deepEqual(normalized.inspection, {
+    available: false,
+    sample_count: null,
+    visit_count: 0,
+    visits: [],
+  });
   assert.equal(Object.hasOwn(legacy, 'avoidance'), false);
+});
+
+test('terminal dashboard exposes ordered, exact and cross-checked point sampling evidence', () => {
+  const terminal = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  const validated = validateDashboardPayload(terminal);
+
+  assert.equal(validated.inspection.available, true);
+  assert.equal(validated.inspection.sample_count, 36);
+  assert.equal(validated.inspection.visit_count, 4);
+  assert.deepEqual(
+    validated.inspection.visits.map((visit) => ({
+      checkpoint: visit.checkpoint_id,
+      alarms: visit.alarm_event_count,
+      severity: visit.highest_active_severity,
+    })),
+    [
+      { checkpoint: 'P1', alarms: 0, severity: null },
+      { checkpoint: 'P2', alarms: 1, severity: 'warning' },
+      { checkpoint: 'P3', alarms: 3, severity: 'critical' },
+      { checkpoint: 'P4', alarms: 2, severity: null },
+    ],
+  );
+
+  const mutations = [
+    (payload) => { payload.inspection.sample_count = 0; },
+    (payload) => { payload.inspection.visits[1].control_step = 1; },
+    (payload) => { payload.inspection.visits[0].alarm_event_count = 1; },
+    (payload) => { payload.inspection.visits[0].readings.temperature.unit = 'K'; },
+    (payload) => { payload.inspection.visits[0].readings.temperature.quality = 'estimated'; },
+    (payload) => { payload.inspection.visits[0].readings.secret = { value: 1 }; },
+    (payload) => {
+      const readings = payload.inspection.visits[1].readings;
+      [readings.temperature.sample_index, readings.smoke_obscuration.sample_index] = [
+        readings.smoke_obscuration.sample_index,
+        readings.temperature.sample_index,
+      ];
+    },
+    (payload) => {
+      payload.inspection.sample_count += 1;
+      payload.result.sample_count += 1;
+    },
+  ];
+  mutations.forEach((mutate) => {
+    const payload = structuredClone(terminal);
+    mutate(payload);
+    assert.throws(() => validateDashboardPayload(payload), PayloadProtocolError);
+  });
 });
 
 test('dashboard validator deeply rejects malformed remote map, sensor and alarm content', () => {
@@ -159,6 +213,12 @@ test('mini protocol accepts only an explicitly incomplete and redacted runtime a
     collision_count: 0,
     sample_count: 36,
     elapsed_simulation_time_s: accepted.run.simulation_time_s,
+  };
+  accepted.inspection = {
+    available: false,
+    sample_count: null,
+    visit_count: 0,
+    visits: [],
   };
   assert.equal(validateDashboardPayload(accepted), accepted);
 

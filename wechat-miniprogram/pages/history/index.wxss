@@ -50,6 +50,43 @@
   text-align: center;
 }
 
+.history-source {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+  margin: -2rpx 4rpx 20rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 18rpx;
+  background: #eaf4fc;
+}
+
+.history-source__dot {
+  width: 13rpx;
+  height: 13rpx;
+  margin-top: 9rpx;
+  border-radius: 50%;
+  background: #0a8bd8;
+  box-shadow: 0 0 0 7rpx rgba(10, 139, 216, 0.1);
+}
+
+.history-source__label,
+.history-source__description {
+  display: block;
+}
+
+.history-source__label {
+  color: #27506d;
+  font-size: 22rpx;
+  font-weight: 680;
+}
+
+.history-source__description {
+  margin-top: 3rpx;
+  color: #71899b;
+  font-size: 19rpx;
+  line-height: 1.5;
+}
+
 .history-hero__number {
   font-size: 39rpx;
   font-weight: 750;
@@ -127,6 +164,15 @@
   border-radius: 26rpx;
   background: #ffffff;
   box-shadow: 0 8rpx 28rpx rgba(19, 55, 91, 0.05);
+}
+
+.history-card--actionable {
+  border-color: rgba(8, 120, 249, 0.16);
+}
+
+.history-card--pressed {
+  opacity: 0.82;
+  transform: scale(0.992);
 }
 
 .history-card__top,
@@ -271,6 +317,32 @@
 .history-card__metric-value,
 .history-card__metric-label {
   display: block;
+}
+
+.history-card__report-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 16rpx;
+  background: #eaf4ff;
+  color: #0878f9;
+  font-size: 22rpx;
+  font-weight: 650;
+}
+
+.history-card__report-arrow {
+  font-size: 34rpx;
+  line-height: 1;
+}
+
+.history-card__report-unavailable {
+  display: block;
+  margin-top: 17rpx;
+  color: #98a5b1;
+  font-size: 19rpx;
+  text-align: center;
 }
 
 .history-card__metric-value {

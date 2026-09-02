@@ -20,8 +20,17 @@ function validPayload(overrides) {
       ? {
         mode: 'terminal',
         terminal_validation: 'inspection_bundle_and_runtime_consistency',
+        map_source_file: 'patrol_route.yaml',
+        map_qualification: 'demonstration_only',
+        map_boundary_note: '仅用于仿真演示，不代表真实场地边界。',
       }
-      : { mode: 'live' },
+      : {
+        mode: 'live',
+        terminal_validation: null,
+        map_source_file: 'patrol_route.yaml',
+        map_qualification: 'demonstration_only',
+        map_boundary_note: '仅用于仿真演示，不代表真实场地边界。',
+      },
     run: {
       run_id: changes.runId || 'test-run-001',
       sequence: changes.sequence ?? 0,
@@ -30,21 +39,39 @@ function validPayload(overrides) {
       simulation_time_s: changes.simulationTime ?? 0,
       state: terminal ? 'completed' : 'navigating',
       outcome: terminal ? 'success' : 'running',
+      seed: 7000,
+      runtime_identity: {
+        model_id: 'artifacts/models/test-policy.zip',
+        model_sha256: 'a'.repeat(64),
+        safety_shield_enabled: true,
+        safety_shield_id: 'test-shield-v1',
+        safety_shield_sha256: 'b'.repeat(64),
+      },
     },
     map: {
       origin: { x_m: -2.25, y_m: -1.75 },
       size: { width_m: 4.5, height_m: 3.5 },
+      resolution_m: 0.1,
+      robot_start: { x_m: -1.6, y_m: 0 },
       robot: { x_m: -1.6, y_m: 0 },
       local_goal: terminal ? null : { x_m: 1.6, y_m: 0 },
       checkpoints: [{
         id: 'P1',
+        ordinal: 1,
         position: { x_m: 1.6, y_m: 0 },
         status: terminal ? 'completed' : 'current',
       }],
       static_obstacles: [],
       dynamic_obstacles: [],
-      trajectory: [],
-      trajectory_point_count: 0,
+      trajectory: terminal ? [{
+        sequence: changes.sequence ?? 0,
+        simulation_time_s: changes.simulationTime ?? 0,
+        x_m: -1.6,
+        y_m: 0,
+      }] : [],
+      trajectory_point_count: terminal ? 1 : 0,
+      trajectory_source_point_count: terminal ? 1 : 0,
+      trajectory_truncated: false,
     },
     task: {
       current_checkpoint_id: terminal ? null : 'P1',
@@ -69,6 +96,12 @@ function validPayload(overrides) {
       history_truncated: false,
       history: [],
     },
+    inspection: {
+      available: false,
+      sample_count: null,
+      visit_count: 0,
+      visits: [],
+    },
     avoidance: {
       available: false,
       measured_control_step: null,
@@ -92,7 +125,25 @@ function validPayload(overrides) {
         checkpoints_visited: 1,
         checkpoints_total: 1,
         collision_count: 0,
+        elapsed_simulation_time_s: changes.simulationTime ?? 0,
+        actual_path_length_m: 0,
+        minimum_clearance_m: 0.2,
+        minimum_lidar_range_m: 0.3,
+        critical_proximity_count: 0,
+        safety_shield_intervention_steps: 0,
+        safety_shield_intervention_rate: 0,
+        ttc_escape_guard_intervention_steps: 0,
+        ttc_escape_guard_activation_count: 0,
+        ttc_escape_guard_recovery_count: 0,
+        ttc_escape_guard_unrecoverable_count: 0,
+        inference_latency_p50_ms: 0.3,
+        inference_latency_p95_ms: 0.5,
+        dynamic_obstacle_count: 0,
+        dynamic_obstacle_speed_max_mps: 0,
         sample_count: 3,
+        alarms_raised: 0,
+        alarms_cleared: 0,
+        highest_event_severity: null,
       }
       : {
         available: false,
@@ -142,6 +193,47 @@ function validRuntimeAbortPayload(overrides) {
   return payload;
 }
 
+function validReportPayload(overrides) {
+  const payload = validPayload({ terminal: true, ...(overrides || {}) });
+  payload.inspection = {
+    available: true,
+    sample_count: 3,
+    visit_count: 1,
+    visits: [{
+      visit_index: 1,
+      checkpoint_id: 'P1',
+      control_step: payload.run.control_step,
+      simulation_time_s: payload.run.simulation_time_s,
+      alarm_event_count: 0,
+      highest_active_severity: null,
+      readings: {
+        temperature: {
+          display_name: '温度',
+          value: 24.9,
+          unit: '°C',
+          quality: 'ok',
+          sample_index: 1,
+        },
+        smoke_obscuration: {
+          display_name: '烟雾遮蔽率',
+          value: 0.03,
+          unit: '%/m',
+          quality: 'ok',
+          sample_index: 2,
+        },
+        carbon_monoxide: {
+          display_name: '一氧化碳浓度',
+          value: 3,
+          unit: 'ppm',
+          quality: 'ok',
+          sample_index: 3,
+        },
+      },
+    }],
+  };
+  return payload;
+}
+
 function signedEvent(payload, options) {
   const config = options || {};
   const rawBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
@@ -182,5 +274,6 @@ module.exports = {
   signedEvent,
   testEnv,
   validPayload,
+  validReportPayload,
   validRuntimeAbortPayload,
 };

@@ -3,6 +3,7 @@
 const {
   DASHBOARD_SCHEMA_VERSION,
   createPayloadGate,
+  unavailableInspection,
   validateFixture,
 } = require('./protocol');
 
@@ -68,6 +69,45 @@ function alarmProjection(fixture, frame) {
   };
 }
 
+function inspectionProjection(fixture, terminal) {
+  if (!terminal) return unavailableInspection();
+  const activeByRule = new Map();
+  const visits = fixture.sensor_timeline.map((visit) => {
+    const visitEvents = fixture.alarm_timeline.filter(
+      (event) => event.visit_index === visit.visit_index,
+    );
+    visitEvents.forEach((event) => {
+      if (event.event_type === 'raised') activeByRule.set(event.rule_id, event);
+      else activeByRule.delete(event.rule_id);
+    });
+    const activeSeverities = [...activeByRule.values()].map((event) => event.severity);
+    const highestActiveSeverity = activeSeverities.includes('critical')
+      ? 'critical'
+      : (activeSeverities.includes('warning') ? 'warning' : null);
+    const startFrame = fixture.frames.find((frame) => (
+      frame.control_step === visit.control_step
+      && frame.state === 'dwelling'
+      && frame.task.current_checkpoint_id === visit.checkpoint_id
+    ));
+    if (!startFrame) throw new Error(`离线演示缺少 ${visit.checkpoint_id} 的采样窗口起点`);
+    return {
+      visit_index: visit.visit_index,
+      checkpoint_id: visit.checkpoint_id,
+      control_step: visit.control_step,
+      simulation_time_s: startFrame.simulation_time_s,
+      alarm_event_count: visitEvents.length,
+      highest_active_severity: highestActiveSeverity,
+      readings: cloneObject(visit.readings),
+    };
+  });
+  return {
+    available: true,
+    sample_count: fixture.result.sample_count,
+    visit_count: visits.length,
+    visits,
+  };
+}
+
 function buildDashboardPayloadFromValidatedFixture(fixture, frameIndex) {
   if (!Number.isSafeInteger(frameIndex) || frameIndex < 0 || frameIndex >= fixture.frames.length) {
     throw new RangeError('frameIndex 超出离线回放范围');
@@ -120,6 +160,7 @@ function buildDashboardPayloadFromValidatedFixture(fixture, frameIndex) {
     map,
     task,
     sensors: sensorProjection(frame.readings),
+    inspection: inspectionProjection(fixture, frame.terminal),
     alarms: alarmProjection(fixture, frame),
     avoidance: cloneObject(frame.avoidance),
     result: frame.terminal
@@ -370,4 +411,5 @@ module.exports = {
   buildDashboardPayload,
   createOfflineReplay,
   identifyReplayKeyEvents,
+  inspectionProjection,
 };

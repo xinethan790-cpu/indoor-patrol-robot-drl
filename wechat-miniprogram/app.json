@@ -2,6 +2,7 @@
   "pages": [
     "pages/dashboard/index",
     "pages/history/index",
+    "pages/report/index",
     "pages/alarms/index",
     "pages/result/index",
     "pages/about/index"

@@ -9,6 +9,7 @@ const sourceRoot = path.resolve(__dirname, '..');
 const ingest = require(path.join(root, 'ingestPatrol'));
 const snapshot = require(path.join(root, 'getPatrolSnapshot'));
 const history = require(path.join(root, 'getPatrolHistory'));
+const report = require(path.join(root, 'getPatrolReport'));
 const cleanup = require(path.join(root, 'cleanupPatrolNonces'));
 
 assert.equal(typeof ingest.main, 'function');
@@ -17,6 +18,8 @@ assert.equal(typeof snapshot.main, 'function');
 assert.equal(typeof snapshot.createSnapshotHandler, 'function');
 assert.equal(typeof history.main, 'function');
 assert.equal(typeof history.createHistoryHandler, 'function');
+assert.equal(typeof report.main, 'function');
+assert.equal(typeof report.createReportHandler, 'function');
 assert.equal(typeof cleanup.main, 'function');
 assert.equal(typeof cleanup.createCleanupHandler, 'function');
 assert.equal(cleanup.DELETE_BATCH_LIMIT, 100);
@@ -25,6 +28,7 @@ for (const functionName of [
   'ingestPatrol',
   'getPatrolSnapshot',
   'getPatrolHistory',
+  'getPatrolReport',
   'cleanupPatrolNonces',
 ]) {
   const directory = path.join(root, functionName);
@@ -44,6 +48,9 @@ const cleanupConfig = cloudbaseConfig.functions.find(
 const historyConfig = cloudbaseConfig.functions.find(
   (definition) => definition.name === 'getPatrolHistory',
 );
+const reportConfig = cloudbaseConfig.functions.find(
+  (definition) => definition.name === 'getPatrolReport',
+);
 const ingestConfig = cloudbaseConfig.functions.find(
   (definition) => definition.name === 'ingestPatrol',
 );
@@ -55,10 +62,17 @@ assert.equal(
 );
 assert.ok(cleanupConfig, 'cleanupPatrolNonces must be present in cloudbaserc.json');
 assert.ok(historyConfig, 'getPatrolHistory must be present in cloudbaserc.json');
+assert.ok(reportConfig, 'getPatrolReport must be present in cloudbaserc.json');
 assert.deepEqual(historyConfig.triggers, []);
+assert.deepEqual(reportConfig.triggers, []);
 assert.equal(historyConfig.envVariables.PATROL_RELAY_DEVICE_ID, 'macmini-m4');
+assert.equal(reportConfig.envVariables.PATROL_RELAY_DEVICE_ID, 'macmini-m4');
 assert.equal(
   Object.hasOwn(historyConfig.envVariables || {}, 'PATROL_RELAY_UPLOAD_SECRET'),
+  false,
+);
+assert.equal(
+  Object.hasOwn(reportConfig.envVariables || {}, 'PATROL_RELAY_UPLOAD_SECRET'),
   false,
 );
 assert.deepEqual(cleanupConfig.triggers, [{
@@ -73,6 +87,10 @@ const functionRules = JSON.parse(
 assert.equal(functionRules.cleanupPatrolNonces.invoke, false);
 assert.equal(
   functionRules.getPatrolHistory.invoke,
+  "auth.loginType != 'ANONYMOUS' && auth != null",
+);
+assert.equal(
+  functionRules.getPatrolReport.invoke,
   "auth.loginType != 'ANONYMOUS' && auth != null",
 );
 

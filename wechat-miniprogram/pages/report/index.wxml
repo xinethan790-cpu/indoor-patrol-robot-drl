@@ -1,0 +1,168 @@
+<view class="page-shell report-page">
+  <view wx:if="{{loading}}" class="section-card report-state">
+    <view class="report-state__spinner"></view>
+    <text class="report-state__title">正在核验完整巡检报告</text>
+    <text class="report-state__text">报告通过协议、运行编号和证据一致性校验后才会显示</text>
+  </view>
+
+  <view wx:elif="{{errorMessage}}" class="section-card report-state">
+    <view class="report-state__icon">!</view>
+    <text class="report-state__title">完整报告暂时无法显示</text>
+    <text class="report-state__text">{{errorMessage}}</text>
+    <button class="secondary-button report-state__button" bindtap="retry">重新读取</button>
+  </view>
+
+  <block wx:elif="{{ready}}">
+    <view class="report-hero report-hero--{{resultTone}}">
+      <view class="report-hero__icon">{{resultIcon}}</view>
+      <text class="report-hero__eyebrow">VERIFIED PATROL REPORT</text>
+      <text class="report-hero__title">{{resultTitle}}</text>
+      <text class="report-hero__summary">{{resultSummary}}</text>
+      <view class="report-hero__identity">{{validationLabel}}</view>
+    </view>
+
+    <view class="report-source">
+      <view class="report-source__badge">只读</view>
+      <view class="report-source__body">
+        <text class="report-source__title">{{sourceLabel}}</text>
+        <text class="report-source__note">{{sourceNote}}</text>
+      </view>
+      <text class="report-source__sequence">{{sequenceText}}</text>
+    </view>
+
+    <view class="section-card">
+      <view class="section-heading">
+        <text class="section-title">核心指标</text>
+        <text class="section-caption">终态结果</text>
+      </view>
+      <view class="metric-grid">
+        <view wx:for="{{coreMetrics}}" wx:key="label" class="metric-card metric-card--{{item.tone}}">
+          <text class="metric-card__label">{{item.label}}</text>
+          <text class="metric-card__value">{{item.value}}</text>
+          <text class="metric-card__hint">{{item.hint}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card">
+      <view class="section-heading">
+        <text class="section-title">避障与实时性</text>
+        <text class="tag tag--success">DRL + SAFETY</text>
+      </view>
+      <view class="metric-grid">
+        <view wx:for="{{avoidanceMetrics}}" wx:key="label" class="metric-card metric-card--{{item.tone}}">
+          <text class="metric-card__label">{{item.label}}</text>
+          <text class="metric-card__value">{{item.value}}</text>
+          <text class="metric-card__hint">{{item.hint}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card">
+      <view class="section-heading">
+        <text class="section-title">最终轨迹</text>
+        <text class="tag tag--success">FINAL</text>
+      </view>
+      <patrol-map map="{{dashboardMap}}" compact="{{true}}"></patrol-map>
+      <text class="report-map-note">{{trajectoryNote}}</text>
+    </view>
+
+    <view class="section-card">
+      <view class="section-heading">
+        <text class="section-title">点位采样</text>
+        <text class="section-caption">{{sampleSummary}}</text>
+      </view>
+      <view wx:if="{{!hasVisits}}" class="empty-state">任务在到达首个巡检点前结束，本次没有点位采样。</view>
+      <view wx:else class="visit-list">
+        <view wx:for="{{visits}}" wx:key="checkpointId" class="visit-card">
+          <view class="visit-card__top">
+            <view class="visit-card__checkpoint">
+              <text class="visit-card__ordinal">{{item.visitIndex}}</text>
+              <view>
+                <text class="visit-card__title">巡检点 {{item.checkpointId}}</text>
+                <text class="visit-card__time">{{item.timeText}} · {{item.stepText}}</text>
+              </view>
+            </view>
+            <text class="visit-card__severity visit-card__severity--{{item.severityTone}}">{{item.severityLabel}}</text>
+          </view>
+          <view class="visit-readings">
+            <view wx:for="{{item.readings}}" wx:for-item="reading" wx:key="key" class="visit-reading">
+              <text class="visit-reading__label">{{reading.label}}</text>
+              <view class="visit-reading__number">
+                <text class="visit-reading__value">{{reading.value}}</text>
+                <text class="visit-reading__unit">{{reading.unit}}</text>
+              </view>
+              <text class="visit-reading__sample">{{reading.sampleText}}</text>
+            </view>
+          </view>
+          <text class="visit-card__alarm">本点位：{{item.alarmText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card">
+      <view class="section-heading">
+        <text class="section-title">告警时间线</text>
+        <text class="section-caption">{{alarmSummary}}</text>
+      </view>
+      <view wx:if="{{alarms.length === 0}}" class="empty-state">本次巡检没有环境告警</view>
+      <view wx:else class="alarm-timeline">
+        <view wx:for="{{alarms}}" wx:key="eventIndex" class="alarm-event alarm-event--{{item.tone}}">
+          <view class="alarm-event__rail">
+            <view class="alarm-event__dot"></view>
+            <view class="alarm-event__line"></view>
+          </view>
+          <view class="alarm-event__body">
+            <view class="alarm-event__top">
+              <text class="alarm-event__action">{{item.actionLabel}} · {{item.sensorLabel}}</text>
+              <text class="alarm-event__time">{{item.timeText}}</text>
+            </view>
+            <text class="alarm-event__location">{{item.checkpointText}} · {{item.severityLabel}}</text>
+            <text class="alarm-event__value">观测 {{item.valueText}} · {{item.thresholdText}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card identity-card">
+      <view class="section-heading">
+        <text class="section-title">运行身份</text>
+        <text class="section-caption">可审计组件</text>
+      </view>
+      <view class="identity-row">
+        <text class="identity-row__label">运行编号</text>
+        <text class="identity-row__value" user-select="true">{{runId}}</text>
+      </view>
+      <view class="identity-row">
+        <text class="identity-row__label">随机种子</text>
+        <text class="identity-row__value">{{seed}}</text>
+      </view>
+      <view class="identity-row">
+        <text class="identity-row__label">策略模型</text>
+        <text class="identity-row__value identity-row__value--hash" user-select="true">{{modelHash}}</text>
+      </view>
+      <view class="identity-row">
+        <text class="identity-row__label">模型路径</text>
+        <text class="identity-row__value identity-row__value--small">{{modelId}}</text>
+      </view>
+      <view class="identity-row">
+        <text class="identity-row__label">安全组件</text>
+        <text class="identity-row__value">{{shieldId}}</text>
+      </view>
+      <view class="identity-row">
+        <text class="identity-row__label">校验范围</text>
+        <text class="identity-row__value identity-row__value--small">{{validationScope}}</text>
+      </view>
+      <view class="identity-row identity-row--last">
+        <text class="identity-row__label">地图来源</text>
+        <text class="identity-row__value">{{mapSource}}</text>
+      </view>
+    </view>
+
+    <view class="report-boundary">
+      <text class="report-boundary__title">应用边界</text>
+      <text class="report-boundary__text">{{mapBoundaryNote}}</text>
+      <text class="report-boundary__text">本报告来自软件仿真与模拟传感器，只用于毕业设计演示，不构成真实场地、消防、气体监测或机器人导航安全认证。</text>
+    </view>
+  </block>
+</view>

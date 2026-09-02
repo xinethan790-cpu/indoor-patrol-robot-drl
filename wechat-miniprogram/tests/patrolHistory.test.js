@@ -30,6 +30,7 @@ function historyItem(overrides) {
     alarm_history_count: 6,
     result_outcome: 'completed',
     result_validated: true,
+    report_available: false,
     ...(overrides || {}),
   };
 }
@@ -100,11 +101,34 @@ function loadHistoryPage(responses) {
     },
     stopPullDownRefresh() {},
   };
+  global.getApp = () => ({ globalData: { mode: 'cloud', dashboard: null } });
   global.Page = (value) => { definition = value; };
   const modulePath = '../pages/history/index.js';
   delete require.cache[require.resolve(modulePath)];
   const historyModule = require(modulePath);
   return { page: instantiatePage(definition), calls, historyModule };
+}
+
+function loadModeHistoryPage(mode, dashboard) {
+  let definition;
+  const calls = [];
+  const navigations = [];
+  global.getApp = () => ({ globalData: { mode, dashboard: dashboard || null } });
+  global.wx = {
+    cloud: {
+      callFunction(options) {
+        calls.push(structuredClone(options));
+        return Promise.reject(new Error('cloud must not be called'));
+      },
+    },
+    navigateTo(options) { navigations.push(structuredClone(options)); },
+    stopPullDownRefresh() {},
+  };
+  global.Page = (value) => { definition = value; };
+  const modulePath = '../pages/history/index.js';
+  delete require.cache[require.resolve(modulePath)];
+  const historyModule = require(modulePath);
+  return { page: instantiatePage(definition), calls, navigations, historyModule };
 }
 
 test('history page is registered as a tab without replacing existing pages', () => {
@@ -128,7 +152,7 @@ test('history duration formatting carries rounded seconds into minutes', () => {
   assert.equal(historyModule.formatDuration(origin, '2026-09-01T06:01:59.499Z'), '1 分 59 秒');
 });
 
-test('history card keeps a traceable run id and the loading indicator is animated', () => {
+test('history card keeps a selectable run id, accessible report action, and animated loading', () => {
   const { historyModule } = loadHistoryPage([]);
   const runId = 'graduation-demo-seed7000-v1';
   const card = historyModule.projectHistoryCard(historyItem({ run_id: runId }));
@@ -142,7 +166,10 @@ test('history card keeps a traceable run id and the loading indicator is animate
   );
 
   assert.equal(card.runId, runId);
-  assert.match(template, /history-card__run-id[^>]*selectable[^>]*>\{\{item\.runId\}\}/);
+  assert.match(template, /history-card__run-id[^>]*user-select="true"[^>]*>\{\{item\.runId\}\}/);
+  assert.doesNotMatch(template, /\sselectable(?:\s|=|>)/);
+  assert.match(template, /role="button"/);
+  assert.match(template, /aria-label="查看运行 \{\{item\.runId\}\} 的完整巡检报告"/);
   assert.match(styles, /\.history-state__spinner[\s\S]*animation:\s*history-spinner-rotate/);
   assert.match(styles, /@keyframes\s+history-spinner-rotate/);
 });
@@ -188,6 +215,7 @@ test('history service requests strict cursor pages and safely projects summaries
     'latest_sequence',
     'outcome',
     'progress_percent',
+    'report_available',
     'result_outcome',
     'result_validated',
     'run_id',
@@ -355,7 +383,8 @@ test('history page paginates and deduplicates records by run id', async () => {
     'run-1',
     'run-active',
   ]);
-  assert.equal(page.data.items[5].statusLabel, '运行中断');
+  assert.equal(page.data.items[5].statusLabel, '上报失联');
+  assert.match(page.data.items[5].statusDescription, /超过 8 秒/);
   assert.equal(page.data.items[6].statusLabel, '正在巡检');
   assert.equal(page.data.hasMore, false);
   assert.deepEqual(calls.map((call) => call.data.cursor), [null, 'cursor_next']);
@@ -412,7 +441,7 @@ test('history page refreshes stale status on a later show without request storms
   now += 1;
   await page.onShow();
   assert.equal(calls.length, 2);
-  assert.equal(page.data.items[0].statusLabel, '运行中断');
+  assert.equal(page.data.items[0].statusLabel, '上报失联');
 });
 
 test('visible active history schedules bounded refreshes and cancels hidden or stale timers', async () => {
@@ -503,4 +532,36 @@ test('history page exposes honest empty and recoverable error states', async () 
   await errorHarness.page.retry();
   assert.equal(errorHarness.page.data.errorMessage, '');
   assert.equal(errorHarness.page.data.items.length, 1);
+});
+
+test('demo history is exactly one verified local archive and never reads cloud', async () => {
+  const { page, calls, navigations } = loadModeHistoryPage('demo');
+
+  page.onLoad();
+  await page.onShow();
+
+  assert.equal(calls.length, 0);
+  assert.equal(page.data.items.length, 1);
+  assert.equal(page.data.items[0].runId, 'graduation-demo-seed7000-v1');
+  assert.equal(page.data.items[0].reportAvailable, true);
+  assert.equal(page.data.items[0].reportSource, 'demo');
+  assert.equal(page.data.items[0].timeText, '内置演示档案');
+  page.openReport({ currentTarget: { dataset: {
+    runId: page.data.items[0].runId,
+    source: 'demo',
+  } } });
+  assert.equal(navigations.length, 1);
+  assert.match(navigations[0].url, /^\/pages\/report\/index\?/);
+});
+
+test('local history honestly stays empty until the current session has a complete terminal report', async () => {
+  const { page, calls } = loadModeHistoryPage('local', null);
+
+  page.onLoad();
+  await page.onShow();
+
+  assert.equal(calls.length, 0);
+  assert.equal(page.data.items.length, 0);
+  assert.equal(page.data.empty, true);
+  assert.match(page.data.emptyMessage, /当前会话/);
 });

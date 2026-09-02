@@ -12,6 +12,7 @@ const functions = [
   { name: 'ingestPatrol', handler: 'ingest-handler' },
   { name: 'getPatrolSnapshot', handler: 'snapshot-handler' },
   { name: 'getPatrolHistory', handler: 'history-handler' },
+  { name: 'getPatrolReport', handler: 'report-handler' },
   { name: 'cleanupPatrolNonces', handler: 'cleanup-handler' },
 ];
 

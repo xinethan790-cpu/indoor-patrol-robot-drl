@@ -3,6 +3,7 @@ from __future__ import annotations
 import http.client
 import json
 import threading
+from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -121,24 +122,37 @@ def _terminal_snapshot(*, active_alerts: tuple[PatrolLiveAlert, ...]) -> PatrolL
     )
 
 
-def _write_terminal_files(run_directory: Path) -> None:
+def _write_terminal_files(
+    run_directory: Path,
+    *,
+    inspection_positions: list[tuple[float, float]] | None = None,
+) -> None:
     summary = {
         "schema_version": "1.0",
         "run_id": "dashboard-run",
+        "backend": "Webots R2025a",
+        "planner": "astar_local_waypoint_ppo",
         "outcome": "completed",
         "failure_reason": None,
         "scenario_seed": 7000,
         "model_path": "r2a-demo",
         "model_sha256": "a" * 64,
+        "model_training_domain": "webots",
+        "model_selection_reason": "dashboard fixture",
         "safety_shield_enabled": True,
         "safety_shield_id": "front-brake-v1",
         "safety_shield_sha256": "b" * 64,
         "checkpoints_total": 4,
         "checkpoints_visited": 4,
+        "completion_ratio": 1.0,
         "control_step_count": 10,
+        "physics_step_count": 10,
         "collision_count": 0,
         "elapsed_simulation_time_s": 1.28,
         "actual_path_length_m": 10.8,
+        "planned_attempted_path_length_m": 10.8,
+        "nominal_route_length_m": 10.8,
+        "completed_path_ratio": 1.0,
         "minimum_clearance_m": 0.22,
         "minimum_lidar_range_m": 0.32,
         "critical_proximity_count": 0,
@@ -152,6 +166,15 @@ def _write_terminal_files(run_directory: Path) -> None:
         "inference_latency_p95_ms": 0.52,
         "dynamic_obstacle_count": 2,
         "dynamic_obstacle_speed_max_mps": 0.18,
+        "patrol_scenario_id": "dashboard-demo-v1",
+        "patrol_scenario_mode": "operational",
+        "patrol_scenario_config_sha256": "c" * 64,
+        "ttc_escape_guard_enabled": True,
+        "ttc_escape_guard_id": "dashboard-ttc-guard-v1",
+        "ttc_escape_guard_evidence_scope": "dashboard_fixture",
+        "trajectory_file": "trajectory.csv",
+        "checkpoints_file": "checkpoints.csv",
+        "collisions_file": "collisions.csv",
         "checkpoint_records": [
             {
                 "checkpoint_id": checkpoint_id,
@@ -178,13 +201,14 @@ def _write_terminal_files(run_directory: Path) -> None:
         run_id="dashboard-run",
         scenario_seed=7000,
     )
+    positions = inspection_positions or [
+        (1.6, 0.0),
+        (1.6, 1.3),
+        (-1.6, 1.3),
+        (-1.6, -1.15),
+    ]
     for ordinal, (checkpoint_id, position) in enumerate(
-        [
-            ("P1", (1.6, 0.0)),
-            ("P2", (1.6, 1.3)),
-            ("P3", (-1.6, 1.3)),
-            ("P4", (-1.6, -1.15)),
-        ],
+        zip(("P1", "P2", "P3", "P4"), positions, strict=True),
         1,
     ):
         inspection.sample_visit(
@@ -248,6 +272,12 @@ def test_running_projection_uses_snapshot_diffs_and_labels_reading_provenance(
     assert payload["sensors"]["checkpoint_id"] == "P1"
     assert payload["alarms"]["active"][0]["checkpoint_id"] == "P1"
     assert payload["alarms"]["history"][0]["event_type"] == "raised"
+    assert payload["inspection"] == {
+        "available": False,
+        "sample_count": None,
+        "visit_count": 0,
+        "visits": [],
+    }
     assert payload["result"]["available"] is False
 
 
@@ -363,6 +393,171 @@ def test_terminal_projection_uses_verified_bundle_and_displays_complete_result(
         "completed",
         "completed",
     ]
+
+
+def test_graduation_demo_inspection_projection_is_traceable_and_redacted(
+    tmp_path: Path,
+) -> None:
+    run_directory = tmp_path / "run"
+    _write_live_stream(run_directory, [_terminal_snapshot(active_alerts=())])
+    _write_terminal_files(
+        run_directory,
+        inspection_positions=[
+            (1.513194446150353, -0.013197516580409211),
+            (1.5610229464933314, 1.2203411484343563),
+            (-1.5269347965522584, 1.2430406767963162),
+            (-1.6865219703809506, -1.123538169770933),
+        ],
+    )
+
+    payload = project_dashboard(
+        PatrolDashboardRepository(run_directory).read(),
+        DashboardMap.from_yaml(MAP_CONFIG),
+    )
+    inspection = payload["inspection"]
+
+    assert inspection["available"] is True
+    assert inspection["sample_count"] == 36
+    assert inspection["visit_count"] == 4
+    visits = {visit["checkpoint_id"]: visit for visit in inspection["visits"]}
+    assert visits["P2"]["readings"]["temperature"]["value"] == 39.4
+    assert visits["P3"]["readings"]["smoke_obscuration"]["value"] == 6.06
+    assert visits["P3"]["readings"]["carbon_monoxide"]["value"] == 78.0
+    assert set(visits["P3"]["readings"]["carbon_monoxide"]) == {
+        "display_name",
+        "value",
+        "unit",
+        "quality",
+        "sample_index",
+    }
+    serialized = json.dumps(inspection, ensure_ascii=False)
+    assert "truth_value" not in serialized
+    assert "noise_value" not in serialized
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("run_id", "run_id"),
+        ("checkpoint", "checkpoint|\u4e0a\u4e0b\u6587"),
+        ("sensor_set", "\u4f20\u611f\u5668"),
+        ("non_finite", "\u6709\u9650\u6570\u503c"),
+        ("summary_count", "sample_count"),
+    ],
+)
+def test_inspection_projection_fails_closed_on_in_memory_evidence_mismatch(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    run_directory = tmp_path / "run"
+    _write_live_stream(run_directory, [_terminal_snapshot(active_alerts=())])
+    _write_terminal_files(run_directory)
+    evidence = PatrolDashboardRepository(run_directory).read()
+    assert evidence.inspection_samples is not None
+    assert evidence.inspection_summary is not None
+
+    samples = [dict(sample) for sample in evidence.inspection_samples]
+    inspection_summary = dict(evidence.inspection_summary)
+    if mutation == "run_id":
+        samples[0]["run_id"] = "another-run"
+    elif mutation == "checkpoint":
+        samples[0]["checkpoint_id"] = "P2"
+    elif mutation == "sensor_set":
+        samples[2].update(
+            sensor_id="temperature",
+            quantity="temperature",
+            display_name="温度",
+            unit="°C",
+        )
+    elif mutation == "non_finite":
+        samples[0]["observed_value"] = "nan"
+    else:
+        inspection_summary["sample_count"] = len(samples) - 1
+    inconsistent = replace(
+        evidence,
+        inspection_samples=tuple(samples),
+        inspection_summary=inspection_summary,
+    )
+
+    with pytest.raises(DashboardEvidenceError, match=message):
+        project_dashboard(inconsistent, DashboardMap.from_yaml(MAP_CONFIG))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("equal_control_step", "control_step.*严格递增"),
+        ("equal_simulation_time", "simulation_time_s.*严格递增"),
+        ("control_step_after_terminal", "control_step.*超过终态"),
+        ("simulation_time_after_terminal", "simulation_time_s.*超过终态"),
+    ],
+)
+def test_inspection_projection_rejects_non_monotonic_or_future_visit_clocks(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    run_directory = tmp_path / "run"
+    _write_live_stream(run_directory, [_terminal_snapshot(active_alerts=())])
+    _write_terminal_files(run_directory)
+    evidence = PatrolDashboardRepository(run_directory).read()
+    assert evidence.inspection_summary is not None
+    inspection_summary = deepcopy(evidence.inspection_summary)
+    visits = inspection_summary["visit_records"]
+    if mutation == "equal_control_step":
+        visits[1]["control_step"] = visits[0]["control_step"]
+    elif mutation == "equal_simulation_time":
+        visits[1]["simulation_time_s"] = visits[0]["simulation_time_s"]
+    elif mutation == "control_step_after_terminal":
+        visits[-1]["control_step"] = evidence.current.control_step + 1
+    else:
+        visits[-1]["simulation_time_s"] = evidence.current.simulation_time_s + 0.1
+
+    with pytest.raises(DashboardEvidenceError, match=message):
+        project_dashboard(
+            replace(evidence, inspection_summary=inspection_summary),
+            DashboardMap.from_yaml(MAP_CONFIG),
+        )
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        (
+            {"outcome": "timeout", "failure_reason": "timeout", "collision_count": 1},
+            "Only a collision outcome",
+        ),
+        (
+            {
+                "outcome": "safety_stop",
+                "failure_reason": "safety stop",
+                "collision_count": 0,
+                "critical_proximity_count": 0,
+            },
+            "safety_stop outcome",
+        ),
+        ({"collision_count": True}, "collision_count must be an integer"),
+    ],
+)
+def test_terminal_result_replays_patrol_summary_domain_invariants(
+    tmp_path: Path,
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    run_directory = tmp_path / "run"
+    _write_live_stream(run_directory, [_terminal_snapshot(active_alerts=())])
+    _write_terminal_files(run_directory)
+    evidence = PatrolDashboardRepository(run_directory).read()
+    assert evidence.summary is not None
+    inconsistent_summary = dict(evidence.summary)
+    inconsistent_summary.update(overrides)
+
+    with pytest.raises(DashboardEvidenceError, match=message):
+        project_dashboard(
+            replace(evidence, summary=inconsistent_summary),
+            DashboardMap.from_yaml(MAP_CONFIG),
+        )
 
 
 @pytest.mark.parametrize(
@@ -496,8 +691,7 @@ def test_projection_rejects_terminal_checkpoint_coordinate_mismatch(
 def test_alarm_history_payload_is_limited_to_two_hundred_rows(tmp_path: Path) -> None:
     run_directory = tmp_path / "run"
     snapshots = [
-        _snapshot(index, active_alerts=(_alert(),) if index % 2 else ())
-        for index in range(202)
+        _snapshot(index, active_alerts=(_alert(),) if index % 2 else ()) for index in range(202)
     ]
     _write_live_stream(run_directory, snapshots)
 
@@ -547,9 +741,7 @@ def test_repository_rejects_status_and_event_disagreement(tmp_path: Path) -> Non
     run_directory = tmp_path / "run"
     _write_live_stream(run_directory, [_snapshot(0)])
     conflicting = replace(_snapshot(0), position=(-1.0, 1.0))
-    (run_directory / "status.json").write_text(
-        json.dumps(conflicting.to_dict()), encoding="utf-8"
-    )
+    (run_directory / "status.json").write_text(json.dumps(conflicting.to_dict()), encoding="utf-8")
 
     with pytest.raises(DashboardEvidenceError, match="内容不一致"):
         PatrolDashboardRepository(run_directory).read()

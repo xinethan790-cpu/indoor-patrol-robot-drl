@@ -3,11 +3,19 @@
     <view>
       <text class="history-hero__eyebrow">PATROL ARCHIVE</text>
       <text class="history-hero__title">巡检历史</text>
-      <text class="history-hero__subtitle">{{deviceLabel}} · 只读摘要</text>
+      <text class="history-hero__subtitle">{{deviceLabel}}</text>
     </view>
     <view class="history-hero__count">
       <text class="history-hero__number">{{items.length}}</text>
       <text class="history-hero__unit">已加载</text>
+    </view>
+  </view>
+
+  <view class="history-source">
+    <view class="history-source__dot"></view>
+    <view>
+      <text class="history-source__label">{{sourceLabel}}</text>
+      <text class="history-source__description">{{sourceDescription}}</text>
     </view>
   </view>
 
@@ -27,11 +35,21 @@
   <view wx:elif="{{empty}}" class="section-card history-state">
     <view class="history-state__icon">⌁</view>
     <text class="history-state__title">尚无巡检历史</text>
-    <text class="history-state__text">仿真端首次上报后，任务摘要会显示在这里</text>
+    <text class="history-state__text">{{emptyMessage}}</text>
   </view>
 
   <view wx:else class="history-list">
-    <view wx:for="{{items}}" wx:key="runId" class="history-card">
+    <view
+      wx:for="{{items}}"
+      wx:key="runId"
+      class="history-card {{item.reportAvailable ? 'history-card--actionable' : ''}}"
+      data-run-id="{{item.runId}}"
+      data-source="{{item.reportSource}}"
+      bindtap="{{item.reportAvailable ? 'openReport' : ''}}"
+      hover-class="{{item.reportAvailable ? 'history-card--pressed' : 'none'}}"
+      role="{{item.reportAvailable ? 'button' : 'group'}}"
+      aria-label="{{item.reportAvailable ? '查看运行 ' + item.runId + ' 的完整巡检报告' : '运行 ' + item.runId + ' 的巡检摘要，完整报告不可用'}}"
+    >
       <view class="history-card__top">
         <view class="history-card__heading">
           <text class="history-card__time">{{item.timeText}}</text>
@@ -42,7 +60,7 @@
       <text class="history-card__description">{{item.statusDescription}}</text>
       <view class="history-card__run">
         <text class="history-card__run-label">运行编号</text>
-        <text class="history-card__run-id" selectable>{{item.runId}}</text>
+        <text class="history-card__run-id" user-select="true">{{item.runId}}</text>
       </view>
       <view class="history-card__progress-row">
         <text>任务进度</text>
@@ -62,9 +80,22 @@
         </view>
         <view>
           <text class="history-card__metric-value">{{item.durationText}}</text>
-          <text class="history-card__metric-label">入云跨度</text>
+          <text class="history-card__metric-label">任务时长</text>
         </view>
       </view>
+      <view
+        wx:if="{{item.reportAvailable}}"
+        class="history-card__report-action"
+        data-run-id="{{item.runId}}"
+        data-source="{{item.reportSource}}"
+        role="button"
+        aria-label="查看运行 {{item.runId}} 的完整巡检报告"
+        catchtap="openReport"
+      >
+        <text>查看完整巡检报告</text>
+        <text class="history-card__report-arrow">›</text>
+      </view>
+      <text wx:else class="history-card__report-unavailable">当前记录仅有摘要，未形成完整报告</text>
     </view>
 
     <view wx:if="{{errorMessage}}" class="history-more-error">

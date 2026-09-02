@@ -17,6 +17,7 @@ const {
 const { createIngestHandler } = require('../shared/ingest-handler');
 const { liveDocument } = require('../shared/cloud-repository');
 const { publicSnapshot } = require('../shared/snapshot-handler');
+const { buildPatrolReport } = require('../shared/report');
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '../..');
 const REAL_RUN_DIRECTORY = path.join(
@@ -162,6 +163,15 @@ test('real graduation payload crosses Python HMAC, cloud ingest, and mini protoc
   assert.equal(committed[0].payload.run.run_id, EXPECTED_RUN_ID);
   assert.equal(committed[0].payload.run.sequence, EXPECTED_SEQUENCE);
   assert.equal(committed[0].payload.run.terminal, true);
+
+  const report = buildPatrolReport(committed[0].payload);
+  assert.equal(report.schema_version, 'patrol-report/v1');
+  assert.equal(report.inspection.visit_count, 4);
+  assert.equal(report.alarms.history_count, 6);
+  assert.deepEqual(report.alarms.history.map((event) => event.event_index), [1, 2, 3, 4, 5, 6]);
+  const p2 = report.inspection.visits[1];
+  const p2Alarm = report.alarms.history.find((event) => event.visit_index === 2);
+  assert.ok(p2Alarm.simulation_time_s > p2.simulation_time_s);
 
   const snapshot = publicSnapshot(liveDocument(committed[0]));
   const miniAccepted = validateCloudSnapshot(snapshot);

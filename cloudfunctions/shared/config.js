@@ -6,6 +6,8 @@ const SNAPSHOT_SCHEMA_VERSION = 'patrol-cloud-snapshot/v1';
 const RELAY_STATE_SCHEMA_VERSION = 'patrol-relay-state/v1';
 const RUN_SCHEMA_VERSION = 'patrol-cloud-run/v1';
 const HISTORY_SCHEMA_VERSION = 'patrol-history/v1';
+const REPORT_SCHEMA_VERSION = 'patrol-report/v1';
+const REPORT_RESPONSE_SCHEMA_VERSION = 'patrol-report-response/v1';
 const NONCE_SCHEMA_VERSION = 'patrol-relay-nonce/v1';
 const SIGNATURE_VERSION = 'patrol-hmac-sha256-v1';
 
@@ -111,6 +113,8 @@ module.exports = {
   NONCE_RETENTION_MS,
   NONCE_SCHEMA_VERSION,
   RELAY_STATE_SCHEMA_VERSION,
+  REPORT_RESPONSE_SCHEMA_VERSION,
+  REPORT_SCHEMA_VERSION,
   RUN_SCHEMA_VERSION,
   SIGNATURE_VERSION,
   SNAPSHOT_SCHEMA_VERSION,

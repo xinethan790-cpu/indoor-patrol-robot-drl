@@ -28,6 +28,27 @@ test('offline projection grows trajectory and reveals alarms by simulation time'
   )));
 });
 
+test('offline replay reveals the verified inspection archive only at terminal', () => {
+  const running = buildDashboardPayload(fixture, fixture.frames.length - 2);
+  const terminal = buildDashboardPayload(fixture, fixture.frames.length - 1);
+
+  assert.deepEqual(running.inspection, {
+    available: false,
+    sample_count: null,
+    visit_count: 0,
+    visits: [],
+  });
+  assert.equal(terminal.inspection.available, true);
+  assert.deepEqual(
+    terminal.inspection.visits.map((visit) => visit.checkpoint_id),
+    ['P1', 'P2', 'P3', 'P4'],
+  );
+  assert.equal(
+    terminal.inspection.visits.reduce((total, visit) => total + visit.alarm_event_count, 0),
+    fixture.alarm_timeline.length,
+  );
+});
+
 test('offline replay emits every frame once and stops at terminal', () => {
   const scheduler = createManualScheduler();
   const received = [];

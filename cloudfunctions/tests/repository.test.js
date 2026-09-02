@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { CloudPatrolRepository, runDocument } = require('../shared/cloud-repository');
-const { validPayload, validRuntimeAbortPayload } = require('./helpers');
+const { validPayload, validReportPayload, validRuntimeAbortPayload } = require('./helpers');
 
 class MemoryDocument {
   constructor(store, collection, id) {
@@ -232,6 +232,8 @@ test('an incomplete runtime-abort terminal releases the device for a new run', a
   assert.equal(abortedRun.incomplete, true);
   assert.equal(abortedRun.result_outcome, 'aborted');
   assert.equal(abortedRun.result_validated, false);
+  assert.equal(abortedRun.report_available, false);
+  assert.equal(abortedRun.report, undefined);
 
   const next = upload({
     runId: 'run-b',
@@ -270,6 +272,7 @@ test('run audit advances monotonically while an idempotent retry does not refres
   assert.equal(firstRun.latest_sequence, 0);
   assert.equal(firstRun.terminal, false);
   assert.equal(firstRun.progress_percent, 0);
+  assert.equal(firstRun.report_available, false);
 
   const advancedPayload = validPayload({ runId: 'run-a', sequence: 5 });
   advancedPayload.run.state = 'navigating';
@@ -302,6 +305,69 @@ test('run audit advances monotonically while an idempotent retry does not refres
   }));
   const afterRetry = [...database.store.get('patrol_runs').values()][0];
   assert.deepEqual(afterRetry, afterAdvance);
+});
+
+test('repository stores and reads only a safe report for an ordinary terminal run', async () => {
+  const database = new MemoryDatabase();
+  const repository = new CloudPatrolRepository(database);
+  await repository.commitUpload(upload());
+
+  const terminalPayload = validReportPayload({
+    runId: 'run-a',
+    sequence: 1,
+    terminal: true,
+  });
+  await repository.commitUpload(upload({
+    sequence: 1,
+    terminal: true,
+    hash: 'b'.repeat(64),
+    nonce: 'nonce-report-terminal-0001',
+    payload: terminalPayload,
+  }));
+
+  const stored = [...database.store.get('patrol_runs').values()][0];
+  assert.equal(stored.report_available, true);
+  assert.equal(stored.report.schema_version, 'patrol-report/v1');
+  assert.ok(stored.terminal_payload);
+
+  const report = await repository.getPatrolReport({
+    deviceId: 'macmini-m4',
+    runId: 'run-a',
+  });
+  assert.deepEqual(report, stored.report);
+  assert.equal(JSON.stringify(report).includes('terminal_payload'), false);
+  assert.equal(await repository.getPatrolReport({
+    deviceId: 'macmini-m4',
+    runId: 'unknown-run',
+  }), null);
+  assert.equal(await repository.getPatrolReport({
+    deviceId: 'other-device',
+    runId: 'run-a',
+  }), null);
+});
+
+test('history repository rejects a malformed SDK data envelope instead of fabricating emptiness', async () => {
+  const query = {
+    where() { return this; },
+    orderBy() { return this; },
+    skip() { return this; },
+    limit() { return this; },
+    field() { return this; },
+    async get() { return { data: { unexpected: 'object' } }; },
+  };
+  const repository = new CloudPatrolRepository({
+    async runTransaction() {},
+    collection() { return query; },
+  });
+
+  await assert.rejects(
+    repository.getPatrolHistoryPage({
+      deviceId: 'macmini-m4',
+      pageSize: 10,
+      offset: 0,
+    }),
+    /invalid data envelope/,
+  );
 });
 
 test('history pagination keeps immutable ordering and does not lose old runs after updates and insertions', async () => {
@@ -337,7 +403,9 @@ test('history pagination keeps immutable ordering and does not lose old runs aft
   assert.equal(first.hasMore, true);
   assert.equal(first.nextOffset, 2);
   assert.equal(first.documents.some((item) => 'terminal_payload' in item), false);
+  assert.equal(first.documents.some((item) => 'report' in item), false);
   assert.equal(first.documents.some((item) => 'latest_body_sha256' in item), false);
+  assert.equal(first.documents.every((item) => typeof item.report_available === 'boolean'), true);
 
   const oldRun = [...database.store.get('patrol_runs').values()]
     .find((document) => document.run_id === 'run-a');

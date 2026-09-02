@@ -31,7 +31,7 @@
     },
     {
       "name": "patrol_runs",
-      "purpose": "Private run registry, lightweight history summaries, and terminal evidence archive",
+      "purpose": "Private run registry, lightweight history summaries, safe patrol reports, and terminal evidence archive",
       "rules": "rules/admin_only.json",
       "indexes": [
         {

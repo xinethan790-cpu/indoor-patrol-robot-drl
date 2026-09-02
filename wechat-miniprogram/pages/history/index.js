@@ -5,6 +5,12 @@ const {
   STALE_AFTER_MS,
   createPatrolHistoryService,
 } = require("../../services/patrolHistory");
+const {
+  ReportProtocolError,
+  buildDemoPatrolReport,
+  buildPatrolReportFromDashboard,
+} = require("../../services/patrolReport");
+const { normalizeMode } = require("../../services/modePolicy");
 
 const AUTO_REFRESH_MIN_INTERVAL_MS = 3000;
 const ACTIVE_REFRESH_MIN_DELAY_MS = 1000;
@@ -13,7 +19,11 @@ const HISTORY_UNAVAILABLE_MESSAGE = "巡检历史暂时不可用，请稍后重�
 const STATUS_PRESENTATION = Object.freeze({
   active: { label: "正在巡检", tone: "active", description: "仿真端仍在持续上报" },
   aborted: { label: "异常中止", tone: "critical", description: "控制器已上报最小中止证据" },
-  interrupted: { label: "运行中断", tone: "warning", description: "未形成可信终态记录" },
+  interrupted: {
+    label: "上报失联",
+    tone: "warning",
+    description: "超过 8 秒未收到新快照，无法判断任务是否仍在运行",
+  },
   unknown_terminal: { label: "旧版终态", tone: "legacy", description: "终态类型未回填" },
 });
 
@@ -66,7 +76,8 @@ function formatDuration(first, latest) {
   return seconds ? `${minutes} 分 ${seconds} 秒` : `${minutes} 分`;
 }
 
-function projectHistoryCard(item) {
+function projectHistoryCard(item, options) {
+  const settings = options || {};
   const presentation = historyPresentation(item);
   const checkpointText = item.completed_checkpoint_count === null
     || item.checkpoint_count === null
@@ -78,8 +89,9 @@ function projectHistoryCard(item) {
     statusLabel: presentation.label,
     statusTone: presentation.tone,
     statusDescription: presentation.description,
-    timeText: formatDateTime(item.latest_received_at_utc),
-    durationText: formatDuration(item.first_received_at_utc, item.latest_received_at_utc),
+    timeText: settings.timeText || formatDateTime(item.latest_received_at_utc),
+    durationText: settings.durationText
+      || formatDuration(item.first_received_at_utc, item.latest_received_at_utc),
     sequenceText: `SEQ ${item.latest_sequence}`,
     progressText: item.progress_percent === null
       ? "—"
@@ -93,7 +105,46 @@ function projectHistoryCard(item) {
       ? "—"
       : String(item.active_alarm_count),
     validated: item.result_validated,
+    reportAvailable: settings.reportAvailable === undefined
+      ? item.report_available === true
+      : settings.reportAvailable === true,
+    reportSource: settings.reportSource || "cloud",
   };
+}
+
+function formatSimulationDuration(seconds) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return "—";
+  const rounded = Math.round(seconds);
+  if (rounded < 60) return `${rounded} 秒`;
+  const minutes = Math.floor(rounded / 60);
+  const remainder = rounded % 60;
+  return remainder ? `${minutes} 分 ${remainder} 秒` : `${minutes} 分`;
+}
+
+function projectReportArchiveCard(report, source) {
+  const result = report.result;
+  const item = {
+    run_id: report.run.run_id,
+    status: "completed",
+    outcome: report.run.outcome,
+    result_outcome: result.outcome,
+    result_validated: result.validated,
+    report_available: true,
+    first_received_at_utc: report.generated_at_utc,
+    latest_received_at_utc: report.generated_at_utc,
+    latest_sequence: report.run.sequence,
+    progress_percent: report.task.progress_percent,
+    completed_checkpoint_count: report.task.completed_checkpoint_count,
+    checkpoint_count: report.task.checkpoint_count,
+    alarm_history_count: report.alarms.history_count,
+    active_alarm_count: 0,
+  };
+  return projectHistoryCard(item, {
+    timeText: source === "demo" ? "内置演示档案" : "当前本地终态",
+    durationText: formatSimulationDuration(report.run.simulation_time_s),
+    reportAvailable: true,
+    reportSource: source,
+  });
 }
 
 Page({
@@ -106,6 +157,9 @@ Page({
     hasMore: false,
     nextCursor: null,
     deviceLabel: "Mac mini M4 仿真端",
+    sourceLabel: "云端只读档案",
+    sourceDescription: "已完成任务可查看完整报告",
+    emptyMessage: "仿真端首次上报后，任务摘要会显示在这里",
   },
 
   onLoad() {
@@ -118,19 +172,19 @@ Page({
     this._now = () => Date.now();
     this._setTimer = (callback, delayMs) => setTimeout(callback, delayMs);
     this._clearTimer = (timer) => clearTimeout(timer);
-    try {
-      this._historyService = createPatrolHistoryService({ wxApi: wx, pageSize: 10 });
-    } catch (error) {
-      this._historyService = null;
-      this.setData({
-        empty: false,
-        errorMessage: safeErrorMessage(error),
-      });
-    }
+    this._mode = null;
+    this._historyService = null;
+    this._configureMode(this._currentMode());
   },
 
   onShow() {
     this._visible = true;
+    const currentMode = this._currentMode();
+    if (currentMode !== this._mode) this._configureMode(currentMode);
+    if (this._mode !== "cloud") {
+      this._loadLocalArchive();
+      return Promise.resolve();
+    }
     if (!this._historyService || this.data.loading) return Promise.resolve();
     const now = this._now();
     const elapsed = this._lastRefreshStartedAt === null
@@ -159,6 +213,21 @@ Page({
     return this.loadMore();
   },
 
+  openReport(event) {
+    const dataset = event && event.currentTarget ? event.currentTarget.dataset : {};
+    const runId = dataset.runId;
+    const source = dataset.source;
+    const item = this.data.items.find((candidate) => (
+      candidate.runId === runId
+      && candidate.reportSource === source
+      && candidate.reportAvailable
+    ));
+    if (!item || !wx || typeof wx.navigateTo !== "function") return;
+    wx.navigateTo({
+      url: `/pages/report/index?run_id=${encodeURIComponent(runId)}&source=${encodeURIComponent(source)}`,
+    });
+  },
+
   onUnload() {
     this._visible = false;
     this._clearActiveRefreshTimer(true);
@@ -170,6 +239,10 @@ Page({
   },
 
   refresh(options) {
+    if (this._mode !== "cloud") {
+      this._loadLocalArchive();
+      return Promise.resolve();
+    }
     if (!this._historyService) return Promise.resolve();
     this._clearActiveRefreshTimer(true);
     const settings = options || {};
@@ -205,6 +278,102 @@ Page({
   retry() {
     if (this.data.items.length > 0 && this.data.nextCursor) return this.loadMore();
     return this.refresh({ preserveItems: this.data.items.length > 0 });
+  },
+
+  _currentMode() {
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      return normalizeMode(app && app.globalData ? app.globalData.mode : null);
+    } catch (error) {
+      return "cloud";
+    }
+  },
+
+  _configureMode(mode) {
+    this._clearActiveRefreshTimer(true);
+    this._generation += 1;
+    this._mode = mode;
+    this._historyService = null;
+    this._loaded = false;
+    this._lastRefreshStartedAt = null;
+    const presentations = {
+      cloud: {
+        deviceLabel: "Mac mini M4 仿真端",
+        sourceLabel: "云端只读档案",
+        sourceDescription: "已完成任务可查看完整报告",
+        emptyMessage: "仿真端首次上报后，任务摘要会显示在这里",
+      },
+      demo: {
+        deviceLabel: "Seed 7000 验证演示",
+        sourceLabel: "内置可审计档案",
+        sourceDescription: "来自项目随附的单次真实仿真证据",
+        emptyMessage: "演示档案未通过本地完整性校验",
+      },
+      local: {
+        deviceLabel: "开发者工具本地仿真",
+        sourceLabel: "当前会话终态",
+        sourceDescription: "本地模式不保存历史，只展示当前完整终态",
+        emptyMessage: "当前会话还没有形成可验证的完整巡检报告",
+      },
+    };
+    this.setData({
+      ...presentations[mode],
+      items: [],
+      loading: false,
+      initialLoading: false,
+      empty: false,
+      errorMessage: "",
+      hasMore: false,
+      nextCursor: null,
+    });
+    if (mode !== "cloud") {
+      this._loadLocalArchive();
+      return;
+    }
+    try {
+      this._historyService = createPatrolHistoryService({ wxApi: wx, pageSize: 10 });
+    } catch (error) {
+      this.setData({ empty: false, errorMessage: safeErrorMessage(error) });
+    }
+  },
+
+  _loadLocalArchive() {
+    if (this._mode === "cloud") return;
+    try {
+      let report;
+      if (this._mode === "demo") {
+        report = buildDemoPatrolReport();
+      } else {
+        const app = typeof getApp === "function" ? getApp() : null;
+        const dashboard = app && app.globalData ? app.globalData.dashboard : null;
+        if (!dashboard) {
+          this.setData({ items: [], empty: true, errorMessage: "" });
+          return;
+        }
+        report = buildPatrolReportFromDashboard(dashboard);
+      }
+      this._loaded = true;
+      this.setData({
+        items: [projectReportArchiveCard(report, this._mode)],
+        loading: false,
+        initialLoading: false,
+        empty: false,
+        errorMessage: "",
+        hasMore: false,
+        nextCursor: null,
+      });
+    } catch (error) {
+      const unavailableCurrent = this._mode === "local"
+        && error instanceof ReportProtocolError
+        && ["REPORT_NOT_READY", "REPORT_NOT_FOUND"].includes(error.code);
+      this.setData({
+        items: [],
+        loading: false,
+        initialLoading: false,
+        empty: unavailableCurrent,
+        errorMessage: unavailableCurrent ? "" : "演示档案未通过完整性校验",
+      });
+    }
   },
 
   _clearActiveRefreshTimer(clearDueAt) {
@@ -307,6 +476,8 @@ module.exports = {
   AUTO_REFRESH_MIN_INTERVAL_MS,
   formatDateTime,
   formatDuration,
+  formatSimulationDuration,
   projectHistoryCard,
+  projectReportArchiveCard,
   safeErrorMessage,
 };

@@ -235,6 +235,12 @@ function publicHistoryItem(document, expectedDeviceId, serverTimeEpochMs) {
     throw new TypeError('run result_validated is invalid');
   }
   const status = historyStatus(document, latestAgeMs);
+  const reportAvailable = document.report_available === undefined
+    ? false
+    : document.report_available;
+  if (typeof reportAvailable !== 'boolean') {
+    throw new TypeError('run report_available is invalid');
+  }
   if (
     status === 'aborted'
     && (resultValidated || document.result_outcome !== 'aborted')
@@ -243,6 +249,9 @@ function publicHistoryItem(document, expectedDeviceId, serverTimeEpochMs) {
   }
   if (status !== 'completed' && resultValidated) {
     throw new TypeError('unclassified or non-terminal run cannot claim a validated terminal result');
+  }
+  if (reportAvailable && (status !== 'completed' || !resultValidated)) {
+    throw new TypeError('only a validated ordinary terminal run can expose a report');
   }
   return {
     run_id: document.run_id,
@@ -261,6 +270,7 @@ function publicHistoryItem(document, expectedDeviceId, serverTimeEpochMs) {
     alarm_history_count: nullableInteger(document.alarm_history_count, 'alarm history count'),
     result_outcome: nullableText(document.result_outcome, 'result outcome'),
     result_validated: resultValidated,
+    report_available: reportAvailable,
   };
 }
 

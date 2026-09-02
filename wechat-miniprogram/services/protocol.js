@@ -6,6 +6,7 @@ const MAX_DASHBOARD_PAYLOAD_BYTES = 128 * 1024;
 const MAX_TRAJECTORY_POINTS = 300;
 const MAX_ALARM_EVENTS = 200;
 const MAX_DYNAMIC_OBSTACLES = 32;
+const MAX_INSPECTION_VISITS = 64;
 const DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M = 1e-6;
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const RUNTIME_ABORT_EVIDENCE_SCOPE = 'runtime_abort_minimal_evidence';
@@ -37,6 +38,15 @@ function unavailableAvoidance() {
     actions: { policy: null, filtered: null, executed: null },
     safety_shield: { active: false, intervention: 0 },
     escape_guard: { active: false, mode: 'inactive', unrecoverable: false },
+  };
+}
+
+function unavailableInspection() {
+  return {
+    available: false,
+    sample_count: null,
+    visit_count: 0,
+    visits: [],
   };
 }
 
@@ -288,13 +298,197 @@ function normalizeDashboardPayload(payload) {
   const missingControlStep = !hasOwn(run, 'control_step');
   const missingDynamicObstacles = !hasOwn(map, 'dynamic_obstacles');
   const missingAvoidance = !hasOwn(root, 'avoidance');
-  if (!missingControlStep && !missingDynamicObstacles && !missingAvoidance) return root;
+  const missingInspection = !hasOwn(root, 'inspection');
+  if (!missingControlStep
+    && !missingDynamicObstacles
+    && !missingAvoidance
+    && !missingInspection) return root;
   return {
     ...root,
     run: missingControlStep ? { ...run, control_step: null } : run,
     map: missingDynamicObstacles ? { ...map, dynamic_obstacles: [] } : map,
     avoidance: missingAvoidance ? unavailableAvoidance() : root.avoidance,
+    inspection: missingInspection ? unavailableInspection() : root.inspection,
   };
+}
+
+function requireExactKeys(value, expectedKeys, label) {
+  const actual = Object.keys(value).sort();
+  const expected = expectedKeys.slice().sort();
+  if (actual.length !== expected.length
+    || actual.some((key, index) => key !== expected[index])) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 字段不符合协议`);
+  }
+}
+
+function validateInspectionReading(input, label, sampleCount, sensorKey) {
+  const reading = requireObject(input, label);
+  requireExactKeys(
+    reading,
+    ['display_name', 'value', 'unit', 'quality', 'sample_index'],
+    label,
+  );
+  const expected = {
+    temperature: { display_name: '温度', unit: '°C' },
+    smoke_obscuration: { display_name: '烟雾遮蔽率', unit: '%/m' },
+    carbon_monoxide: { display_name: '一氧化碳浓度', unit: 'ppm' },
+  }[sensorKey];
+  requireString(reading.display_name, `${label}.display_name`, { maxLength: 64 });
+  requireFiniteNumber(reading.value, `${label}.value`);
+  requireString(reading.unit, `${label}.unit`, { allowEmpty: true, maxLength: 32 });
+  requireString(reading.quality, `${label}.quality`, { maxLength: 32 });
+  if (!expected
+    || reading.display_name !== expected.display_name
+    || reading.unit !== expected.unit
+    || reading.quality !== 'ok') {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 的传感器身份或质量标记无效`);
+  }
+  requireIntegerInRange(reading.sample_index, `${label}.sample_index`, 1, sampleCount);
+  return reading;
+}
+
+function validateInspection(input, options) {
+  const config = options || {};
+  const label = config.label || 'inspection';
+  const inspection = requireObject(input, label);
+  requireExactKeys(
+    inspection,
+    ['available', 'sample_count', 'visit_count', 'visits'],
+    label,
+  );
+  const available = requireBoolean(inspection.available, `${label}.available`);
+  const sampleCount = inspection.sample_count === null
+    ? null
+    : requireIntegerInRange(
+      inspection.sample_count,
+      `${label}.sample_count`,
+      0,
+      Number.MAX_SAFE_INTEGER,
+    );
+  const visitCount = requireIntegerInRange(
+    inspection.visit_count,
+    `${label}.visit_count`,
+    0,
+    MAX_INSPECTION_VISITS,
+  );
+  if (!Array.isArray(inspection.visits)
+    || inspection.visits.length !== visitCount) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label}.visits 与 visit_count 不一致`);
+  }
+  if (!available) {
+    if (sampleCount !== null || visitCount !== 0) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 不可用时必须为空`);
+    }
+    return inspection;
+  }
+  if (sampleCount === null
+    || (visitCount === 0 && sampleCount !== 0)
+    || sampleCount < visitCount * 3) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', `${label} 可用时必须包含完整三传感器点位采样`);
+  }
+  const run = config.run || null;
+  const checkpointIds = config.checkpointIds || null;
+  const seenCheckpointIds = new Set();
+  const seenSampleIndices = new Set();
+  let previousControlStep = -1;
+  let previousSimulationTimeS = -1;
+  let previousVisitSampleEnd = 0;
+  inspection.visits.forEach((inputVisit, index) => {
+    const visitLabel = `${label}.visits[${index}]`;
+    const visit = requireObject(inputVisit, visitLabel);
+    requireExactKeys(
+      visit,
+      [
+        'visit_index',
+        'checkpoint_id',
+        'control_step',
+        'simulation_time_s',
+        'alarm_event_count',
+        'highest_active_severity',
+        'readings',
+      ],
+      visitLabel,
+    );
+    if (visit.visit_index !== index + 1) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${visitLabel}.visit_index 必须连续递增`);
+    }
+    const checkpointId = requireString(
+      visit.checkpoint_id,
+      `${visitLabel}.checkpoint_id`,
+      { maxLength: 64 },
+    );
+    if (seenCheckpointIds.has(checkpointId)
+      || (checkpointIds && !checkpointIds.has(checkpointId))) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${visitLabel}.checkpoint_id 无效或重复`);
+    }
+    seenCheckpointIds.add(checkpointId);
+    const maximumControlStep = run && run.control_step !== null
+      ? run.control_step
+      : Number.MAX_SAFE_INTEGER;
+    const controlStep = requireIntegerInRange(
+      visit.control_step,
+      `${visitLabel}.control_step`,
+      0,
+      maximumControlStep,
+    );
+    const simulationTimeS = requireNonNegativeNumber(
+      visit.simulation_time_s,
+      `${visitLabel}.simulation_time_s`,
+    );
+    if (run && simulationTimeS > run.simulation_time_s + 1e-9) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${visitLabel} 不能来自未来时刻`);
+    }
+    if (controlStep < previousControlStep || simulationTimeS < previousSimulationTimeS) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${visitLabel} 的采样时序必须单调`);
+    }
+    previousControlStep = controlStep;
+    previousSimulationTimeS = simulationTimeS;
+    requireIntegerInRange(
+      visit.alarm_event_count,
+      `${visitLabel}.alarm_event_count`,
+      0,
+      MAX_ALARM_EVENTS,
+    );
+    if (visit.highest_active_severity !== null
+      && !['info', 'warning', 'critical'].includes(visit.highest_active_severity)) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', `${visitLabel}.highest_active_severity 无效`);
+    }
+    const readings = requireObject(visit.readings, `${visitLabel}.readings`);
+    requireExactKeys(
+      readings,
+      ['temperature', 'smoke_obscuration', 'carbon_monoxide'],
+      `${visitLabel}.readings`,
+    );
+    const readingIndexes = {};
+    ['temperature', 'smoke_obscuration', 'carbon_monoxide'].forEach((key) => {
+      const reading = validateInspectionReading(
+        readings[key],
+        `${visitLabel}.readings.${key}`,
+        sampleCount,
+        key,
+      );
+      if (seenSampleIndices.has(reading.sample_index)) {
+        throw new PayloadProtocolError('INVALID_PAYLOAD', 'inspection.sample_index 不能重复');
+      }
+      seenSampleIndices.add(reading.sample_index);
+      readingIndexes[key] = reading.sample_index;
+    });
+    const temperatureIndex = readingIndexes.temperature;
+    const smokeIndex = readingIndexes.smoke_obscuration;
+    const carbonMonoxideIndex = readingIndexes.carbon_monoxide;
+    if (smokeIndex !== temperatureIndex + 1
+      || carbonMonoxideIndex !== smokeIndex + 1
+      || carbonMonoxideIndex % 3 !== 0
+      || carbonMonoxideIndex - previousVisitSampleEnd < 3
+      || (carbonMonoxideIndex - previousVisitSampleEnd) % 3 !== 0) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', 'inspection 最新样本序号不符合三传感器采样顺序');
+    }
+    previousVisitSampleEnd = carbonMonoxideIndex;
+  });
+  if (previousVisitSampleEnd !== sampleCount) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', 'inspection.sample_count 必须结束于最后一次点位采样');
+  }
+  return inspection;
 }
 
 function validateAlarmEvent(event, label) {
@@ -534,6 +728,8 @@ function validateDashboardPayload(payload) {
   validateSensorReading(sensors.smoke, 'sensors.smoke');
   validateSensorReading(sensors.carbon_monoxide, 'sensors.carbon_monoxide');
 
+  validateInspection(root.inspection, { run, checkpointIds });
+
   const alarms = requireObject(root.alarms, 'alarms');
   if (!Array.isArray(alarms.active) || alarms.active.length > MAX_ALARM_EVENTS) {
     throw new PayloadProtocolError('INVALID_PAYLOAD', 'alarms.active 数量无效');
@@ -611,6 +807,19 @@ function validateDashboardPayload(payload) {
     }
   }
   validateRunResultConsistency(source, run, result, task, runtimeAbort);
+  if (root.inspection.available) {
+    if (!run.terminal
+      || result.available !== true
+      || result.validated !== true
+      || root.inspection.visit_count !== result.checkpoints_visited
+      || root.inspection.sample_count !== result.sample_count
+      || root.inspection.visits.reduce(
+        (total, visit) => total + visit.alarm_event_count,
+        0,
+      ) !== alarms.history_count) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', '巡检采样档案必须绑定已验证终态结果');
+    }
+  }
   return root;
 }
 
@@ -691,6 +900,7 @@ function createPayloadGate(options) {
           sensors: value.sensors,
           alarms: value.alarms,
           avoidance: value.avoidance,
+          inspection: value.inspection,
           result: value.result,
         });
         if (fingerprint !== lastFingerprint) {
@@ -709,6 +919,7 @@ function createPayloadGate(options) {
         sensors: value.sensors,
         alarms: value.alarms,
         avoidance: value.avoidance,
+        inspection: value.inspection,
         result: value.result,
       });
       terminal = run.terminal;
@@ -740,7 +951,9 @@ module.exports = {
   createPayloadGate,
   normalizeDashboardPayload,
   unavailableAvoidance,
+  unavailableInspection,
   utf8ByteLength,
   validateDashboardPayload,
   validateFixture,
+  validateInspection,
 };

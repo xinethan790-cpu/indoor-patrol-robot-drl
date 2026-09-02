@@ -128,6 +128,12 @@ def test_runtime_abort_is_redacted_bounded_and_projects_as_incomplete(
     assert payload["run"]["state"] == "failed"
     assert payload["run"]["outcome"] == "error"
     assert payload["run"]["terminal"] is True
+    assert payload["inspection"] == {
+        "available": False,
+        "sample_count": None,
+        "visit_count": 0,
+        "visits": [],
+    }
     assert payload["result"] == {
         "available": True,
         "validated": False,

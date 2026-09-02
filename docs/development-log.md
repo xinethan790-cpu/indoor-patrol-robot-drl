@@ -208,3 +208,27 @@ Cloud Functions: 59 passed
 ```
 
 本轮没有部署 CloudBase、上传微信代码或启动训练；当前微信审核版本不受影响。
+
+## 2026-09-02：可追溯完整巡检报告
+
+### 已完成
+
+- 从通过 manifest 校验的 `inspection_samples.csv` 投影 P1～P4 点位采样，并把样本编号、传感器元数据、告警状态与终态巡检记录交叉绑定；
+- 在 CloudBase 中只为普通已验证终态且告警历史完整的任务保存 `patrol-report/v1` 安全白名单，旧版、运行时中止和截断证据不会生成完整报告；
+- 增加登录鉴权、固定设备和严格运行编号的 `getPatrolReport`，报告读取不透传 `terminal_payload`、请求哈希、nonce、签名或密钥；
+- 小程序历史页按 cloud、demo、local 三种模式展示真实可用档案，只有 `report_available=true` 的记录可以进入详情；
+- 新增完整报告页，展示终态核心指标、避障指标、最终轨迹、逐点温度/烟雾/一氧化碳读数、告警时间线、运行身份和仿真边界；
+- 普通任务在到达 P1 前失败时保留诚实的零点位报告；旧记录缺失巡检证据时使用 `sample_count=null` 表示未知，不用 0 冒充已确认无采样；
+- 三端补充终态矩阵、轨迹末点、地图状态、告警顺序与归属、样本范围、传感器身份、UTC 时间及严格字段白名单的对称回归测试。
+
+### 可复现结果
+
+```text
+ruff: passed
+Python: 789 passed
+微信小程序: 106 passed
+Cloud Functions: 78 passed
+CloudBase bundles: 5 built and verified
+```
+
+本轮只更新源码、测试、构建配置与部署说明，没有部署 CloudBase、上传微信代码、重新提交微信审核或启动训练；当前审核版本不受影响。

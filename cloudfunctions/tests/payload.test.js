@@ -4,11 +4,12 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { parseDashboardBody, validateDashboardPayload } = require('../shared/payload');
-const { validPayload, validRuntimeAbortPayload } = require('./helpers');
+const { validPayload, validReportPayload, validRuntimeAbortPayload } = require('./helpers');
 
 function checkpoint(index) {
   return {
     id: `P${index + 1}`,
+    ordinal: index + 1,
     position: { x_m: index / 10, y_m: index / 20 },
     status: index === 0 ? 'current' : 'pending',
   };
@@ -17,6 +18,7 @@ function checkpoint(index) {
 function obstacle(index) {
   return {
     id: `obstacle-${index}`,
+    label: `Obstacle ${index}`,
     center: { x_m: index / 100, y_m: index / 200 },
     size: { width_m: 0.2, height_m: 0.3 },
   };
@@ -206,6 +208,7 @@ test('normalizes legacy v1 telemetry without mutating an old outbox payload', ()
   delete legacy.run.control_step;
   delete legacy.map.dynamic_obstacles;
   delete legacy.avoidance;
+  delete legacy.inspection;
 
   const normalized = validateDashboardPayload(legacy);
 
@@ -213,6 +216,7 @@ test('normalizes legacy v1 telemetry without mutating an old outbox payload', ()
   assert.equal(Object.hasOwn(legacy.run, 'control_step'), false);
   assert.equal(Object.hasOwn(legacy.map, 'dynamic_obstacles'), false);
   assert.equal(Object.hasOwn(legacy, 'avoidance'), false);
+  assert.equal(Object.hasOwn(legacy, 'inspection'), false);
   assert.equal(normalized.schema_version, 'patrol-dashboard/v1');
   assert.equal(normalized.run.control_step, null);
   assert.deepEqual(normalized.map.dynamic_obstacles, []);
@@ -228,6 +232,64 @@ test('normalizes legacy v1 telemetry without mutating an old outbox payload', ()
     safety_shield: { active: false, intervention: 0 },
     escape_guard: { active: false, mode: 'inactive', unrecoverable: false },
   });
+  assert.deepEqual(normalized.inspection, {
+    available: false,
+    sample_count: null,
+    visit_count: 0,
+    visits: [],
+  });
+});
+
+test('accepts strict terminal inspection evidence and rejects malformed or forged visits', () => {
+  const accepted = validReportPayload();
+  assert.equal(validateDashboardPayload(accepted), accepted);
+
+  const unavailable = validPayload();
+  unavailable.inspection.sample_count = 0;
+  assert.throws(
+    () => validateDashboardPayload(unavailable),
+    (error) => error.code === 'INVALID_PAYLOAD',
+  );
+
+  const mutations = [
+    (payload) => { payload.inspection.extra = 'private'; },
+    (payload) => { payload.inspection.sample_count = -1; },
+    (payload) => { payload.inspection.visit_count = 0; },
+    (payload) => { payload.inspection.visits[0].visit_index = 2; },
+    (payload) => { payload.inspection.visits[0].control_step = 1; },
+    (payload) => { payload.inspection.visits[0].simulation_time_s = 0.1; },
+    (payload) => { payload.inspection.visits[0].alarm_event_count = 1; },
+    (payload) => { payload.inspection.visits[0].highest_active_severity = 'emergency'; },
+    (payload) => { delete payload.inspection.visits[0].readings.temperature; },
+    (payload) => { payload.inspection.visits[0].readings.secret = {}; },
+    (payload) => {
+      payload.inspection.visits[0].readings.temperature.display_name = 'Temperature';
+    },
+    (payload) => { payload.inspection.visits[0].readings.temperature.value = '24.9'; },
+    (payload) => { payload.inspection.visits[0].readings.temperature.unit = 'K'; },
+    (payload) => { payload.inspection.visits[0].readings.temperature.quality = 'unknown'; },
+    (payload) => {
+      payload.inspection.visits[0].readings.temperature.sample_index = 2;
+    },
+    (payload) => {
+      payload.inspection.visits[0].readings.temperature.sample_index = 4;
+    },
+  ];
+  for (const mutate of mutations) {
+    const payload = structuredClone(accepted);
+    mutate(payload);
+    assert.throws(
+      () => validateDashboardPayload(payload),
+      (error) => error.code === 'INVALID_PAYLOAD',
+    );
+  }
+
+  const active = validPayload();
+  active.inspection = structuredClone(accepted.inspection);
+  assert.throws(
+    () => validateDashboardPayload(active),
+    (error) => error.code === 'INVALID_PAYLOAD',
+  );
 });
 
 test('rejects unsupported schemas and malformed run identity', () => {

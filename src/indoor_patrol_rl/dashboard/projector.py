@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import UTC, datetime
 from numbers import Real
 from pathlib import Path
@@ -14,6 +14,7 @@ import yaml
 
 from indoor_patrol_rl.application.live_status import PatrolLiveAlert, PatrolLiveSnapshot
 from indoor_patrol_rl.dashboard.repository import DashboardEvidence, DashboardEvidenceError
+from indoor_patrol_rl.evaluation import PatrolRunSummary
 
 DASHBOARD_SCHEMA_VERSION = "patrol-dashboard/v1"
 MAX_TRAJECTORY_POINTS = 300
@@ -21,6 +22,12 @@ MAX_ALARM_HISTORY_ITEMS = 200
 DEMONSTRATION_BOUNDARY_NOTE = (
     "本二维地图来自仿真配置，仅用于毕设演示可视化，不代表真实场地测绘或导航安全边界。"
 )
+_INSPECTION_SENSOR_PRESENTATION = {
+    "temperature": ("温度", "°C"),
+    "smoke_obscuration": ("烟雾遮蔽率", "%/m"),
+    "carbon_monoxide": ("一氧化碳浓度", "ppm"),
+}
+_ALARM_SEVERITY_ORDER = {"info": 1, "warning": 2, "critical": 3}
 
 
 @dataclass(frozen=True)
@@ -91,18 +98,14 @@ class DashboardMap:
             checkpoint = _mapping(raw_checkpoint, f"checkpoints[{index}]")
             checkpoints.append(
                 DashboardCheckpoint(
-                    checkpoint_id=_text(
-                        checkpoint.get("id"), f"checkpoints[{index}].id"
-                    ),
+                    checkpoint_id=_text(checkpoint.get("id"), f"checkpoints[{index}].id"),
                     position=_point(
                         checkpoint.get("position"),
                         f"checkpoints[{index}].position",
                     ),
                 )
             )
-        _require_unique(
-            (checkpoint.checkpoint_id for checkpoint in checkpoints), "checkpoint id"
-        )
+        _require_unique((checkpoint.checkpoint_id for checkpoint in checkpoints), "checkpoint id")
         _require_unique((obstacle.obstacle_id for obstacle in obstacles), "obstacle id")
         if not checkpoints:
             raise DashboardEvidenceError("地图配置至少需要一个巡检点。")
@@ -140,9 +143,7 @@ def project_dashboard(
         raise ValueError("generated_at must be timezone-aware.")
     terminal = evidence.terminal
     trajectory = _trajectory_points(evidence.snapshots, limit=MAX_TRAJECTORY_POINTS)
-    progress = (
-        current.completed_checkpoint_count / current.checkpoint_count
-    )
+    progress = current.completed_checkpoint_count / current.checkpoint_count
     result = _terminal_result(evidence)
     readings = current.latest_readings
     active_origins = _active_alarm_origins(evidence.alarm_history)
@@ -177,9 +178,7 @@ def project_dashboard(
                 "model_sha256": current.runtime_identity.model_sha256,
                 "safety_shield_enabled": current.runtime_identity.safety_shield_enabled,
                 "safety_shield_id": current.runtime_identity.safety_shield_id,
-                "safety_shield_sha256": (
-                    current.runtime_identity.safety_shield_sha256
-                ),
+                "safety_shield_sha256": (current.runtime_identity.safety_shield_sha256),
             },
         },
         "map": {
@@ -207,9 +206,7 @@ def project_dashboard(
                 }
                 for obstacle in dashboard_map.obstacles
             ],
-            "dynamic_obstacles": [
-                obstacle.to_dict() for obstacle in current.dynamic_obstacles
-            ],
+            "dynamic_obstacles": [obstacle.to_dict() for obstacle in current.dynamic_obstacles],
         },
         "task": {
             "current_checkpoint_id": current.current_checkpoint_id,
@@ -248,13 +245,12 @@ def project_dashboard(
                 for alert in current.active_alerts
             ],
             "history_count": len(evidence.alarm_history),
-            "history_returned_count": min(
-                len(evidence.alarm_history), MAX_ALARM_HISTORY_ITEMS
-            ),
+            "history_returned_count": min(len(evidence.alarm_history), MAX_ALARM_HISTORY_ITEMS),
             "history_truncated": len(evidence.alarm_history) > MAX_ALARM_HISTORY_ITEMS,
             "history": list(reversed(evidence.alarm_history[-MAX_ALARM_HISTORY_ITEMS:])),
         },
         "avoidance": current.avoidance.to_dict(),
+        "inspection": _inspection_projection(evidence),
         "result": result,
     }
 
@@ -275,9 +271,7 @@ def _validate_map_matches_run(
         return
     assert evidence.summary is not None
     raw_records = evidence.summary.get("checkpoint_records")
-    if not isinstance(raw_records, list) or len(raw_records) != len(
-        dashboard_map.checkpoints
-    ):
+    if not isinstance(raw_records, list) or len(raw_records) != len(dashboard_map.checkpoints):
         raise DashboardEvidenceError("summary.json 的 checkpoint_records 与地图数量不一致。")
     reached_count = 0
     seen_unreached = False
@@ -305,21 +299,15 @@ def _validate_map_matches_run(
             )
         reached = record.get("reached")
         if not isinstance(reached, bool):
-            raise DashboardEvidenceError(
-                f"checkpoint_records[{ordinal}].reached 必须是布尔值。"
-            )
+            raise DashboardEvidenceError(f"checkpoint_records[{ordinal}].reached 必须是布尔值。")
         if reached:
             if seen_unreached:
-                raise DashboardEvidenceError(
-                    "checkpoint_records 的到达状态必须保持前缀连续。"
-                )
+                raise DashboardEvidenceError("checkpoint_records 的到达状态必须保持前缀连续。")
             reached_count += 1
         else:
             seen_unreached = True
     if reached_count != current.completed_checkpoint_count:
-        raise DashboardEvidenceError(
-            "checkpoint_records 的到达数量与终态 status.json 不一致。"
-        )
+        raise DashboardEvidenceError("checkpoint_records 的到达数量与终态 status.json 不一致。")
 
 
 def _checkpoint_projection(
@@ -400,6 +388,377 @@ def _active_alarm_origins(
     return origins
 
 
+def _inspection_projection(evidence: DashboardEvidence) -> dict[str, object]:
+    unavailable: dict[str, object] = {
+        "available": False,
+        "sample_count": None,
+        "visit_count": 0,
+        "visits": [],
+    }
+    if not evidence.terminal or evidence.runtime_abort is not None:
+        return unavailable
+    if (
+        evidence.summary is None
+        or evidence.inspection_summary is None
+        or evidence.inspection_samples is None
+    ):
+        raise DashboardEvidenceError("完整终态缺少可投影的巡检证据。")
+
+    current = evidence.current
+    patrol_summary = evidence.summary
+    inspection_summary = evidence.inspection_summary
+    samples = evidence.inspection_samples
+    if inspection_summary.get("run_id") != current.run_id:
+        raise DashboardEvidenceError("inspection summary 的 run_id 与运行证据不一致。")
+
+    sample_count = _integer(
+        inspection_summary.get("sample_count"),
+        "inspection_summary.sample_count",
+    )
+    if sample_count != len(samples):
+        raise DashboardEvidenceError(
+            "inspection_summary.sample_count 与 inspection_samples.csv 不一致。"
+        )
+    visit_count = _integer(
+        inspection_summary.get("visit_count"),
+        "inspection_summary.visit_count",
+    )
+    raw_visits = _sequence(
+        inspection_summary.get("visit_records"),
+        "inspection_summary.visit_records",
+    )
+    if visit_count != len(raw_visits):
+        raise DashboardEvidenceError("inspection_summary.visit_count 与 visit_records 不一致。")
+    if visit_count != current.completed_checkpoint_count:
+        raise DashboardEvidenceError("巡检 visit_count 与已到达巡检点数不一致。")
+    if (
+        _integer(
+            inspection_summary.get("expected_checkpoint_count"),
+            "inspection_summary.expected_checkpoint_count",
+        )
+        != current.checkpoint_count
+    ):
+        raise DashboardEvidenceError("巡检声明的巡检点总数与运行证据不一致。")
+    if _integer(
+        inspection_summary.get("sensor_count"),
+        "inspection_summary.sensor_count",
+    ) != len(_INSPECTION_SENSOR_PRESENTATION):
+        raise DashboardEvidenceError("巡检传感器数量与看板合同不一致。")
+
+    visits_by_index: dict[int, Mapping[str, Any]] = {}
+    checkpoint_ids: set[str] = set()
+    previous_control_step: int | None = None
+    previous_simulation_time_s: float | None = None
+    for ordinal, raw_visit in enumerate(raw_visits, 1):
+        visit = _mapping(raw_visit, f"visit_records[{ordinal}]")
+        visit_index = _integer(visit.get("visit_index"), f"visit_records[{ordinal}].visit_index")
+        if visit_index != ordinal:
+            raise DashboardEvidenceError("巡检 visit_index 必须从 1 连续递增。")
+        if visit.get("run_id") != current.run_id:
+            raise DashboardEvidenceError(f"visit_records[{ordinal}] 的 run_id 不一致。")
+        checkpoint_id = _text(
+            visit.get("checkpoint_id"),
+            f"visit_records[{ordinal}].checkpoint_id",
+        )
+        if checkpoint_id in checkpoint_ids:
+            raise DashboardEvidenceError("巡检 visit_records 不允许重复 checkpoint_id。")
+        checkpoint_ids.add(checkpoint_id)
+        control_step = _integer(
+            visit.get("control_step"),
+            f"visit_records[{ordinal}].control_step",
+        )
+        simulation_time_s = _number(
+            visit.get("simulation_time_s"),
+            f"visit_records[{ordinal}].simulation_time_s",
+        )
+        if simulation_time_s < 0.0:
+            raise DashboardEvidenceError(
+                f"visit_records[{ordinal}].simulation_time_s 不能为负数。"
+            )
+        if control_step > current.control_step:
+            raise DashboardEvidenceError(
+                f"visit_records[{ordinal}].control_step 超过终态控制步。"
+            )
+        if simulation_time_s > current.simulation_time_s:
+            raise DashboardEvidenceError(
+                f"visit_records[{ordinal}].simulation_time_s 超过终态仿真时间。"
+            )
+        # Each patrol visit is a separately completed checkpoint.  The controller
+        # must advance at least one frame before another checkpoint can complete,
+        # so equal control steps or arrival times are not valid for this contract.
+        if previous_control_step is not None and control_step <= previous_control_step:
+            raise DashboardEvidenceError(
+                "visit_records.control_step 必须随巡检顺序严格递增。"
+            )
+        if (
+            previous_simulation_time_s is not None
+            and simulation_time_s <= previous_simulation_time_s
+        ):
+            raise DashboardEvidenceError(
+                "visit_records.simulation_time_s 必须随巡检顺序严格递增。"
+            )
+        previous_control_step = control_step
+        previous_simulation_time_s = simulation_time_s
+        visits_by_index[visit_index] = visit
+
+    if _integer(
+        inspection_summary.get("visited_checkpoint_count"),
+        "inspection_summary.visited_checkpoint_count",
+    ) != len(checkpoint_ids):
+        raise DashboardEvidenceError("巡检声明的已访问巡检点数不一致。")
+
+    raw_checkpoint_records = _sequence(
+        patrol_summary.get("checkpoint_records"),
+        "summary.checkpoint_records",
+    )
+    if len(raw_checkpoint_records) != current.checkpoint_count:
+        raise DashboardEvidenceError("summary.checkpoint_records 数量不一致。")
+    for ordinal, visit in visits_by_index.items():
+        checkpoint = _mapping(
+            raw_checkpoint_records[ordinal - 1],
+            f"summary.checkpoint_records[{ordinal}]",
+        )
+        if (
+            checkpoint.get("reached") is not True
+            or checkpoint.get("visit_order") != ordinal
+            or checkpoint.get("checkpoint_id") != visit.get("checkpoint_id")
+        ):
+            raise DashboardEvidenceError(
+                f"visit_records[{ordinal}] 与到达的 checkpoint 顺序不一致。"
+            )
+
+    grouped_samples: dict[int, list[dict[str, object]]] = {index: [] for index in visits_by_index}
+    sample_indexes: set[int] = set()
+    for row_number, sample in enumerate(samples, 1):
+        label = f"inspection_samples[{row_number}]"
+        if sample.get("run_id") != current.run_id:
+            raise DashboardEvidenceError(f"{label} 的 run_id 不一致。")
+        sample_index = _csv_integer(sample, "sample_index", label, minimum=1)
+        if sample_index in sample_indexes:
+            raise DashboardEvidenceError("巡检 sample_index 不允许重复。")
+        sample_indexes.add(sample_index)
+        visit_index = _csv_integer(sample, "visit_index", label, minimum=1)
+        if visit_index not in visits_by_index:
+            raise DashboardEvidenceError(f"{label} 引用了未声明的 visit_index。")
+        sensor_id = sample.get("sensor_id")
+        if (
+            not isinstance(sensor_id, str)
+            or sensor_id not in _INSPECTION_SENSOR_PRESENTATION
+        ):
+            raise DashboardEvidenceError(f"{label} 传感器不在看板白名单中。")
+        display_name, unit = _INSPECTION_SENSOR_PRESENTATION[sensor_id]
+        if (
+            sample.get("quantity") != sensor_id
+            or sample.get("display_name") != display_name
+            or sample.get("unit") != unit
+        ):
+            raise DashboardEvidenceError(f"{label} 传感器元数据与看板合同不一致。")
+        quality = _text(sample.get("quality"), f"{label}.quality")
+        if quality != "ok":
+            raise DashboardEvidenceError(f"{label}.quality 不在支持的白名单中。")
+        grouped_samples[visit_index].append(
+            {
+                "sample_index": sample_index,
+                "checkpoint_id": _text(sample.get("checkpoint_id"), f"{label}.checkpoint_id"),
+                "control_step": _csv_integer(sample, "control_step", label, minimum=0),
+                "simulation_time_s": _csv_number(sample, "simulation_time_s", label),
+                "sensor_id": sensor_id,
+                "display_name": display_name,
+                "unit": unit,
+                "value": _csv_number(sample, "observed_value", label),
+                "quality": quality,
+            }
+        )
+    if sorted(sample_indexes) != list(range(1, sample_count + 1)):
+        raise DashboardEvidenceError("巡检 sample_index 必须从 1 连续递增。")
+
+    event_states = _visit_alarm_states(
+        inspection_summary,
+        visits_by_index,
+        expected_run_id=current.run_id,
+    )
+    visits: list[dict[str, object]] = []
+    for ordinal, visit in visits_by_index.items():
+        label = f"visit_records[{ordinal}]"
+        checkpoint_id = str(visit["checkpoint_id"])
+        control_step = _integer(visit.get("control_step"), f"{label}.control_step")
+        simulation_time_s = _number(
+            visit.get("simulation_time_s"),
+            f"{label}.simulation_time_s",
+        )
+        if simulation_time_s < 0.0:
+            raise DashboardEvidenceError(f"{label}.simulation_time_s 不能为负数。")
+        rows = grouped_samples[ordinal]
+        declared_visit_samples = _integer(visit.get("sample_count"), f"{label}.sample_count")
+        if declared_visit_samples != len(rows):
+            raise DashboardEvidenceError(f"{label}.sample_count 与原始样本不一致。")
+        latest_by_sensor: dict[str, dict[str, object]] = {}
+        sample_counts_by_sensor: dict[str, int] = {}
+        for sample in rows:
+            sample_time = float(sample["simulation_time_s"])
+            if (
+                sample["checkpoint_id"] != checkpoint_id
+                or sample["control_step"] != control_step
+                or (
+                    sample_time < simulation_time_s
+                    and not math.isclose(
+                        sample_time,
+                        simulation_time_s,
+                        rel_tol=0.0,
+                        abs_tol=1e-9,
+                    )
+                )
+            ):
+                raise DashboardEvidenceError(f"{label} 与其原始样本上下文不一致。")
+            sensor_id = str(sample["sensor_id"])
+            sample_counts_by_sensor[sensor_id] = sample_counts_by_sensor.get(sensor_id, 0) + 1
+            previous = latest_by_sensor.get(sensor_id)
+            if previous is None or int(sample["sample_index"]) > int(previous["sample_index"]):
+                latest_by_sensor[sensor_id] = sample
+        if set(latest_by_sensor) != set(_INSPECTION_SENSOR_PRESENTATION):
+            raise DashboardEvidenceError(f"{label} 没有且仅有三种约定传感器。")
+        if len(set(sample_counts_by_sensor.values())) != 1:
+            raise DashboardEvidenceError(f"{label} 三种传感器的采样数不一致。")
+
+        alarm_event_count, active_alarm_count, highest_active_severity = event_states[ordinal]
+        if (
+            _integer(visit.get("alarm_event_count"), f"{label}.alarm_event_count")
+            != alarm_event_count
+        ):
+            raise DashboardEvidenceError(f"{label}.alarm_event_count 与告警事件不一致。")
+        if (
+            _integer(visit.get("active_alarm_count"), f"{label}.active_alarm_count")
+            != active_alarm_count
+        ):
+            raise DashboardEvidenceError(f"{label}.active_alarm_count 与告警状态不一致。")
+        if visit.get("highest_active_severity") != highest_active_severity:
+            raise DashboardEvidenceError(f"{label}.highest_active_severity 与告警状态不一致。")
+
+        readings = {
+            sensor_id: {
+                "display_name": latest_by_sensor[sensor_id]["display_name"],
+                "value": latest_by_sensor[sensor_id]["value"],
+                "unit": latest_by_sensor[sensor_id]["unit"],
+                "quality": latest_by_sensor[sensor_id]["quality"],
+                "sample_index": latest_by_sensor[sensor_id]["sample_index"],
+            }
+            for sensor_id in _INSPECTION_SENSOR_PRESENTATION
+        }
+        visits.append(
+            {
+                "visit_index": ordinal,
+                "checkpoint_id": checkpoint_id,
+                "control_step": control_step,
+                "simulation_time_s": simulation_time_s,
+                "alarm_event_count": alarm_event_count,
+                "highest_active_severity": highest_active_severity,
+                "readings": readings,
+            }
+        )
+
+    return {
+        "available": True,
+        "sample_count": sample_count,
+        "visit_count": len(visits),
+        "visits": visits,
+    }
+
+
+def _visit_alarm_states(
+    inspection_summary: Mapping[str, Any],
+    visits_by_index: Mapping[int, Mapping[str, Any]],
+    *,
+    expected_run_id: str,
+) -> dict[int, tuple[int, int, str | None]]:
+    raw_events = _sequence(
+        inspection_summary.get("alarm_events"),
+        "inspection_summary.alarm_events",
+    )
+    if _integer(inspection_summary.get("event_count"), "inspection_summary.event_count") != len(
+        raw_events
+    ):
+        raise DashboardEvidenceError("inspection_summary.event_count 与 alarm_events 不一致。")
+    events_by_visit: dict[int, list[Mapping[str, Any]]] = {index: [] for index in visits_by_index}
+    for event_number, raw_event in enumerate(raw_events, 1):
+        event = _mapping(raw_event, f"alarm_events[{event_number}]")
+        if event.get("run_id") != expected_run_id:
+            raise DashboardEvidenceError("告警事件的 run_id 与运行证据不一致。")
+        visit_index = _integer(
+            event.get("visit_index"),
+            f"alarm_events[{event_number}].visit_index",
+        )
+        if visit_index not in events_by_visit:
+            raise DashboardEvidenceError("告警事件引用了未声明的 visit_index。")
+        if event.get("checkpoint_id") != visits_by_index[visit_index].get(
+            "checkpoint_id"
+        ):
+            raise DashboardEvidenceError("告警事件的 checkpoint_id 与 visit 不一致。")
+        events_by_visit[visit_index].append(event)
+
+    active_rules: dict[str, str] = {}
+    result: dict[int, tuple[int, int, str | None]] = {}
+    for visit_index in visits_by_index:
+        for event in events_by_visit[visit_index]:
+            rule_id = _text(event.get("rule_id"), "alarm_event.rule_id")
+            severity = event.get("severity")
+            if not isinstance(severity, str) or severity not in _ALARM_SEVERITY_ORDER:
+                raise DashboardEvidenceError("告警事件 severity 不在白名单中。")
+            event_type = event.get("event_type")
+            if event_type == "raised":
+                if rule_id in active_rules:
+                    raise DashboardEvidenceError("告警事件重复激活同一规则。")
+                active_rules[rule_id] = str(severity)
+            elif event_type == "cleared":
+                if active_rules.get(rule_id) != severity:
+                    raise DashboardEvidenceError("告警事件清除了未激活或严重度不一致的规则。")
+                del active_rules[rule_id]
+            else:
+                raise DashboardEvidenceError("告警事件 event_type 不在白名单中。")
+        highest = (
+            max(active_rules.values(), key=_ALARM_SEVERITY_ORDER.__getitem__)
+            if active_rules
+            else None
+        )
+        result[visit_index] = (
+            len(events_by_visit[visit_index]),
+            len(active_rules),
+            highest,
+        )
+    return result
+
+
+def _integer(value: object, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise DashboardEvidenceError(f"{label} 必须是非负整数。")
+    return value
+
+
+def _csv_integer(
+    row: Mapping[str, str],
+    key: str,
+    label: str,
+    *,
+    minimum: int,
+) -> int:
+    try:
+        value = int(row[key])
+    except (KeyError, TypeError, ValueError) as error:
+        raise DashboardEvidenceError(f"{label}.{key} 必须是整数。") from error
+    if value < minimum:
+        raise DashboardEvidenceError(f"{label}.{key} 必须大于等于 {minimum}。")
+    return value
+
+
+def _csv_number(row: Mapping[str, str], key: str, label: str) -> float:
+    try:
+        value = float(row[key])
+    except (KeyError, TypeError, ValueError) as error:
+        raise DashboardEvidenceError(f"{label}.{key} 必须是有限数值。") from error
+    if not math.isfinite(value):
+        raise DashboardEvidenceError(f"{label}.{key} 必须是有限数值。")
+    return value
+
+
 def _terminal_result(evidence: DashboardEvidence) -> dict[str, object]:
     if not evidence.terminal:
         return {
@@ -430,52 +789,54 @@ def _terminal_result(evidence: DashboardEvidence) -> dict[str, object]:
         }
     assert evidence.summary is not None
     assert evidence.inspection_summary is not None
-    summary = evidence.summary
+    summary = _validated_patrol_summary(evidence.summary)
     inspection = evidence.inspection_summary
     return {
         "available": True,
         "validated": True,
         "validation": evidence.terminal_validation,
-        "outcome": summary.get("outcome"),
-        "success": summary.get("outcome") == "completed",
-        "failure_reason": summary.get("failure_reason"),
-        "checkpoints_visited": summary.get("checkpoints_visited"),
-        "checkpoints_total": summary.get("checkpoints_total"),
-        "collision_count": summary.get("collision_count"),
-        "elapsed_simulation_time_s": summary.get("elapsed_simulation_time_s"),
-        "actual_path_length_m": summary.get("actual_path_length_m"),
-        "minimum_clearance_m": summary.get("minimum_clearance_m"),
-        "minimum_lidar_range_m": summary.get("minimum_lidar_range_m"),
-        "critical_proximity_count": summary.get("critical_proximity_count"),
-        "safety_shield_intervention_steps": summary.get(
-            "safety_shield_intervention_steps"
+        "outcome": summary.outcome,
+        "success": summary.outcome == "completed",
+        "failure_reason": summary.failure_reason,
+        "checkpoints_visited": summary.checkpoints_visited,
+        "checkpoints_total": summary.checkpoints_total,
+        "collision_count": summary.collision_count,
+        "elapsed_simulation_time_s": summary.elapsed_simulation_time_s,
+        "actual_path_length_m": summary.actual_path_length_m,
+        "minimum_clearance_m": summary.minimum_clearance_m,
+        "minimum_lidar_range_m": summary.minimum_lidar_range_m,
+        "critical_proximity_count": summary.critical_proximity_count,
+        "safety_shield_intervention_steps": summary.safety_shield_intervention_steps,
+        "safety_shield_intervention_rate": summary.safety_shield_intervention_rate,
+        "ttc_escape_guard_intervention_steps": (
+            summary.ttc_escape_guard_intervention_steps
         ),
-        "safety_shield_intervention_rate": summary.get(
-            "safety_shield_intervention_rate"
+        "ttc_escape_guard_activation_count": summary.ttc_escape_guard_activation_count,
+        "ttc_escape_guard_recovery_count": summary.ttc_escape_guard_recovery_count,
+        "ttc_escape_guard_unrecoverable_count": (
+            summary.ttc_escape_guard_unrecoverable_count
         ),
-        "ttc_escape_guard_intervention_steps": summary.get(
-            "ttc_escape_guard_intervention_steps"
-        ),
-        "ttc_escape_guard_activation_count": summary.get(
-            "ttc_escape_guard_activation_count"
-        ),
-        "ttc_escape_guard_recovery_count": summary.get(
-            "ttc_escape_guard_recovery_count"
-        ),
-        "ttc_escape_guard_unrecoverable_count": summary.get(
-            "ttc_escape_guard_unrecoverable_count"
-        ),
-        "inference_latency_p50_ms": summary.get("inference_latency_p50_ms"),
-        "inference_latency_p95_ms": summary.get("inference_latency_p95_ms"),
-        "dynamic_obstacle_count": summary.get("dynamic_obstacle_count"),
-        "dynamic_obstacle_speed_max_mps": summary.get(
-            "dynamic_obstacle_speed_max_mps"
-        ),
+        "inference_latency_p50_ms": summary.inference_latency_p50_ms,
+        "inference_latency_p95_ms": summary.inference_latency_p95_ms,
+        "dynamic_obstacle_count": summary.dynamic_obstacle_count,
+        "dynamic_obstacle_speed_max_mps": summary.dynamic_obstacle_speed_max_mps,
         "sample_count": inspection.get("sample_count"),
         "alarms_raised": inspection.get("alarms_raised"),
         "alarms_cleared": inspection.get("alarms_cleared"),
         "highest_event_severity": inspection.get("highest_event_severity"),
     }
+
+
+def _validated_patrol_summary(raw: Mapping[str, Any]) -> PatrolRunSummary:
+    values = {
+        field.name: raw[field.name]
+        for field in fields(PatrolRunSummary)
+        if field.name in raw
+    }
+    try:
+        return PatrolRunSummary(**values)
+    except (TypeError, ValueError) as error:
+        raise DashboardEvidenceError(f"summary.json 运行结果不满足领域约束：{error}") from error
 
 
 def _xy(point: tuple[float, float]) -> dict[str, float]:

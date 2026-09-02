@@ -94,6 +94,11 @@ function projectHistoryItem(input) {
   if (item.status !== 'completed' && item.result_validated) {
     fail('未完成记录不能声明已验证终态');
   }
+  if (typeof item.report_available !== 'boolean') fail('report_available 必须是布尔值');
+  if (item.report_available
+    && (!item.terminal || item.status !== 'completed' || !item.result_validated)) {
+    fail('完整报告可用状态与终态验证结果不一致');
+  }
   if (item.status === 'aborted' && item.result_outcome !== 'aborted') {
     fail('异常中止记录缺少 aborted 结果标记');
   }
@@ -125,6 +130,7 @@ function projectHistoryItem(input) {
     alarm_history_count: nullableInteger(item.alarm_history_count, 'alarm_history_count'),
     result_outcome: nullableString(item.result_outcome, 'result_outcome'),
     result_validated: item.result_validated,
+    report_available: item.report_available,
   };
 }
 

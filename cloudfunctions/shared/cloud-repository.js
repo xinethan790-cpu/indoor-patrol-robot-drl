@@ -12,6 +12,8 @@ const {
   SNAPSHOT_SCHEMA_VERSION,
 } = require('./config');
 const { conflict } = require('./errors');
+const { RUN_ID_PATTERN } = require('./payload');
+const { buildPatrolReport } = require('./report');
 const { decideUpload } = require('./state-machine');
 
 function opaqueId(...parts) {
@@ -73,6 +75,7 @@ function runDocument(upload, runStartedAt) {
   const terminalResult = upload.terminal && payload.result.available === true
     ? payload.result
     : null;
+  const report = buildPatrolReport(payload);
   const result = {
     schema_version: RUN_SCHEMA_VERSION,
     device_id: upload.device_id,
@@ -96,7 +99,9 @@ function runDocument(upload, runStartedAt) {
       ? terminalResult.outcome
       : null,
     result_validated: terminalResult ? terminalResult.validated === true : false,
+    report_available: report !== null,
   };
+  if (report !== null) result.report = report;
   if (upload.terminal) {
     result.terminal_payload = upload.payload;
     result.terminal_received_at_utc = upload.received_at_utc;
@@ -219,14 +224,41 @@ class CloudPatrolRepository {
         incomplete: true,
         result_outcome: true,
         result_validated: true,
+        report_available: true,
       })
       .get();
-    const rows = result && Array.isArray(result.data) ? result.data : [];
+    if (!result || !Array.isArray(result.data)) {
+      throw new TypeError('history query returned an invalid data envelope');
+    }
+    const rows = result.data;
     return {
       documents: rows.slice(0, pageSize),
       hasMore: rows.length > pageSize,
       nextOffset: offset + Math.min(rows.length, pageSize),
     };
+  }
+
+  async getPatrolReport(options) {
+    const settings = options || {};
+    const { deviceId, runId } = settings;
+    if (typeof deviceId !== 'string' || deviceId.length === 0 || deviceId.length > 64) {
+      throw new TypeError('report deviceId must be a non-empty string');
+    }
+    if (typeof runId !== 'string' || !RUN_ID_PATTERN.test(runId)) {
+      throw new TypeError('report runId is invalid');
+    }
+    const document = await readOptional(
+      this.database.collection(COLLECTIONS.runs).doc(opaqueId(deviceId, runId)),
+    );
+    if (!document
+        || document.device_id !== deviceId
+        || document.run_id !== runId
+        || document.terminal !== true
+        || document.report_available !== true
+        || !document.report) {
+      return null;
+    }
+    return document.report;
   }
 }
 

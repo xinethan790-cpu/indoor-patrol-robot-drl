@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,7 @@ from indoor_patrol_rl.dashboard.alarm_history import (
     snapshot_alarm_history,
     verified_alarm_history,
 )
-from indoor_patrol_rl.inspection import verify_inspection_bundle
+from indoor_patrol_rl.inspection import EnvironmentalSample, verify_inspection_bundle
 
 _TERMINAL_STATES = {"completed", "failed"}
 _TERMINAL_BUNDLE_FILES = (
@@ -53,6 +54,7 @@ class DashboardEvidence:
     snapshots: tuple[PatrolLiveSnapshot, ...]
     summary: Mapping[str, Any] | None
     inspection_summary: Mapping[str, Any] | None
+    inspection_samples: tuple[Mapping[str, str], ...] | None
     alarm_history: tuple[dict[str, object], ...]
     alarm_history_source: str
     terminal_validation: str | None
@@ -242,6 +244,7 @@ class PatrolDashboardRepository:
             runtime_abort = runtime_abort_candidate
             summary = None
             inspection_summary = None
+            inspection_samples = None
             history = snapshot_alarm_history(snapshots)
             history_source = "runtime_abort_snapshot_diff"
             terminal_validation = RUNTIME_ABORT_EVIDENCE_SCOPE
@@ -278,6 +281,10 @@ class PatrolDashboardRepository:
                 raise DashboardEvidenceError(
                     "inspection manifest 与 status.json 的 run_id 不一致。"
                 )
+            inspection_samples = self._required_csv_records(
+                "inspection_samples.csv",
+                expected_fields=tuple(field.name for field in fields(EnvironmentalSample)),
+            )
             records = self._required_json_lines("alarm_events.jsonl")
             history = verified_alarm_history(records, expected_run_id=run_id)
             active_from_events = set(active_rule_ids_from_history(history))
@@ -294,6 +301,7 @@ class PatrolDashboardRepository:
             inspection_summary = self._optional_json(
                 "inspection_summary.json", expected_run_id=run_id
             )
+            inspection_samples = None
             history = snapshot_alarm_history(snapshots)
             history_source = "live_snapshot_diff"
             terminal_validation = None
@@ -304,6 +312,7 @@ class PatrolDashboardRepository:
             snapshots=snapshots,
             summary=summary,
             inspection_summary=inspection_summary,
+            inspection_samples=inspection_samples,
             alarm_history=history,
             alarm_history_source=history_source,
             terminal_validation=terminal_validation,
@@ -383,6 +392,31 @@ class PatrolDashboardRepository:
             if not isinstance(raw, Mapping) or not all(isinstance(key, str) for key in raw):
                 raise DashboardEvidenceError(f"{filename} 第 {line_number} 行必须是对象。")
             records.append(raw)
+        return tuple(records)
+
+    def _required_csv_records(
+        self,
+        filename: str,
+        *,
+        expected_fields: tuple[str, ...],
+    ) -> tuple[Mapping[str, str], ...]:
+        path = self._required_file(filename)
+        try:
+            with path.open(newline="", encoding="utf-8") as stream:
+                reader = csv.DictReader(stream)
+                if tuple(reader.fieldnames or ()) != expected_fields:
+                    raise DashboardEvidenceError(f"{filename} 表头与支持的巡检样本结构不一致。")
+                records: list[Mapping[str, str]] = []
+                for row_number, row in enumerate(reader, 1):
+                    if None in row or any(value is None for value in row.values()):
+                        raise DashboardEvidenceError(
+                            f"{filename} 第 {row_number} 行字段数量不一致。"
+                        )
+                    records.append({key: value for key, value in row.items() if key is not None})
+        except DashboardEvidenceError:
+            raise
+        except (csv.Error, OSError, UnicodeError) as error:
+            raise DashboardEvidenceError(f"无法读取 {filename}：{error}") from error
         return tuple(records)
 
     @staticmethod
