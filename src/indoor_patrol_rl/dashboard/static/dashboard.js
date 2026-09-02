@@ -7,6 +7,7 @@ const severityNames = { info: "提示", warning: "警告", critical: "严重" };
 const eventNames = { raised: "触发", cleared: "解除" };
 const sensorNames = { temperature: "温度", smoke_obscuration: "烟雾遮蔽率", carbon_monoxide: "一氧化碳浓度" };
 const checkpointStatusNames = { completed: "已完成", current: "当前点位", pending: "待巡检" };
+const guardModeNames = { inactive: "未触发", reverse: "后退脱困", sidestep: "侧向脱困", safety_stop: "安全停止" };
 const failureReasonNames = {
   "physical contact detected by Webots contact points": "Webots 接触点检测到物理碰撞",
   "physical contact during inspection dwell": "巡检驻留期间发生物理碰撞",
@@ -96,6 +97,29 @@ function renderMap(data) {
     svg.append(svgElement("polyline", { points, class: "route-shadow" }));
     svg.append(svgElement("polyline", { points, class: "route-line" }));
   }
+  (map.dynamic_obstacles || []).forEach((obstacle) => {
+    const center = point(obstacle.position);
+    const radius = Math.max(9, obstacle.radius_m * scale);
+    const group = svgElement("g", { class: "dynamic-obstacle-group" });
+    const title = svgElement("title");
+    title.textContent = `动态障碍 ${obstacle.id}`;
+    group.append(title);
+    group.append(svgElement("circle", { cx: center.x, cy: center.y, r: radius + 8, class: "dynamic-obstacle-halo" }));
+    group.append(svgElement("circle", { cx: center.x, cy: center.y, r: radius, class: "dynamic-obstacle" }));
+    const velocity = obstacle.velocity;
+    if (velocity && Number.isFinite(velocity.x_mps) && Number.isFinite(velocity.y_mps)) {
+      const predictionSeconds = 2.0;
+      const tip = point({
+        x_m: obstacle.position.x_m + velocity.x_mps * predictionSeconds,
+        y_m: obstacle.position.y_m + velocity.y_mps * predictionSeconds,
+      });
+      group.append(svgElement("line", { x1: center.x, y1: center.y, x2: tip.x, y2: tip.y, class: "dynamic-velocity" }));
+    }
+    const label = svgElement("text", { x: center.x, y: center.y - radius - 13, class: "dynamic-label" });
+    label.textContent = obstacle.id.replace("DYNAMIC_OBSTACLE_", "D");
+    group.append(label);
+    svg.append(group);
+  });
   map.checkpoints.forEach((checkpoint) => {
     const p = point(checkpoint.position);
     svg.append(svgElement("circle", { cx: p.x, cy: p.y, r: 15, class: `checkpoint ${checkpoint.status}` }));
@@ -110,6 +134,56 @@ function renderMap(data) {
   const robot = point(map.robot);
   svg.append(svgElement("circle", { cx: robot.x, cy: robot.y, r: 19, class: "robot-ring" }));
   svg.append(svgElement("circle", { cx: robot.x, cy: robot.y, r: 8, class: "robot-core" }));
+  svg.setAttribute("aria-label", `巡检二维地图，机器人位于 ${show(map.robot.x_m, 2)}, ${show(map.robot.y_m, 2)}，当前有 ${(map.dynamic_obstacles || []).length} 个动态障碍`);
+}
+
+function normalizedActionText(action) {
+  if (!action) return "—";
+  return `${show(action.linear_normalized, 2)} / ${show(action.angular_normalized, 2)}`;
+}
+
+function executedActionText(action) {
+  if (!action) return "—";
+  return `${show(action.linear_mps, 2)} / ${show(action.angular_radps, 2)}`;
+}
+
+function renderAvoidance(data) {
+  const avoidance = data.avoidance || {};
+  const shield = avoidance.safety_shield || {};
+  const guard = avoidance.escape_guard || {};
+  const dynamicCount = (data.map.dynamic_obstacles || []).length;
+  const state = byId("avoidance-state");
+  byId("minimum-lidar").textContent = show(avoidance.minimum_lidar_range_m, 3);
+  byId("robust-ttc").textContent = show(avoidance.robust_ttc_s, 2);
+  byId("closing-rate").textContent = show(avoidance.closing_rate_mps, 2);
+  byId("dynamic-count").textContent = String(dynamicCount);
+  const actions = avoidance.actions || {};
+  byId("policy-action").textContent = normalizedActionText(actions.policy);
+  byId("filtered-action").textContent = normalizedActionText(actions.filtered);
+  byId("executed-action").textContent = executedActionText(actions.executed);
+  byId("shield-detail").textContent = shield.active
+    ? `安全盾介入 ${(Number(shield.intervention || 0) * 100).toFixed(1)}%`
+    : "安全盾未介入";
+  byId("guard-mode").textContent = guardModeNames[guard.mode] || guard.mode || "未触发";
+  byId("guard-note").textContent = guard.unrecoverable
+    ? "风险未在限定时间内解除，已请求安全终止"
+    : (guard.active ? "保护动作覆盖策略输出，正在脱离近碰风险" : "持续监测近距离与碰撞风险");
+  if (guard.unrecoverable) {
+    state.textContent = "风险未解除";
+    state.className = "pill failure";
+  } else if (guard.active) {
+    state.textContent = "脱困保护中";
+    state.className = "pill warning";
+  } else if (shield.active) {
+    state.textContent = "安全盾介入";
+    state.className = "pill warning";
+  } else if (avoidance.available) {
+    state.textContent = avoidance.critical_proximity ? "近距离风险" : "策略执行中";
+    state.className = `pill ${avoidance.critical_proximity ? "warning" : "success"}`;
+  } else {
+    state.textContent = data.run.terminal ? "任务已结束" : "等待感知";
+    state.className = "pill neutral";
+  }
 }
 
 function renderTask(data) {
@@ -206,6 +280,10 @@ function renderResult(data) {
     ["运行时间", `${show(result.elapsed_simulation_time_s, 1)} s`],
     ["路径长度", `${show(result.actual_path_length_m, 2)} m`],
     ["最小净空", `${show(result.minimum_clearance_m, 3)} m`],
+    ["最小 LiDAR", `${show(result.minimum_lidar_range_m, 3)} m`],
+    ["安全盾介入", result.safety_shield_intervention_steps === null || result.safety_shield_intervention_steps === undefined ? "—" : `${result.safety_shield_intervention_steps} 步 / ${show(Number(result.safety_shield_intervention_rate) * 100, 1)}%`],
+    ["脱困保护", result.ttc_escape_guard_activation_count === null || result.ttc_escape_guard_activation_count === undefined ? "—" : `${result.ttc_escape_guard_recovery_count} / ${result.ttc_escape_guard_activation_count} 次恢复`],
+    ["推理延迟 P95", `${show(result.inference_latency_p95_ms, 2)} ms`],
     ["失败原因", localizeFailureReason(result.failure_reason)],
   ];
   content.replaceChildren(...metrics.map(([label, value]) => { const card = document.createElement("div"); card.className = "result-metric"; const name = document.createElement("span"); name.textContent = label; const number = document.createElement("strong"); number.textContent = value; card.append(name, number); return card; }));
@@ -217,7 +295,7 @@ function render(data) {
   if (data.run.sequence < lastSequence) return false;
   lastRunId = data.run.run_id;
   lastSequence = data.run.sequence;
-  renderMap(data); renderTask(data); renderSensors(data); renderAlarms(data); renderResult(data);
+  renderMap(data); renderTask(data); renderSensors(data); renderAvoidance(data); renderAlarms(data); renderResult(data);
   byId("map-note").textContent = data.source.map_boundary_note;
   byId("map-mode").textContent = data.source.mode === "terminal" ? "FINAL" : "LIVE";
   byId("updated-at").textContent = `run ${data.run.run_id} · ${new Date(data.generated_at_utc).toLocaleTimeString("zh-CN")}`;

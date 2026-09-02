@@ -140,6 +140,18 @@ def _write_terminal_files(run_directory: Path) -> None:
         "elapsed_simulation_time_s": 1.28,
         "actual_path_length_m": 10.8,
         "minimum_clearance_m": 0.22,
+        "minimum_lidar_range_m": 0.32,
+        "critical_proximity_count": 0,
+        "safety_shield_intervention_steps": 7,
+        "safety_shield_intervention_rate": 0.7,
+        "ttc_escape_guard_intervention_steps": 2,
+        "ttc_escape_guard_activation_count": 1,
+        "ttc_escape_guard_recovery_count": 1,
+        "ttc_escape_guard_unrecoverable_count": 0,
+        "inference_latency_p50_ms": 0.31,
+        "inference_latency_p95_ms": 0.52,
+        "dynamic_obstacle_count": 2,
+        "dynamic_obstacle_speed_max_mps": 0.18,
         "checkpoint_records": [
             {
                 "checkpoint_id": checkpoint_id,
@@ -335,6 +347,13 @@ def test_terminal_projection_uses_verified_bundle_and_displays_complete_result(
     assert payload["result"]["success"] is True
     assert payload["result"]["sample_count"] == 36
     assert payload["result"]["minimum_clearance_m"] == 0.22
+    assert payload["result"]["minimum_lidar_range_m"] == 0.32
+    assert payload["result"]["safety_shield_intervention_steps"] == 7
+    assert payload["result"]["safety_shield_intervention_rate"] == 0.7
+    assert payload["result"]["ttc_escape_guard_activation_count"] == 1
+    assert payload["result"]["ttc_escape_guard_recovery_count"] == 1
+    assert payload["result"]["inference_latency_p95_ms"] == 0.52
+    assert payload["result"]["dynamic_obstacle_count"] == 2
     assert payload["result"]["failure_reason"] is None
     assert payload["result"]["alarms_cleared"] == 2
     assert payload["result"]["highest_event_severity"] == "critical"
@@ -659,6 +678,12 @@ def test_frontend_contract_serializes_polling_and_exposes_accessible_status() ->
     assert "maxHistoryRows = 200" in javascript
     assert "alarm.message" in javascript
     assert "alarm.sensor_id" in javascript
+    assert "renderAvoidance(data)" in javascript
+    assert "map.dynamic_obstacles" in javascript
+    assert "safety_shield" in javascript
+    assert "escape_guard" in javascript
+    assert 'id="avoidance-state"' in html
+    assert 'aria-label="强化学习动作经过安全过滤后执行"' in html
     assert 'aria-label="巡检点完成进度"' in html
     assert 'aria-live="polite"' in html
     assert 'role="alert"' in html

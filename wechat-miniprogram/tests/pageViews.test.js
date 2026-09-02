@@ -64,6 +64,11 @@ test("result page exposes auditable success metrics", () => {
   assert.equal(view.resultTone, "success");
   assert.equal(view.metrics[0].value, "4 / 4");
   assert.equal(view.metrics[1].value, "0");
+  assert.equal(view.avoidanceEvidenceAvailable, true);
+  assert.equal(view.avoidanceMetrics[0].value, "0.286 m");
+  assert.equal(view.avoidanceMetrics[2].value, "243 步");
+  assert.equal(view.avoidanceMetrics[3].value, "4 / 4");
+  assert.equal(view.avoidanceMetrics[4].value, "0.52 ms");
   assert.equal(view.failureReason, "无");
   assert.match(shortHash(fixture.run.runtime_identity.model_sha256), /…/);
 });

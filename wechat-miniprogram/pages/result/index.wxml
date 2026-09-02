@@ -7,6 +7,20 @@
     <view class="result-hero__identity">{{validationLabel}}</view>
   </view>
 
+  <view wx:if="{{avoidanceEvidenceAvailable}}" class="section-card">
+    <view class="section-heading">
+      <text class="section-title">避障与实时性</text>
+      <text class="section-caption">终态证据摘要</text>
+    </view>
+    <view class="metric-grid">
+      <view wx:for="{{avoidanceMetrics}}" wx:key="label" class="metric-card metric-card--{{item.tone}}">
+        <text class="metric-card__label">{{item.label}}</text>
+        <text class="metric-card__value">{{item.value}}</text>
+        <text class="metric-card__hint">{{item.hint}}</text>
+      </view>
+    </view>
+  </view>
+
   <view class="section-card">
     <view class="section-heading">
       <text class="section-title">核心指标</text>

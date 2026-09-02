@@ -33,6 +33,7 @@
               <span><i class="legend-robot"></i>机器人</span>
               <span><i class="legend-route"></i>运行轨迹</span>
               <span><i class="legend-point"></i>巡检点</span>
+              <span><i class="legend-dynamic"></i>动态障碍</span>
             </div>
           </div>
           <p id="map-note" class="boundary-note">正在加载演示地图边界说明…</p>
@@ -59,14 +60,40 @@
         </aside>
       </section>
 
+      <section class="panel avoidance-panel">
+        <div class="panel-heading">
+          <div><span class="section-index">04</span><h2>动态避障决策</h2></div>
+          <span id="avoidance-state" class="pill neutral">等待感知</span>
+        </div>
+        <div class="avoidance-layout" aria-live="polite">
+          <div class="avoidance-metrics">
+            <div class="avoidance-metric"><span>最近障碍</span><strong id="minimum-lidar">—</strong><small>m · LiDAR</small></div>
+            <div class="avoidance-metric"><span>鲁棒 TTC</span><strong id="robust-ttc">—</strong><small>s · 碰撞时间</small></div>
+            <div class="avoidance-metric"><span>接近速度</span><strong id="closing-rate">—</strong><small>m/s</small></div>
+            <div class="avoidance-metric"><span>动态障碍</span><strong id="dynamic-count">0</strong><small>个 · 当前帧</small></div>
+          </div>
+          <div class="action-pipeline" aria-label="强化学习动作经过安全过滤后执行">
+            <div class="action-stage"><span>策略输出</span><strong id="policy-action">—</strong><small>线速度 / 角速度（归一化）</small></div>
+            <span class="pipeline-arrow" aria-hidden="true">→</span>
+            <div class="action-stage"><span>安全过滤</span><strong id="filtered-action">—</strong><small id="shield-detail">未介入</small></div>
+            <span class="pipeline-arrow" aria-hidden="true">→</span>
+            <div class="action-stage"><span>实际执行</span><strong id="executed-action">—</strong><small>m/s / rad/s</small></div>
+          </div>
+          <div class="guard-strip">
+            <div><span class="guard-label">TTC 脱困保护</span><strong id="guard-mode">未触发</strong></div>
+            <span id="guard-note">持续监测近距离与碰撞风险</span>
+          </div>
+        </div>
+      </section>
+
       <section class="lower-grid">
         <article class="panel alarm-panel">
-          <div class="panel-heading"><div><span class="section-index">04</span><h2>活动告警</h2></div><span id="active-count" class="alarm-count">0</span></div>
+          <div class="panel-heading"><div><span class="section-index">05</span><h2>活动告警</h2></div><span id="active-count" class="alarm-count">0</span></div>
           <div id="active-alarms" class="active-alarms empty-state" aria-live="polite">当前无活动告警</div>
         </article>
 
         <article class="panel history-panel">
-          <div class="panel-heading"><div><span class="section-index">05</span><h2>异常记录</h2></div><span id="history-source" class="quiet-pill">快照差分</span></div>
+          <div class="panel-heading"><div><span class="section-index">06</span><h2>异常记录</h2></div><span id="history-source" class="quiet-pill">快照差分</span></div>
           <div class="table-wrap">
             <table>
               <thead><tr><th>时间</th><th>巡检点</th><th>级别</th><th>状态</th><th>异常内容</th></tr></thead>
@@ -76,7 +103,7 @@
         </article>
 
         <article class="panel result-panel">
-          <div class="panel-heading"><div><span class="section-index">06</span><h2>运行结果</h2></div><span id="result-badge" class="pill neutral">进行中</span></div>
+          <div class="panel-heading"><div><span class="section-index">07</span><h2>运行结果</h2></div><span id="result-badge" class="pill neutral">进行中</span></div>
           <div id="result-content" class="result-waiting" aria-live="polite">
             <span class="pulse-ring"></span>
             <p>巡检任务正在执行</p>

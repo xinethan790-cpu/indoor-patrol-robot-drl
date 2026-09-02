@@ -423,6 +423,32 @@ def _terminal_result(evidence: DashboardEvidence) -> dict[str, object]:
         "elapsed_simulation_time_s": summary.get("elapsed_simulation_time_s"),
         "actual_path_length_m": summary.get("actual_path_length_m"),
         "minimum_clearance_m": summary.get("minimum_clearance_m"),
+        "minimum_lidar_range_m": summary.get("minimum_lidar_range_m"),
+        "critical_proximity_count": summary.get("critical_proximity_count"),
+        "safety_shield_intervention_steps": summary.get(
+            "safety_shield_intervention_steps"
+        ),
+        "safety_shield_intervention_rate": summary.get(
+            "safety_shield_intervention_rate"
+        ),
+        "ttc_escape_guard_intervention_steps": summary.get(
+            "ttc_escape_guard_intervention_steps"
+        ),
+        "ttc_escape_guard_activation_count": summary.get(
+            "ttc_escape_guard_activation_count"
+        ),
+        "ttc_escape_guard_recovery_count": summary.get(
+            "ttc_escape_guard_recovery_count"
+        ),
+        "ttc_escape_guard_unrecoverable_count": summary.get(
+            "ttc_escape_guard_unrecoverable_count"
+        ),
+        "inference_latency_p50_ms": summary.get("inference_latency_p50_ms"),
+        "inference_latency_p95_ms": summary.get("inference_latency_p95_ms"),
+        "dynamic_obstacle_count": summary.get("dynamic_obstacle_count"),
+        "dynamic_obstacle_speed_max_mps": summary.get(
+            "dynamic_obstacle_speed_max_mps"
+        ),
         "sample_count": inspection.get("sample_count"),
         "alarms_raised": inspection.get("alarms_raised"),
         "alarms_cleared": inspection.get("alarms_cleared"),

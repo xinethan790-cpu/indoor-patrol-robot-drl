@@ -18,6 +18,10 @@ function metric(label, value, hint, tone) {
   return { label, value, hint, tone: tone || "neutral" };
 }
 
+function isPresent(value) {
+  return value !== null && value !== undefined;
+}
+
 function projectResult(payload) {
   const run = payload && payload.run ? payload.run : {};
   const result = payload && payload.result ? payload.result : {};
@@ -26,6 +30,17 @@ function projectResult(payload) {
   const success = available && result.success === true;
   const total = result.checkpoints_total || (payload && payload.task && payload.task.checkpoint_count) || 0;
   const visited = result.checkpoints_visited || 0;
+  const avoidanceEvidenceAvailable = [
+    result.minimum_lidar_range_m,
+    result.safety_shield_intervention_steps,
+    result.ttc_escape_guard_activation_count,
+    result.inference_latency_p95_ms,
+  ].some(isPresent);
+  const shieldRate = isPresent(result.safety_shield_intervention_rate)
+    ? `${formatNumber(result.safety_shield_intervention_rate * 100, 1, "—")}%`
+    : "—";
+  const guardActivations = result.ttc_escape_guard_activation_count;
+  const guardRecoveries = result.ttc_escape_guard_recovery_count;
   return {
     resultTone: !available ? "waiting" : (success ? "success" : "failure"),
     resultIcon: !available ? "…" : (success ? "✓" : "!"),
@@ -43,6 +58,15 @@ function projectResult(payload) {
       metric("路径长度", `${formatNumber(result.actual_path_length_m, 2, "—")} m`, "机器人实际轨迹", "neutral"),
       metric("最小净空", `${formatNumber(result.minimum_clearance_m, 3, "—")} m`, "与障碍物间距", "neutral"),
       metric("最高告警", result.highest_event_severity === "critical" ? "严重" : (result.highest_event_severity || "无"), "本次巡检事件", result.highest_event_severity ? "warning" : "success"),
+    ],
+    avoidanceEvidenceAvailable,
+    avoidanceMetrics: [
+      metric("最小 LiDAR", `${formatNumber(result.minimum_lidar_range_m, 3, "—")} m`, "激光雷达最近量测", "neutral"),
+      metric("近距风险", String(result.critical_proximity_count ?? "—"), "严重接近次数", result.critical_proximity_count ? "warning" : "success"),
+      metric("安全盾介入", isPresent(result.safety_shield_intervention_steps) ? `${result.safety_shield_intervention_steps} 步` : "—", `占控制步 ${shieldRate}`, "neutral"),
+      metric("脱困保护", isPresent(guardActivations) ? `${guardRecoveries ?? 0} / ${guardActivations}` : "—", "恢复次数 / 触发次数", result.ttc_escape_guard_unrecoverable_count ? "warning" : "success"),
+      metric("推理延迟 P95", `${formatNumber(result.inference_latency_p95_ms, 2, "—")} ms`, "策略单步推理", "neutral"),
+      metric("动态障碍", isPresent(result.dynamic_obstacle_count) ? `${result.dynamic_obstacle_count} 个` : "—", isPresent(result.dynamic_obstacle_speed_max_mps) ? `最高 ${formatNumber(result.dynamic_obstacle_speed_max_mps, 2, "—")} m/s` : "仿真场景", "neutral"),
     ],
     dashboardMap: payload && payload.map ? payload.map : null,
     runId: run.run_id || "—",
