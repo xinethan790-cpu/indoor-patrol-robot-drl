@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
-
-from stable_baselines3 import PPO
+from zipfile import ZipFile
 
 from indoor_patrol_rl.evaluation.checkpoint_sweep import load_safety_shield_profile
 from indoor_patrol_rl.training import (
@@ -104,17 +104,19 @@ def test_r2b_rebaseline_resumes_exact_rb2a_endpoint_and_changes_only_speed() -> 
     assert "WEBOTS_PPO_INITIAL_ACTION_STD" not in r2b_environment
     assert r2b_environment == r2a_environment
 
-    model = PPO.load(source_path, device="cpu")
-    assert model.num_timesteps == 40960
-    assert model.n_steps == 2048
-    assert model.batch_size == 128
-    assert model.n_epochs == 5
-    assert model.learning_rate == 3e-05
-    assert model.ent_coef == 0.001
-    assert model.gamma == 0.995
-    assert model.target_kl == 0.02
-    assert model.observation_space.shape == (79,)
-    assert model.action_space.shape == (2,)
+    with ZipFile(source_path) as archive:
+        assert "policy.optimizer.pth" in archive.namelist()
+        model_data = json.loads(archive.read("data"))
+    assert model_data["num_timesteps"] == 40960
+    assert model_data["n_steps"] == 2048
+    assert model_data["batch_size"] == 128
+    assert model_data["n_epochs"] == 5
+    assert model_data["learning_rate"] == 3e-05
+    assert model_data["ent_coef"] == 0.001
+    assert model_data["gamma"] == 0.995
+    assert model_data["target_kl"] == 0.02
+    assert model_data["observation_space"]["_shape"] == [79]
+    assert model_data["action_space"]["_shape"] == [2]
 
 
 def test_r2a_targeted_config_locks_policy_transfer_and_validation_gate() -> None:
