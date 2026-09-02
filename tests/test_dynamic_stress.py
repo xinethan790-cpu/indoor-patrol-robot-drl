@@ -14,11 +14,14 @@ import pytest
 import yaml
 
 import indoor_patrol_rl.evaluation.checkpoint_sweep as checkpoint_sweep
+import indoor_patrol_rl.evaluation.dynamic_stress as dynamic_stress
+import scripts.run_webots_dynamic_stress as dynamic_stress_cli
 from indoor_patrol_rl.evaluation.dynamic_stress import (
     DYNAMIC_STRESS_SEEDS,
     RB2B_ENDPOINT_PATH,
     RB2B_ENDPOINT_SHA256,
     build_dynamic_stress_requests,
+    finalize_existing_dynamic_stress,
     load_dynamic_stress_config,
     run_dynamic_stress,
 )
@@ -305,6 +308,8 @@ def _write_fake_sweep(
         "error_count": 0,
         "success_rate": success_count / 20,
         "collision_rate": collision_count / 20,
+        "path_length_ratio_mean": 1.0 if success_count else None,
+        "completion_time_s_mean": 4.0 if success_count else None,
     }
     summary = {
         "split": "validation",
@@ -355,6 +360,7 @@ def _write_fake_sweep(
     request_record = {
         "condition": condition,
         "seed": 11,
+        "steps": [81920],
         "seed_start": 8000,
         "episodes": 20,
         "scenario_seeds": list(DYNAMIC_STRESS_SEEDS),
@@ -366,8 +372,16 @@ def _write_fake_sweep(
             request.obstacle_speed_min,
             request.obstacle_speed_max,
         ],
+        "horizontal_route_half_length": 1.1,
+        "vertical_route_half_length": 1.1,
         "static_layout": "train_a",
+        "action_repeat": 4,
+        "max_episode_steps": 300,
+        "port_base": request.port_base,
+        "workers": 1,
+        "result_kind": "final",
         "safety_shield_enabled": True,
+        "safety_shield_profile": request.shield_profile.manifest_record(root),
     }
     manifest = {
         "schema_version": 1,
@@ -375,10 +389,28 @@ def _write_fake_sweep(
         "status": "completed",
         "split": "validation",
         "request": request_record,
+        "runtime": {
+            "evaluation_world": "worlds/webots_ppo_evaluate.wbt",
+            "evaluation_world_sha256": hashlib.sha256(
+                (root / "worlds/webots_ppo_evaluate.wbt").read_bytes()
+            ).hexdigest(),
+            "evaluator_controller": (
+                "controllers/webots_ppo_evaluate/webots_ppo_evaluate.py"
+            ),
+            "evaluator_controller_sha256": hashlib.sha256(
+                (
+                    root
+                    / "controllers/webots_ppo_evaluate/webots_ppo_evaluate.py"
+                ).read_bytes()
+            ).hexdigest(),
+            "webots_executable": str(root / "webots"),
+        },
         "runs": [
             {
                 "status": "completed",
                 "exit_code": 0,
+                "step": 81920,
+                "port": request.port_base,
                 "run_name": run_name,
                 "planner": planner,
                 "model_path": RB2B_ENDPOINT_PATH.as_posix(),
@@ -466,3 +498,153 @@ def test_all_conditions_run_even_when_first_gate_fails_and_evidence_is_bound(
         )
     )
     assert on_disk == report
+
+
+def test_finalize_existing_is_read_only_and_preserves_all_nine_evidence_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _fixture_repository(tmp_path)
+    config = load_dynamic_stress_config(CONFIG_PATH, repository_root=root)
+    requests = build_dynamic_stress_requests(
+        config,
+        webots_executable=root / "webots",
+    )
+    manifests: dict[str, Mapping[str, Any]] = {}
+    for request, condition, success_count in zip(
+        requests,
+        config.conditions,
+        (14, 8, 0),
+        strict=True,
+    ):
+        manifests[condition.condition_id] = _write_fake_sweep(
+            root,
+            request,
+            condition.sweep_directory,
+            success_count=success_count,
+        )
+
+    fast_manifest = json.loads(json.dumps(manifests["FAST3"]))
+    fast_manifest["status"] = "failed"
+    fast_run = fast_manifest["runs"][0]
+    fast_run["status"] = "failed"
+    fast_run["error"] = (
+        "summary.by_planner[0].path_length_ratio_mean must be a number."
+    )
+    fast_run.pop("summary_sha256")
+    fast_directory = config.conditions[2].sweep_directory
+    (fast_directory / "checkpoint_sweep.json").write_text(
+        json.dumps(fast_manifest) + "\n",
+        encoding="utf-8",
+    )
+    (fast_directory / "checkpoint_sweep.yaml").write_text(
+        yaml.safe_dump(fast_manifest),
+        encoding="utf-8",
+    )
+
+    nine_paths: list[Path] = []
+    sweep_yaml_paths: list[Path] = []
+    for condition in config.conditions:
+        result = root / "artifacts/results" / condition.run_name
+        nine_paths.extend(
+            (
+                condition.sweep_directory / "checkpoint_sweep.json",
+                result / "summary.json",
+                result / "episodes.csv",
+            )
+        )
+        sweep_yaml_paths.append(condition.sweep_directory / "checkpoint_sweep.yaml")
+    before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in nine_paths}
+    yaml_before = {
+        path: hashlib.sha256(path.read_bytes()).hexdigest() for path in sweep_yaml_paths
+    }
+
+    monkeypatch.setattr(
+        dynamic_stress,
+        "DYNAMIC_STRESS_EXECUTION_REVISION",
+        config.source_git_revision,
+    )
+
+    def forbidden_sweep(*_args: Any, **_kwargs: Any) -> Mapping[str, Any]:
+        raise AssertionError("Finalization must never run a sweep or Webots process.")
+
+    monkeypatch.setattr(dynamic_stress, "run_checkpoint_sweep", forbidden_sweep)
+    report = finalize_existing_dynamic_stress(config)
+
+    after = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in nine_paths}
+    yaml_after = {
+        path: hashlib.sha256(path.read_bytes()).hexdigest() for path in sweep_yaml_paths
+    }
+    assert before == after
+    assert yaml_before == yaml_after
+    assert report["webots_processes_launched"] == 0
+    assert report["posthoc_revalidation"] is True
+    assert report["no_rerun"] is True
+    assert report["original_sweep_manifests_rewritten"] is False
+    assert report["preregistration_revision"] == config.source_git_revision
+    assert report["execution_revision"] == config.source_git_revision
+    assert report["finalization_revision"] == config.source_git_revision
+    assert report["protocol_git_blob"]["byte_identical"] is True
+    assert report["software_erratum"] == {
+        "code": "zero_success_nullable_metrics_rejected_v1",
+        "affected_condition": "FAST3",
+        "original_error": (
+            "summary.by_planner[0].path_length_ratio_mean must be a number."
+        ),
+        "disposition": "read_only_revalidation_no_rerun",
+        "execution_outputs_complete": True,
+    }
+    assert report["evidence_artifact_integrity"]["artifact_count"] == 9
+    assert report["evidence_artifact_integrity"]["all_unchanged"] is True
+    assert [item["original_manifest_status"] for item in report["conditions"]] == [
+        "completed",
+        "completed",
+        "failed",
+    ]
+    assert [item["original_run_status"] for item in report["conditions"]] == [
+        "completed",
+        "completed",
+        "failed",
+    ]
+    assert report["conditions"][2]["validator_metrics"][
+        "path_length_ratio_mean"
+    ] is None
+    assert report["conditions"][2]["validator_metrics"][
+        "completion_time_s_mean"
+    ] is None
+    assert not (root / ".finalization-never-launches-webots").exists()
+    on_disk = json.loads(
+        (config.output_directory / "dynamic_stress_report.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert on_disk == report
+
+
+def test_finalize_cli_does_not_resolve_or_launch_webots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentinel_config = object()
+    report = {
+        "status": "completed",
+        "conditions": [],
+        "decision": {"passed": False, "outcome": "bounded_failure"},
+    }
+    monkeypatch.setattr(
+        dynamic_stress_cli,
+        "load_dynamic_stress_config",
+        lambda *_args, **_kwargs: sentinel_config,
+    )
+    monkeypatch.setattr(
+        dynamic_stress_cli,
+        "finalize_existing_dynamic_stress",
+        lambda config: report if config is sentinel_config else None,
+    )
+
+    def forbidden(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("Finalize CLI must not resolve Webots or execute the matrix.")
+
+    monkeypatch.setattr(dynamic_stress_cli, "resolve_webots_executable", forbidden)
+    monkeypatch.setattr(dynamic_stress_cli, "run_dynamic_stress", forbidden)
+
+    assert dynamic_stress_cli.main(["--finalize-existing"]) == 1

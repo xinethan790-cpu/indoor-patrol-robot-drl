@@ -509,7 +509,12 @@ def validate_existing_summary(
         )
         candidate_model_sha256 = candidate["model_sha256"]
     else:
-        candidate = load_strict_candidate_summary(summary_path, identity, gate)
+        candidate = load_strict_candidate_summary(
+            summary_path,
+            identity,
+            gate,
+            allow_no_success_metrics=True,
+        )
         candidate_model_sha256 = candidate["evaluation_model_sha256"]
     metrics = load_validation_metrics(
         summary_path,
@@ -609,8 +614,16 @@ def validate_existing_summary(
         "collision_count": int(candidate["collision_count"]),
         "timeout_count": int(candidate["timeout_count"]),
         "error_count": int(candidate["error_count"]),
-        "path_length_ratio_mean": float(candidate["path_length_ratio_mean"]),
-        "completion_time_s_mean": float(candidate["completion_time_s_mean"]),
+        "path_length_ratio_mean": (
+            None
+            if candidate["path_length_ratio_mean"] is None
+            else float(candidate["path_length_ratio_mean"])
+        ),
+        "completion_time_s_mean": (
+            None
+            if candidate["completion_time_s_mean"] is None
+            else float(candidate["completion_time_s_mean"])
+        ),
     }
 
 

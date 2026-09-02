@@ -128,6 +128,9 @@ def _write_summary(
     environment: Mapping[str, str],
     *,
     speed_range: tuple[float, float] | None = None,
+    success_count: int | None = None,
+    path_length_ratio_mean: float | None = 1.1,
+    completion_time_s_mean: float | None = 4.0,
 ) -> Path:
     output = root / "artifacts/results" / environment["WEBOTS_EVAL_RUN_NAME"]
     output.mkdir(parents=True, exist_ok=True)
@@ -142,17 +145,18 @@ def _write_summary(
         float(environment["WEBOTS_OBSTACLE_SPEED_MIN"]),
         float(environment["WEBOTS_OBSTACLE_SPEED_MAX"]),
     )
+    successes = episodes if success_count is None else success_count
     aggregate = {
         "planner": planner,
         "episodes": episodes,
-        "success_count": episodes,
-        "collision_count": 0,
+        "success_count": successes,
+        "collision_count": episodes - successes,
         "timeout_count": 0,
         "error_count": 0,
-        "success_rate": 1.0,
-        "collision_rate": 0.0,
-        "path_length_ratio_mean": 1.1,
-        "completion_time_s_mean": 4.0,
+        "success_rate": successes / episodes,
+        "collision_rate": (episodes - successes) / episodes,
+        "path_length_ratio_mean": path_length_ratio_mean,
+        "completion_time_s_mean": completion_time_s_mean,
     }
     provenance: dict[str, Any] = {
         "schema_version": 1,
@@ -335,6 +339,147 @@ def test_exact_final_model_uses_final_identity_and_records_binding(
         port_allocator=_sequential_port,
     )
     assert reused["runs"][0]["status"] == "reused"
+
+
+def test_exact_final_model_accepts_null_success_only_metrics_when_no_episode_succeeds(
+    tmp_path: Path,
+) -> None:
+    endpoint = _exact_endpoint_path(tmp_path)
+    endpoint.parent.mkdir(parents=True, exist_ok=True)
+    endpoint.write_bytes(b"zero-success-final-endpoint")
+    request = _request(
+        tmp_path,
+        steps=(81920,),
+        workers=1,
+        exact_model_path=endpoint,
+        exact_model_sha256=sha256_file(endpoint),
+    )
+
+    def runner(
+        command: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        _write_summary(
+            tmp_path,
+            kwargs["env"],
+            success_count=0,
+            path_length_ratio_mean=None,
+            completion_time_s_mean=None,
+        )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    manifest = run_checkpoint_sweep(
+        request,
+        output_directory=tmp_path / "artifacts/results/zero-success-final-sweep",
+        process_runner=runner,
+        port_allocator=_sequential_port,
+    )
+
+    assert manifest["status"] == "completed"
+    assert manifest["runs"][0]["status"] == "completed"
+    assert manifest["runs"][0]["metrics"] == {
+        "episodes": 2,
+        "success_rate": 0.0,
+        "collision_rate": 1.0,
+        "success_count": 0,
+        "collision_count": 2,
+        "timeout_count": 0,
+        "error_count": 0,
+        "path_length_ratio_mean": None,
+        "completion_time_s_mean": None,
+    }
+
+
+def test_checkpoint_mode_still_rejects_null_success_only_metrics(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path, steps=(10,), workers=1)
+
+    def runner(
+        command: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        _write_summary(
+            tmp_path,
+            kwargs["env"],
+            success_count=0,
+            path_length_ratio_mean=None,
+            completion_time_s_mean=None,
+        )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    manifest = run_checkpoint_sweep(
+        request,
+        output_directory=tmp_path / "artifacts/results/zero-success-checkpoint-sweep",
+        process_runner=runner,
+        port_allocator=_sequential_port,
+    )
+
+    assert manifest["status"] == "failed"
+    assert manifest["runs"][0]["status"] == "failed"
+    assert "path_length_ratio_mean must be a number" in manifest["runs"][0]["error"]
+
+
+@pytest.mark.parametrize(
+    ("success_count", "planner_values", "condition_values"),
+    [
+        (0, (1.1, None), (1.1, None)),
+        (0, (None, 4.0), (None, 4.0)),
+        (0, (None, None), (1.1, None)),
+        (1, (None, None), (None, None)),
+    ],
+)
+def test_exact_final_model_rejects_nonnull_or_inconsistent_no_success_metrics(
+    tmp_path: Path,
+    success_count: int,
+    planner_values: tuple[float | None, float | None],
+    condition_values: tuple[float | None, float | None],
+) -> None:
+    endpoint = _exact_endpoint_path(tmp_path)
+    endpoint.parent.mkdir(parents=True, exist_ok=True)
+    endpoint.write_bytes(b"invalid-zero-success-final-endpoint")
+    request = _request(
+        tmp_path,
+        steps=(81920,),
+        workers=1,
+        exact_model_path=endpoint,
+        exact_model_sha256=sha256_file(endpoint),
+    )
+
+    def runner(
+        command: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        summary_path = _write_summary(
+            tmp_path,
+            kwargs["env"],
+            success_count=success_count,
+            path_length_ratio_mean=planner_values[0],
+            completion_time_s_mean=planner_values[1],
+        )
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary["by_planner_condition"][0]["path_length_ratio_mean"] = (
+            condition_values[0]
+        )
+        summary["by_planner_condition"][0]["completion_time_s_mean"] = (
+            condition_values[1]
+        )
+        summary_path.write_text(json.dumps(summary) + "\n", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    manifest = run_checkpoint_sweep(
+        request,
+        output_directory=tmp_path / "artifacts/results/invalid-final-sweep",
+        process_runner=runner,
+        port_allocator=_sequential_port,
+    )
+
+    assert manifest["status"] == "failed"
+    assert manifest["runs"][0]["status"] == "failed"
+    assert any(
+        message in manifest["runs"][0]["error"]
+        for message in ("must both be null", "must be a number")
+    )
 
 
 def test_exact_final_model_drift_fails_before_process_launch(tmp_path: Path) -> None:

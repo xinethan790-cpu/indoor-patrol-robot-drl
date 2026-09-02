@@ -13,7 +13,9 @@ import hashlib
 import json
 import math
 import re
+import shutil
 import subprocess
+import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -28,6 +30,7 @@ from indoor_patrol_rl.evaluation.checkpoint_sweep import (
     WebotsSafetyShieldProfile,
     load_safety_shield_profile,
     run_checkpoint_sweep,
+    validate_existing_summary,
 )
 from indoor_patrol_rl.training.webots_curriculum import choose_available_port
 
@@ -35,6 +38,9 @@ DYNAMIC_STRESS_EXPERIMENT_ID = "webots_rb2b_posthoc_dynamic_stress_v1"
 DYNAMIC_STRESS_PURPOSE = "post_training_pre_observation_dynamic_stress_characterization"
 DYNAMIC_STRESS_EVIDENCE_SCOPE = "development_validation"
 DYNAMIC_STRESS_SEEDS = tuple(range(8000, 8020))
+DYNAMIC_STRESS_EXECUTION_REVISION = (
+    "75af6a8e1096a366f0043572f53b3f40b634024a"
+)
 PROTECTED_TEST_SEEDS = tuple(range(10000, 10020))
 RB2B_ENDPOINT_PATH = Path(
     "artifacts/models/webots/seed_11/r2b_rebaseline_v1/"
@@ -307,6 +313,50 @@ def _git_output(repository_root: Path, *arguments: str) -> str:
             f"{completed.stderr.strip()}"
         )
     return completed.stdout.strip()
+
+
+def _git_blob(
+    repository_root: Path,
+    revision: str,
+    repository_path: str,
+) -> bytes:
+    completed = subprocess.run(
+        ["git", "show", f"{revision}:{repository_path}"],
+        cwd=repository_root,
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        stderr = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(
+            f"Cannot read pre-registered Git blob {revision}:{repository_path}: "
+            f"{stderr}"
+        )
+    return completed.stdout
+
+
+def _verify_execution_config_blob(config: DynamicStressConfig) -> dict[str, Any]:
+    config_path = _portable(config.source_path, config.repository_root)
+    committed = _git_blob(
+        config.repository_root,
+        DYNAMIC_STRESS_EXECUTION_REVISION,
+        config_path,
+    )
+    current = config.source_path.read_bytes()
+    committed_sha256 = hashlib.sha256(committed).hexdigest()
+    current_sha256 = hashlib.sha256(current).hexdigest()
+    if committed != current or committed_sha256 != config.source_sha256:
+        raise ValueError(
+            "Current dynamic stress protocol differs from the exact configuration "
+            "blob used by the 75af6a8 execution."
+        )
+    return {
+        "path": config_path,
+        "execution_revision": DYNAMIC_STRESS_EXECUTION_REVISION,
+        "execution_blob_sha256": committed_sha256,
+        "current_file_sha256": current_sha256,
+        "byte_identical": True,
+    }
 
 
 def _require_clean_git(repository_root: Path) -> str:
@@ -1096,16 +1146,436 @@ def _write_outputs(config: DynamicStressConfig, report: Mapping[str, Any]) -> di
     json_path = output / "dynamic_stress_report.json"
     yaml_path = output / "dynamic_stress_report.yaml"
     digest_path = output / "dynamic_stress_report.sha256"
-    if any(path.exists() for path in (json_path, yaml_path, digest_path)):
+    if output.exists() or any(path.exists() for path in (json_path, yaml_path, digest_path)):
         raise FileExistsError("Refusing to overwrite dynamic stress aggregate report.")
     json_text = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     yaml_text = yaml.safe_dump(json.loads(json_text), allow_unicode=True, sort_keys=False)
     digest = hashlib.sha256(json_text.encode("utf-8")).hexdigest()
-    output.mkdir(parents=True, exist_ok=False)
-    json_path.write_text(json_text, encoding="utf-8")
-    yaml_path.write_text(yaml_text, encoding="utf-8")
-    digest_path.write_text(f"{digest}  {json_path.name}\n", encoding="utf-8")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(
+        tempfile.mkdtemp(
+            prefix=f".{output.name}.staging-",
+            dir=output.parent,
+        )
+    )
+    try:
+        (staging / json_path.name).write_text(json_text, encoding="utf-8")
+        (staging / yaml_path.name).write_text(yaml_text, encoding="utf-8")
+        (staging / digest_path.name).write_text(
+            f"{digest}  {json_path.name}\n",
+            encoding="utf-8",
+        )
+        staging.replace(output)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
     return {"json": json_path, "yaml": yaml_path, "sha256": digest_path}
+
+
+def _validate_original_sweep_manifest(
+    config: DynamicStressConfig,
+    condition: DynamicStressCondition,
+    request: WebotsCheckpointSweepRequest,
+    manifest_path: Path,
+) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+    manifest = _load_json(manifest_path, f"{condition.condition_id} sweep manifest")
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("kind") != "webots_checkpoint_validation_sweep"
+        or manifest.get("split") != "validation"
+    ):
+        raise ValueError(
+            f"{condition.condition_id} original manifest is not a validation sweep."
+        )
+    request_record = _mapping(manifest.get("request"), "original sweep request")
+    expected_request: Mapping[str, Any] = {
+        "seed": RB2B_TRAINING_SEED,
+        "condition": condition.condition_id,
+        "model_variant": RB2B_VARIANT,
+        "steps": [RB2B_ENDPOINT_STEP],
+        "episodes": len(DYNAMIC_STRESS_SEEDS),
+        "seed_start": DYNAMIC_STRESS_SEEDS[0],
+        "scenario_seeds": list(DYNAMIC_STRESS_SEEDS),
+        "obstacle_count": condition.obstacle_count,
+        "obstacle_speed_range": [
+            condition.obstacle_speed_min,
+            condition.obstacle_speed_max,
+        ],
+        "horizontal_route_half_length": 1.1,
+        "vertical_route_half_length": 1.1,
+        "safety_shield_enabled": True,
+        "static_layout": "train_a",
+        "action_repeat": 4,
+        "max_episode_steps": 300,
+        "port_base": condition.port_base,
+        "workers": 1,
+        "exact_model_path": RB2B_ENDPOINT_PATH.as_posix(),
+        "exact_model_sha256": RB2B_ENDPOINT_SHA256,
+        "result_kind": "final",
+    }
+    for name, expected in expected_request.items():
+        actual = request_record.get(name)
+        if isinstance(expected, float):
+            matches = _same_number(actual, expected)
+        elif isinstance(expected, list) and expected and isinstance(expected[0], float):
+            matches = (
+                isinstance(actual, list)
+                and len(actual) == len(expected)
+                and all(
+                    _same_number(item, expected_item)
+                    for item, expected_item in zip(actual, expected, strict=True)
+                )
+            )
+        else:
+            matches = actual == expected and type(actual) is type(expected)
+        if not matches:
+            raise ValueError(
+                f"{condition.condition_id} original manifest request.{name} drifted."
+            )
+    expected_profile = config.shield_profile.manifest_record(config.repository_root)
+    if request_record.get("safety_shield_profile") != expected_profile:
+        raise ValueError(
+            f"{condition.condition_id} original manifest shield profile drifted."
+        )
+
+    runtime = _mapping(manifest.get("runtime"), "original sweep runtime")
+    expected_runtime = {
+        "evaluation_world": config.raw["runtime_inputs"]["world"]["path"],
+        "evaluation_world_sha256": config.raw["runtime_inputs"]["world"]["sha256"],
+        "evaluator_controller": config.raw["runtime_inputs"]["evaluator"]["path"],
+        "evaluator_controller_sha256": config.raw["runtime_inputs"]["evaluator"][
+            "sha256"
+        ],
+    }
+    for name, expected in expected_runtime.items():
+        if runtime.get(name) != expected:
+            raise ValueError(
+                f"{condition.condition_id} original manifest runtime.{name} drifted."
+            )
+
+    runs = _sequence(manifest.get("runs"), "original sweep runs")
+    if len(runs) != 1:
+        raise ValueError(
+            f"{condition.condition_id} original manifest must contain exactly one run."
+        )
+    run = _mapping(runs[0], "original sweep run")
+    expected_run: Mapping[str, Any] = {
+        "step": RB2B_ENDPOINT_STEP,
+        "run_name": condition.run_name,
+        "planner": request.planner(RB2B_ENDPOINT_STEP),
+        "model_path": RB2B_ENDPOINT_PATH.as_posix(),
+        "model_sha256": RB2B_ENDPOINT_SHA256,
+        "port": condition.port_base,
+        "exit_code": 0,
+    }
+    for name, expected in expected_run.items():
+        if run.get(name) != expected or type(run.get(name)) is not type(expected):
+            raise ValueError(
+                f"{condition.condition_id} original manifest run.{name} drifted."
+            )
+    expected_summary = (
+        config.repository_root
+        / "artifacts/results"
+        / condition.run_name
+        / "summary.json"
+    )
+    if run.get("summary_path") != _portable(expected_summary, config.repository_root):
+        raise ValueError(
+            f"{condition.condition_id} original manifest summary path drifted."
+        )
+
+    manifest_status = manifest.get("status")
+    run_status = run.get("status")
+    if manifest_status == "completed" and run_status == "completed":
+        summary_sha256 = _sha256(
+            run.get("summary_sha256"),
+            f"{condition.condition_id} original run.summary_sha256",
+        )
+        _verify_file(
+            expected_summary,
+            summary_sha256,
+            f"{condition.condition_id} original summary",
+        )
+    elif manifest_status == "failed" and run_status == "failed":
+        if not isinstance(run.get("error"), str) or not run["error"].strip():
+            raise ValueError(
+                f"{condition.condition_id} failed original run must preserve its error."
+            )
+    else:
+        raise ValueError(
+            f"{condition.condition_id} original manifest/run statuses are inconsistent."
+        )
+    return manifest, run
+
+
+def _existing_evidence_paths(
+    config: DynamicStressConfig,
+) -> list[tuple[str, str, Path]]:
+    paths: list[tuple[str, str, Path]] = []
+    for condition in config.conditions:
+        result_directory = (
+            config.repository_root / "artifacts/results" / condition.run_name
+        )
+        paths.extend(
+            (
+                (
+                    condition.condition_id,
+                    "sweep_manifest",
+                    condition.sweep_directory / "checkpoint_sweep.json",
+                ),
+                (condition.condition_id, "summary", result_directory / "summary.json"),
+                (
+                    condition.condition_id,
+                    "episodes_csv",
+                    result_directory / "episodes.csv",
+                ),
+            )
+        )
+    return paths
+
+
+def _snapshot_evidence(
+    config: DynamicStressConfig,
+    paths: Sequence[tuple[str, str, Path]],
+) -> dict[tuple[str, str], dict[str, str]]:
+    snapshot: dict[tuple[str, str], dict[str, str]] = {}
+    for condition_id, kind, path in paths:
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"{condition_id} existing {kind} does not exist: {path}"
+            )
+        snapshot[(condition_id, kind)] = {
+            "path": _portable(path, config.repository_root),
+            "sha256": sha256_file(path),
+        }
+    return snapshot
+
+
+def finalize_existing_dynamic_stress(config: DynamicStressConfig) -> dict[str, Any]:
+    """Finalize the existing three-arm run without launching or rewriting Webots.
+
+    This recovery path exists solely for the execution made at the immutable
+    ``75af6a8`` protocol revision.  It revalidates the already-written summaries
+    and episode rows with current strict readers, preserves all original sweep
+    statuses/errors, and writes only the previously absent aggregate directory.
+    """
+
+    _recheck_preflight(config)
+    if config.output_directory.exists():
+        raise FileExistsError(
+            f"Refusing to overwrite dynamic stress aggregate: {config.output_directory}"
+        )
+    protocol_blob = _verify_execution_config_blob(config)
+    requests = build_dynamic_stress_requests(
+        config,
+        # Request construction needs a path identity but does not inspect or launch
+        # this sentinel in finalization mode.
+        webots_executable=config.repository_root / ".finalization-never-launches-webots",
+    )
+    evidence_paths = _existing_evidence_paths(config)
+    before = _snapshot_evidence(config, evidence_paths)
+
+    condition_evidence: list[dict[str, Any]] = []
+    for condition, request in zip(config.conditions, requests, strict=True):
+        manifest_path = condition.sweep_directory / "checkpoint_sweep.json"
+        original_manifest, original_run = _validate_original_sweep_manifest(
+            config,
+            condition,
+            request,
+            manifest_path,
+        )
+        summary_path = (
+            config.repository_root
+            / "artifacts/results"
+            / condition.run_name
+            / "summary.json"
+        )
+        metrics = validate_existing_summary(
+            summary_path,
+            request=request,
+            step=RB2B_ENDPOINT_STEP,
+            model_path=config.model_path,
+            model_sha256=RB2B_ENDPOINT_SHA256,
+        )
+
+        # Reuse the complete CSV/provenance/gate checker with an in-memory status
+        # normalization only. The original manifest bytes remain untouched.
+        normalized_manifest = json.loads(json.dumps(original_manifest))
+        normalized_manifest["status"] = "completed"
+        normalized_run = normalized_manifest["runs"][0]
+        normalized_run["status"] = "completed"
+        normalized_run["summary_sha256"] = sha256_file(summary_path)
+        evidence = _condition_evidence(
+            config,
+            condition,
+            request,
+            normalized_manifest,
+        )
+        gate = evidence["gate"]
+        metric_checks = {
+            "episodes": gate["episodes"],
+            "success_count": gate["success_count"],
+            "collision_count": gate["collision_count"],
+            "timeout_count": gate["timeout_count"],
+            "error_count": gate["error_count"],
+            "success_rate": gate["success_rate"],
+            "collision_rate": gate["collision_rate"],
+        }
+        for name, expected in metric_checks.items():
+            actual = metrics[name]
+            if isinstance(expected, float):
+                matches = _same_number(actual, expected)
+            else:
+                matches = actual == expected and type(actual) is type(expected)
+            if not matches:
+                raise ValueError(
+                    f"{condition.condition_id} post-hoc validator disagrees on {name}."
+                )
+        evidence.update(
+            {
+                "original_manifest_status": original_manifest.get("status"),
+                "original_run_status": original_run.get("status"),
+                "original_run_exit_code": original_run.get("exit_code"),
+                "original_run_error": original_run.get("error"),
+                "original_run_started_at": original_run.get("started_at"),
+                "original_run_finished_at": original_run.get("finished_at"),
+                "posthoc_revalidation": True,
+                "rerun_performed": False,
+                "validator_metrics": dict(metrics),
+            }
+        )
+        condition_evidence.append(evidence)
+
+    expected_original_statuses = {
+        "BASE1": ("completed", "completed"),
+        "DENS3": ("completed", "completed"),
+        "FAST3": ("failed", "failed"),
+    }
+    for item in condition_evidence:
+        expected_manifest, expected_run = expected_original_statuses[
+            item["condition_id"]
+        ]
+        if (
+            item["original_manifest_status"] != expected_manifest
+            or item["original_run_status"] != expected_run
+        ):
+            raise ValueError(
+                f"{item['condition_id']} original status differs from the immutable "
+                "75af6a8 execution record."
+            )
+    fast3 = next(
+        item for item in condition_evidence if item["condition_id"] == "FAST3"
+    )
+    expected_original_error = (
+        "summary.by_planner[0].path_length_ratio_mean must be a number."
+    )
+    if fast3["original_run_error"] != expected_original_error:
+        raise ValueError("FAST3 original validator error differs from the known erratum.")
+
+    # Recheck every mutable source and all nine evidence files after parsing and
+    # before publishing the aggregate report.
+    _recheck_preflight(config)
+    repeated_blob = _verify_execution_config_blob(config)
+    if repeated_blob != protocol_blob:
+        raise ValueError("Execution-time configuration binding changed during finalization.")
+    after = _snapshot_evidence(config, evidence_paths)
+    if before != after:
+        raise ValueError("Existing dynamic stress evidence changed during finalization.")
+    unchanged_evidence = [
+        {
+            "condition_id": condition_id,
+            "kind": kind,
+            "path": item["path"],
+            "sha256_before": item["sha256"],
+            "sha256_after": after[(condition_id, kind)]["sha256"],
+            "unchanged": True,
+        }
+        for (condition_id, kind), item in before.items()
+    ]
+
+    all_passed = all(bool(item["gate"]["passed"]) for item in condition_evidence)
+    decision = config.raw["decision"]
+    report: dict[str, Any] = {
+        "schema_version": 1,
+        "kind": "webots_rb2b_development_dynamic_stress",
+        "status": "completed",
+        "experiment_id": DYNAMIC_STRESS_EXPERIMENT_ID,
+        "purpose": DYNAMIC_STRESS_PURPOSE,
+        "evidence_scope": DYNAMIC_STRESS_EVIDENCE_SCOPE,
+        "split": "validation",
+        "test_split_was_run": False,
+        "preregistration_revision": DYNAMIC_STRESS_EXECUTION_REVISION,
+        "execution_revision": DYNAMIC_STRESS_EXECUTION_REVISION,
+        "finalization_revision": config.source_git_revision,
+        "webots_processes_launched": 0,
+        "posthoc_revalidation": True,
+        "no_rerun": True,
+        "original_sweep_manifests_rewritten": False,
+        "software_erratum": {
+            "code": "zero_success_nullable_metrics_rejected_v1",
+            "affected_condition": "FAST3",
+            "original_error": expected_original_error,
+            "disposition": "read_only_revalidation_no_rerun",
+            "execution_outputs_complete": True,
+        },
+        "protocol_git_blob": protocol_blob,
+        "source_bindings": {
+            "config": {
+                "path": _portable(config.source_path, config.repository_root),
+                "sha256": config.source_sha256,
+            },
+            "model": {
+                "path": RB2B_ENDPOINT_PATH.as_posix(),
+                "sha256": RB2B_ENDPOINT_SHA256,
+                "variant": RB2B_VARIANT,
+                "endpoint_step": RB2B_ENDPOINT_STEP,
+            },
+            "shield_profile": config.shield_profile.manifest_record(
+                config.repository_root
+            ),
+            "runtime_inputs": {
+                name: {
+                    "path": _portable(path, config.repository_root),
+                    "sha256": config.raw["runtime_inputs"][name]["sha256"],
+                }
+                for name, path in sorted(config.runtime_paths.items())
+            },
+        },
+        "scenario_seeds": list(DYNAMIC_STRESS_SEEDS),
+        "conditions": condition_evidence,
+        "evidence_artifact_integrity": {
+            "artifact_count": len(unchanged_evidence),
+            "all_unchanged": True,
+            "artifacts": unchanged_evidence,
+        },
+        "restrictions": {
+            "formal_model_promotion": "forbidden",
+            "held_out_formal_test_access": "forbidden",
+            "adaptive_retries": "forbidden",
+            "outcome_dependent_reruns": "forbidden",
+        },
+        "decision": {
+            "passed": all_passed,
+            "outcome": decision["pass"] if all_passed else decision["fail"],
+            "formal_model_promotion": "forbidden",
+        },
+    }
+    report["output_paths"] = {
+        "json": _portable(
+            config.output_directory / "dynamic_stress_report.json",
+            config.repository_root,
+        ),
+        "yaml": _portable(
+            config.output_directory / "dynamic_stress_report.yaml",
+            config.repository_root,
+        ),
+        "sha256": _portable(
+            config.output_directory / "dynamic_stress_report.sha256",
+            config.repository_root,
+        ),
+    }
+    _write_outputs(config, report)
+    return report
 
 
 def run_dynamic_stress(
@@ -1225,12 +1695,14 @@ def dynamic_stress_exit_code(report: Mapping[str, Any]) -> int:
 
 __all__ = [
     "DYNAMIC_STRESS_EXPERIMENT_ID",
+    "DYNAMIC_STRESS_EXECUTION_REVISION",
     "DYNAMIC_STRESS_SEEDS",
     "DynamicStressCondition",
     "DynamicStressConfig",
     "DynamicStressGate",
     "build_dynamic_stress_requests",
     "dynamic_stress_exit_code",
+    "finalize_existing_dynamic_stress",
     "load_dynamic_stress_config",
     "run_dynamic_stress",
 ]

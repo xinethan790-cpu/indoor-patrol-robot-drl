@@ -196,7 +196,8 @@ def _extract_group_metrics(
     identity: ResultIdentity,
     gate: CheckpointSelectionGate,
     require_condition: bool,
-) -> dict[str, float | int | str]:
+    allow_no_success_metrics: bool = False,
+) -> dict[str, float | int | str | None]:
     group = _mapping(group_value, label)
     planner = str(group.get("planner", ""))
     if planner != identity.expected_planner:
@@ -230,16 +231,32 @@ def _extract_group_metrics(
     _validate_rate(
         counts["collision_count"], episodes, collision_rate, f"{label}.collision_rate"
     )
-    path_length_ratio = _finite_number(
-        group.get("path_length_ratio_mean"),
-        f"{label}.path_length_ratio_mean",
-        minimum=0.0,
-    )
-    completion_time = _finite_number(
-        group.get("completion_time_s_mean"),
-        f"{label}.completion_time_s_mean",
-        minimum=0.0,
-    )
+    path_length_ratio_value = group.get("path_length_ratio_mean")
+    completion_time_value = group.get("completion_time_s_mean")
+    if allow_no_success_metrics and counts["success_count"] == 0:
+        if (
+            "path_length_ratio_mean" not in group
+            or "completion_time_s_mean" not in group
+            or path_length_ratio_value is not None
+            or completion_time_value is not None
+        ):
+            raise ValueError(
+                f"{label}.path_length_ratio_mean and "
+                "completion_time_s_mean must both be null when success_count is zero."
+            )
+        path_length_ratio = None
+        completion_time = None
+    else:
+        path_length_ratio = _finite_number(
+            path_length_ratio_value,
+            f"{label}.path_length_ratio_mean",
+            minimum=0.0,
+        )
+        completion_time = _finite_number(
+            completion_time_value,
+            f"{label}.completion_time_s_mean",
+            minimum=0.0,
+        )
     return {
         "planner": planner,
         "episodes": episodes,
@@ -255,8 +272,15 @@ def load_strict_candidate_summary(
     summary_path: Path,
     identity: ResultIdentity,
     gate: CheckpointSelectionGate,
+    *,
+    allow_no_success_metrics: bool = False,
 ) -> dict[str, Any]:
-    """Load one summary and enforce the complete validation selection contract."""
+    """Load one summary and enforce the complete validation selection contract.
+
+    Final-endpoint stress evaluation may explicitly accept null success-only
+    means when, and only when, the evaluation contains no successful episodes.
+    Checkpoint selection keeps the historical fail-closed behavior by default.
+    """
 
     try:
         raw = _mapping(json.loads(summary_path.read_text(encoding="utf-8")), "summary")
@@ -353,6 +377,7 @@ def load_strict_candidate_summary(
         identity=identity,
         gate=gate,
         require_condition=False,
+        allow_no_success_metrics=allow_no_success_metrics,
     )
     condition_metrics = _extract_group_metrics(
         by_condition[0],
@@ -360,6 +385,7 @@ def load_strict_candidate_summary(
         identity=identity,
         gate=gate,
         require_condition=True,
+        allow_no_success_metrics=allow_no_success_metrics,
     )
     for name in (
         "episodes",

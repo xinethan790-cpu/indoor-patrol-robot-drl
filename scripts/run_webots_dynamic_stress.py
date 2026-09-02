@@ -9,6 +9,7 @@ from pathlib import Path
 
 from indoor_patrol_rl.evaluation.dynamic_stress import (
     dynamic_stress_exit_code,
+    finalize_existing_dynamic_stress,
     load_dynamic_stress_config,
     run_dynamic_stress,
 )
@@ -28,6 +29,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repository-root", type=Path, default=Path.cwd())
     parser.add_argument("--webots", type=Path)
     parser.add_argument("--timeout-seconds", type=float, default=3600.0)
+    parser.add_argument(
+        "--finalize-existing",
+        action="store_true",
+        help=(
+            "Read and finalize the immutable existing three-arm evidence without "
+            "launching Webots or rewriting any sweep result."
+        ),
+    )
     return parser
 
 
@@ -39,11 +48,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.config,
             repository_root=args.repository_root,
         )
-        report = run_dynamic_stress(
-            config,
-            webots_executable=resolve_webots_executable(args.webots),
-            timeout_seconds=args.timeout_seconds,
-        )
+        if args.finalize_existing:
+            if args.webots is not None:
+                parser.error("--webots cannot be used with --finalize-existing.")
+            report = finalize_existing_dynamic_stress(config)
+        else:
+            report = run_dynamic_stress(
+                config,
+                webots_executable=resolve_webots_executable(args.webots),
+                timeout_seconds=args.timeout_seconds,
+            )
     except (OSError, RuntimeError, ValueError) as error:
         parser.error(str(error))
 
