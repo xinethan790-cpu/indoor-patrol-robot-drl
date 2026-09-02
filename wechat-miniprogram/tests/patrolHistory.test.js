@@ -168,7 +168,7 @@ test('history card keeps a selectable run id, accessible report action, and anim
   assert.equal(card.runId, runId);
   assert.match(template, /history-card__run-id[^>]*user-select="true"[^>]*>\{\{item\.runId\}\}/);
   assert.doesNotMatch(template, /\sselectable(?:\s|=|>)/);
-  assert.match(template, /role="button"/);
+  assert.match(template, /aria-role="button"/);
   assert.match(template, /aria-label="查看运行 \{\{item\.runId\}\} 的完整巡检报告"/);
   assert.match(styles, /\.history-state__spinner[\s\S]*animation:\s*history-spinner-rotate/);
   assert.match(styles, /@keyframes\s+history-spinner-rotate/);

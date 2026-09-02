@@ -56,7 +56,7 @@ test('patrol map draws a current dynamic obstacle and its velocity arrow', () =>
   assert.ok(calls.some(([name, , , radius]) => name === 'arc' && radius === 18));
   assert.ok(calls.some(([name]) => name === 'lineTo'));
   assert.ok(calls.some(([name, text]) => (
-    name === 'fillText' && text === 'DYNAMIC_OB'
+    name === 'fillText' && text === '动态目标 1'
   )));
 });
 

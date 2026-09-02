@@ -59,11 +59,12 @@ button::after {
 
 .primary-button,
 .secondary-button {
-  height: 76rpx;
+  min-height: 88rpx;
+  height: 88rpx;
   border-radius: 20rpx;
   font-size: 27rpx;
   font-weight: 600;
-  line-height: 76rpx;
+  line-height: 88rpx;
 }
 
 .primary-button {
@@ -75,6 +76,12 @@ button::after {
 .secondary-button {
   background: #edf4fb;
   color: #285174;
+}
+
+.primary-button.button-hover,
+.secondary-button.button-hover {
+  opacity: 0.84;
+  transform: scale(0.985);
 }
 
 .tag {
@@ -92,6 +99,21 @@ button::after {
 .tag--success {
   background: #e5f8ef;
   color: #08794d;
+}
+
+.tag--active {
+  background: #e7f2ff;
+  color: #086dcc;
+}
+
+.tag--failure {
+  background: #ffebed;
+  color: #b82f3b;
+}
+
+.tag--waiting {
+  background: #eef2f6;
+  color: #66788a;
 }
 
 .tag--warning {

@@ -36,6 +36,7 @@ const MAX_GRID_LINES_PER_AXIS = 32;
 const GRID_SPACING_M = 0.5;
 const MIN_DRAW_SIZE_PX = 48;
 const DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M = 1e-6;
+const MAX_DYNAMIC_OBSTACLE_LABEL_LENGTH = 10;
 
 function finiteNumber(value) {
   return typeof value === "number" && Number.isFinite(value);
@@ -69,6 +70,18 @@ function safeArray(value) {
 
 function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function dynamicObstacleLabel(obstacle, index) {
+  const rawLabel = obstacle && obstacle.label;
+  const providedLabel = (
+    typeof rawLabel === "string" || typeof rawLabel === "number"
+  ) ? String(rawLabel).trim() : "";
+  const characters = Array.from(providedLabel || `动态目标 ${index + 1}`);
+  if (characters.length <= MAX_DYNAMIC_OBSTACLE_LABEL_LENGTH) {
+    return characters.join("");
+  }
+  return `${characters.slice(0, MAX_DYNAMIC_OBSTACLE_LABEL_LENGTH - 1).join("")}…`;
 }
 
 function roundedRect(ctx, x, y, width, height, radius) {
@@ -534,7 +547,7 @@ Component({
             ctx.textAlign = "center";
             ctx.textBaseline = "bottom";
             ctx.fillText(
-              String(obstacle.id || `D${index + 1}`).slice(0, 10),
+              dynamicObstacleLabel(obstacle, index),
               center.x,
               center.y - radius - 5,
             );

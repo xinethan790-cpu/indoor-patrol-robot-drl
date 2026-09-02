@@ -28,6 +28,8 @@
         wx:key="value"
         class="filter-pill {{activeFilter === item.value ? 'filter-pill--active' : ''}}"
         data-value="{{item.value}}"
+        aria-role="button"
+        aria-pressed="{{activeFilter === item.value}}"
         bindtap="selectFilter"
       >{{item.label}}</button>
     </view>

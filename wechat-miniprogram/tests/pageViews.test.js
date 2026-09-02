@@ -27,6 +27,9 @@ test("dashboard view projects the verified terminal result", () => {
   assert.equal(view.currentCheckpointText, "完成");
   assert.equal(view.resultAvailable, true);
   assert.equal(view.resultSuccess, true);
+  assert.equal(view.resultTone, "success");
+  assert.equal(view.mapTone, "success");
+  assert.equal(view.mapModeLabel, "任务完成");
   assert.equal(view.sensorCards[0].value, "23.9");
   assert.equal(view.checkpoints.every((item) => item.status === "completed"), true);
 });
@@ -34,7 +37,9 @@ test("dashboard view projects the verified terminal result", () => {
 test("dashboard view identifies CloudBase as a live read-only source", () => {
   const payload = buildDashboardPayload(fixture, 0);
   const view = buildView(payload, "cloud");
-  assert.equal(view.mapModeLabel, "LIVE");
+  assert.equal(view.resultTone, "waiting");
+  assert.equal(view.mapTone, "active");
+  assert.equal(view.mapModeLabel, "实时地图");
   assert.match(view.modeDescription, /微信云开发只读同步/);
   assert.match(formatReceivedTime("2026-09-01T06:00:00.000Z"), /^最近入云 \d{2}:\d{2}:\d{2}$/);
   assert.equal(formatReceivedTime("invalid"), "等待首个快照");
@@ -45,9 +50,31 @@ test("dashboard view localizes active alarms and current checkpoint", () => {
   const payload = buildDashboardPayload(fixture, frameIndex);
   const view = buildView(payload, "demo");
   assert.equal(view.resultAvailable, false);
+  assert.equal(view.resultTone, "waiting");
+  assert.equal(view.mapTone, "active");
+  assert.equal(view.mapModeLabel, "演示回放");
   assert.equal(view.activeAlarmCount > 0, true);
   assert.match(view.activeAlarms[0].message, /告警触发/);
   assert.equal(view.checkpoints.some((item) => item.status === "current"), true);
+});
+
+test("dashboard view distinguishes failed and pending terminal evidence", () => {
+  const failedPayload = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  failedPayload.run.state = "failed";
+  failedPayload.run.outcome = "error";
+  failedPayload.result.available = true;
+  failedPayload.result.success = false;
+  const failedView = buildView(failedPayload, "cloud");
+  assert.equal(failedView.resultTone, "failure");
+  assert.equal(failedView.mapTone, "failure");
+  assert.equal(failedView.mapModeLabel, "异常终止");
+
+  const waitingPayload = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  waitingPayload.result.available = false;
+  const waitingView = buildView(waitingPayload, "cloud");
+  assert.equal(waitingView.resultTone, "waiting");
+  assert.equal(waitingView.mapTone, "waiting");
+  assert.equal(waitingView.mapModeLabel, "等待终态");
 });
 
 test("alarm page filters projected event types", () => {

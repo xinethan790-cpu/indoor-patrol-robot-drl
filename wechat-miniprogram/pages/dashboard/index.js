@@ -145,6 +145,16 @@ function buildView(payload, mode) {
     : [];
   const activeAlarms = buildActiveAlarms(payload);
   const success = result.available === true && result.success === true;
+  const terminal = run.terminal === true;
+  const resultTone = result.available === true
+    ? (success ? "success" : "failure")
+    : "waiting";
+  const mapTone = result.available === true
+    ? resultTone
+    : (terminal ? "waiting" : "active");
+  const mapModeLabel = result.available === true
+    ? (success ? "任务完成" : "异常终止")
+    : (terminal ? "等待终态" : (mode === "demo" ? "演示回放" : "实时地图"));
   const boundary = payload.source && payload.source.map_boundary_note;
 
   return {
@@ -152,7 +162,7 @@ function buildView(payload, mode) {
     dashboardMap: map,
     runId: run.run_id || "",
     sequenceText: Number.isSafeInteger(run.sequence) ? `SEQ ${run.sequence}` : "",
-    terminal: run.terminal === true,
+    terminal,
     progressText: `${formatNumber(progress, 0, "0")}%`,
     progressWidth: progress,
     progressStyle: `width: ${progress}%;`,
@@ -169,11 +179,13 @@ function buildView(payload, mode) {
     activeAlarms,
     resultAvailable: result.available === true,
     resultSuccess: success,
+    resultTone,
     resultTitle: success ? "巡检任务顺利完成" : "巡检任务异常结束",
     resultSummary: result.available
       ? `${result.checkpoints_visited || 0}/${result.checkpoints_total || total} 点位 · ${result.collision_count || 0} 次碰撞 · ${result.sample_count || 0} 条采样`
       : "",
-    mapModeLabel: run.terminal ? "FINAL" : (mode === "demo" ? "REPLAY" : "LIVE"),
+    mapModeLabel,
+    mapTone,
     boundaryNote: boundary || "本二维地图来自仿真配置，仅用于毕设演示可视化。",
     modeDescription: mode === "demo"
       ? "内置已校验巡检证据，支持离线动态回放"
@@ -204,7 +216,8 @@ Page({
     currentCheckpointText: "—",
     completedCheckpointText: "0 / 4 巡检点",
     dashboardMap: null,
-    mapModeLabel: "REPLAY",
+    mapModeLabel: "实时地图",
+    mapTone: "active",
     checkpoints: [],
     sensorAvailable: false,
     sensorSourceText: "等待机器人到达巡检点",
@@ -213,6 +226,7 @@ Page({
     activeAlarms: [],
     resultAvailable: false,
     resultSuccess: false,
+    resultTone: "waiting",
     resultTitle: "",
     resultSummary: "",
     boundaryNote: "本二维地图来自仿真配置，仅用于毕设演示可视化。",
@@ -265,7 +279,8 @@ Page({
         : (mode === "cloud"
           ? "微信云开发只读同步 Mac 仿真数据"
           : "微信开发者工具连接 Mac 本机只读接口"),
-      mapModeLabel: mode === "demo" ? "REPLAY" : "LIVE",
+      mapModeLabel: mode === "demo" ? "演示回放" : "实时地图",
+      mapTone: "active",
       errorMessage: "",
       demoControlLabel: "暂停演示",
       cloudReceivedText: "等待首个快照",
@@ -294,6 +309,7 @@ Page({
       activeAlarms: [],
       resultAvailable: false,
       resultSuccess: false,
+      resultTone: "waiting",
       resultTitle: "",
       resultSummary: "",
       boundaryNote: "本二维地图来自仿真配置，仅用于毕设演示可视化。",

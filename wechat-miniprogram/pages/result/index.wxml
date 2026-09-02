@@ -38,7 +38,7 @@
   <view class="section-card">
     <view class="section-heading">
       <text class="section-title">最终轨迹</text>
-      <text class="tag tag--success">FINAL</text>
+      <text class="tag tag--{{resultTone}}">终态轨迹</text>
     </view>
     <patrol-map map="{{dashboardMap}}" compact="{{true}}"></patrol-map>
   </view>

@@ -47,7 +47,7 @@
       data-source="{{item.reportSource}}"
       bindtap="{{item.reportAvailable ? 'openReport' : ''}}"
       hover-class="{{item.reportAvailable ? 'history-card--pressed' : 'none'}}"
-      role="{{item.reportAvailable ? 'button' : 'group'}}"
+      aria-role="{{item.reportAvailable ? 'button' : 'group'}}"
       aria-label="{{item.reportAvailable ? '查看运行 ' + item.runId + ' 的完整巡检报告' : '运行 ' + item.runId + ' 的巡检摘要，完整报告不可用'}}"
     >
       <view class="history-card__top">
@@ -88,7 +88,7 @@
         class="history-card__report-action"
         data-run-id="{{item.runId}}"
         data-source="{{item.reportSource}}"
-        role="button"
+        aria-role="button"
         aria-label="查看运行 {{item.runId}} 的完整巡检报告"
         catchtap="openReport"
       >

@@ -18,23 +18,31 @@
     "color": "#748497",
     "selectedColor": "#0878f9",
     "backgroundColor": "#ffffff",
-    "borderStyle": "white",
+    "borderStyle": "black",
     "list": [
       {
         "pagePath": "pages/dashboard/index",
-        "text": "巡检"
+        "text": "巡检",
+        "iconPath": "assets/tabbar/patrol.png",
+        "selectedIconPath": "assets/tabbar/patrol-selected.png"
       },
       {
         "pagePath": "pages/alarms/index",
-        "text": "告警"
+        "text": "告警",
+        "iconPath": "assets/tabbar/alarms.png",
+        "selectedIconPath": "assets/tabbar/alarms-selected.png"
       },
       {
         "pagePath": "pages/history/index",
-        "text": "历史"
+        "text": "历史",
+        "iconPath": "assets/tabbar/history.png",
+        "selectedIconPath": "assets/tabbar/history-selected.png"
       },
       {
         "pagePath": "pages/about/index",
-        "text": "项目"
+        "text": "项目",
+        "iconPath": "assets/tabbar/project.png",
+        "selectedIconPath": "assets/tabbar/project-selected.png"
       }
     ]
   },

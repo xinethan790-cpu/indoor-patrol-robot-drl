@@ -47,7 +47,7 @@
     <view class="section-card">
       <view class="section-heading">
         <text class="section-title">避障与实时性</text>
-        <text class="tag tag--success">DRL + SAFETY</text>
+        <text class="tag tag--{{resultTone}}">强化学习 + 安全层</text>
       </view>
       <view class="metric-grid">
         <view wx:for="{{avoidanceMetrics}}" wx:key="label" class="metric-card metric-card--{{item.tone}}">
@@ -61,7 +61,7 @@
     <view class="section-card">
       <view class="section-heading">
         <text class="section-title">最终轨迹</text>
-        <text class="tag tag--success">FINAL</text>
+        <text class="tag tag--{{resultTone}}">终态轨迹</text>
       </view>
       <patrol-map map="{{dashboardMap}}" compact="{{true}}"></patrol-map>
       <text class="report-map-note">{{trajectoryNote}}</text>
