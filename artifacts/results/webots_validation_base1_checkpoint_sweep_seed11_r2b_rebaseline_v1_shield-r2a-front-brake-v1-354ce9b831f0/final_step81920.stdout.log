@@ -1,0 +1,23 @@
+INFO: webots_ppo_evaluate: Starting controller: /Users/a1/Documents/Codex/2026-08-28/new-chat/outputs/indoor-patrol-robot-drl/.venv/bin/python -u webots_ppo_evaluate.py
+WEBOTS_EVAL_EPISODE index=0 seed=8000 planner=ppo_base1_step81920 outcome=success steps=104
+WEBOTS_EVAL_EPISODE index=1 seed=8001 planner=ppo_base1_step81920 outcome=collision steps=41
+WEBOTS_EVAL_EPISODE index=2 seed=8002 planner=ppo_base1_step81920 outcome=success steps=96
+WEBOTS_EVAL_EPISODE index=3 seed=8003 planner=ppo_base1_step81920 outcome=collision steps=73
+WEBOTS_EVAL_EPISODE index=4 seed=8004 planner=ppo_base1_step81920 outcome=collision steps=52
+WEBOTS_EVAL_EPISODE index=5 seed=8005 planner=ppo_base1_step81920 outcome=success steps=111
+WEBOTS_EVAL_EPISODE index=6 seed=8006 planner=ppo_base1_step81920 outcome=success steps=121
+WEBOTS_EVAL_EPISODE index=7 seed=8007 planner=ppo_base1_step81920 outcome=collision steps=62
+WEBOTS_EVAL_EPISODE index=8 seed=8008 planner=ppo_base1_step81920 outcome=success steps=93
+WEBOTS_EVAL_EPISODE index=9 seed=8009 planner=ppo_base1_step81920 outcome=success steps=96
+WEBOTS_EVAL_EPISODE index=10 seed=8010 planner=ppo_base1_step81920 outcome=success steps=109
+WEBOTS_EVAL_EPISODE index=11 seed=8011 planner=ppo_base1_step81920 outcome=success steps=107
+WEBOTS_EVAL_EPISODE index=12 seed=8012 planner=ppo_base1_step81920 outcome=collision steps=64
+WEBOTS_EVAL_EPISODE index=13 seed=8013 planner=ppo_base1_step81920 outcome=success steps=95
+WEBOTS_EVAL_EPISODE index=14 seed=8014 planner=ppo_base1_step81920 outcome=collision steps=47
+WEBOTS_EVAL_EPISODE index=15 seed=8015 planner=ppo_base1_step81920 outcome=success steps=94
+WEBOTS_EVAL_EPISODE index=16 seed=8016 planner=ppo_base1_step81920 outcome=success steps=100
+WEBOTS_EVAL_EPISODE index=17 seed=8017 planner=ppo_base1_step81920 outcome=success steps=103
+WEBOTS_EVAL_EPISODE index=18 seed=8018 planner=ppo_base1_step81920 outcome=success steps=106
+WEBOTS_EVAL_EPISODE index=19 seed=8019 planner=ppo_base1_step81920 outcome=success steps=98
+WEBOTS_EVALUATION_OK episodes=20 planner=ppo_base1_step81920 shield=1 success_rate=0.700 collision_rate=0.300 results=/Users/a1/Documents/Codex/2026-08-28/new-chat/outputs/indoor-patrol-robot-drl/artifacts/results/webots_validation_base1_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0
+INFO: webots_ppo_evaluate: Terminating.

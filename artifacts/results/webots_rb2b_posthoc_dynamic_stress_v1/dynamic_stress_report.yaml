@@ -1,0 +1,372 @@
+conditions:
+- condition_id: BASE1
+  episodes_csv:
+    path: artifacts/results/webots_validation_base1_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/episodes.csv
+    sha256: 45ded3ffcf6e1f6569e2d69a74b522e2adcf6a1c69e2c3d916ee1a6f26b5ad1c
+  gate:
+    checks:
+      maximum_collision_rate: false
+      maximum_error_count: true
+      minimum_success_rate: false
+      required_episode_count: true
+      required_reset_attempts: true
+      required_successful_resets: true
+    collision_count: 6
+    collision_rate: 0.3
+    episodes: 20
+    error_count: 0
+    passed: false
+    success_count: 14
+    success_rate: 0.7
+    timeout_count: 0
+  model_sha256: 498d970cfcf539d55943ace88dcbaad83445713ad852291098b391fd38a86cfa
+  original_manifest_status: completed
+  original_run_error: null
+  original_run_exit_code: 0
+  original_run_finished_at: '2026-09-02T04:47:11+00:00'
+  original_run_started_at: '2026-09-02T04:46:54+00:00'
+  original_run_status: completed
+  posthoc_revalidation: true
+  rerun_performed: false
+  run_name: webots_validation_base1_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0
+  scenario:
+    obstacle_count: 1
+    obstacle_speed_range:
+    - 0.18
+    - 0.25
+  shield_profile:
+    resolved_config:
+      clearance_quantile: 0.0
+      front_half_angle: 1.0471975511965976
+      front_slowdown_distance: 0.75
+      front_stop_distance: 0.24
+      intervention_epsilon: 1.0e-06
+      lidar_max_range: 3.5
+      side_deadband: 0.03
+      side_inner_angle: 1.0471975511965976
+      side_outer_angle: 1.8325957145940461
+      side_slowdown_distance: 0.32
+      side_speed_floor: 1.0
+      side_stop_distance: 0.12
+      side_turn_weight: 0.55
+      turn_blend: 0.0
+      turn_gain: 0.9
+    semantic_sha256: 354ce9b831f01fb9e9c72a9ad1650574f18c98b1b5fafea26671f81ee000ec08
+    source_sha256: 6acd0b2bcafa7ffe48ac800ab94cf13636bc4a7c2dff2fb4e50fd7381262acf3
+  summary:
+    path: artifacts/results/webots_validation_base1_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/summary.json
+    sha256: f8f7d1a726750cd39dce36e9c524e164cade88e256070ca5600c2c6a788cb691
+  sweep_manifest:
+    path: artifacts/results/webots_validation_base1_checkpoint_sweep_seed11_r2b_rebaseline_v1_shield-r2a-front-brake-v1-354ce9b831f0/checkpoint_sweep.json
+    sha256: f43c43d9930b216606bdbab8c2e8ef25b3fac544a8f3409b6ed010b1f5924681
+  validator_metrics:
+    collision_count: 6
+    collision_rate: 0.3
+    completion_time_s_mean: 13.101714285714289
+    episodes: 20
+    error_count: 0
+    path_length_ratio_mean: 0.969800199406316
+    success_count: 14
+    success_rate: 0.7
+    timeout_count: 0
+- condition_id: DENS3
+  episodes_csv:
+    path: artifacts/results/webots_validation_dens3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/episodes.csv
+    sha256: 9942055df8f2e3b37148d2175a2488606df58e166fec346144c05a0fa592bd1e
+  gate:
+    checks:
+      maximum_collision_rate: false
+      maximum_error_count: true
+      minimum_success_rate: false
+      required_episode_count: true
+      required_reset_attempts: true
+      required_successful_resets: true
+    collision_count: 12
+    collision_rate: 0.6
+    episodes: 20
+    error_count: 0
+    passed: false
+    success_count: 8
+    success_rate: 0.4
+    timeout_count: 0
+  model_sha256: 498d970cfcf539d55943ace88dcbaad83445713ad852291098b391fd38a86cfa
+  original_manifest_status: completed
+  original_run_error: null
+  original_run_exit_code: 0
+  original_run_finished_at: '2026-09-02T04:47:28+00:00'
+  original_run_started_at: '2026-09-02T04:47:11+00:00'
+  original_run_status: completed
+  posthoc_revalidation: true
+  rerun_performed: false
+  run_name: webots_validation_dens3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0
+  scenario:
+    obstacle_count: 3
+    obstacle_speed_range:
+    - 0.18
+    - 0.25
+  shield_profile:
+    resolved_config:
+      clearance_quantile: 0.0
+      front_half_angle: 1.0471975511965976
+      front_slowdown_distance: 0.75
+      front_stop_distance: 0.24
+      intervention_epsilon: 1.0e-06
+      lidar_max_range: 3.5
+      side_deadband: 0.03
+      side_inner_angle: 1.0471975511965976
+      side_outer_angle: 1.8325957145940461
+      side_slowdown_distance: 0.32
+      side_speed_floor: 1.0
+      side_stop_distance: 0.12
+      side_turn_weight: 0.55
+      turn_blend: 0.0
+      turn_gain: 0.9
+    semantic_sha256: 354ce9b831f01fb9e9c72a9ad1650574f18c98b1b5fafea26671f81ee000ec08
+    source_sha256: 6acd0b2bcafa7ffe48ac800ab94cf13636bc4a7c2dff2fb4e50fd7381262acf3
+  summary:
+    path: artifacts/results/webots_validation_dens3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/summary.json
+    sha256: accc630802bcc2e82dfc05f7b97fb8acc5e80f546ed8a208ddd016d5f9c2d8fc
+  sweep_manifest:
+    path: artifacts/results/webots_validation_dens3_checkpoint_sweep_seed11_r2b_rebaseline_v1_shield-r2a-front-brake-v1-354ce9b831f0/checkpoint_sweep.json
+    sha256: 52401cc79d74ee94273fae86ab1605f6fa453d5221efa075f71c0c51c9acb4c8
+  validator_metrics:
+    collision_count: 12
+    collision_rate: 0.6
+    completion_time_s_mean: 17.904
+    episodes: 20
+    error_count: 0
+    path_length_ratio_mean: 1.0076426575763242
+    success_count: 8
+    success_rate: 0.4
+    timeout_count: 0
+- condition_id: FAST3
+  episodes_csv:
+    path: artifacts/results/webots_validation_fast3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/episodes.csv
+    sha256: 92a0be6adda4474d0b7edc21ef80a0bb438a2192b14701ed741d82310418313b
+  gate:
+    checks:
+      maximum_collision_rate: false
+      maximum_error_count: true
+      minimum_success_rate: false
+      required_episode_count: true
+      required_reset_attempts: true
+      required_successful_resets: true
+    collision_count: 20
+    collision_rate: 1.0
+    episodes: 20
+    error_count: 0
+    passed: false
+    success_count: 0
+    success_rate: 0.0
+    timeout_count: 0
+  model_sha256: 498d970cfcf539d55943ace88dcbaad83445713ad852291098b391fd38a86cfa
+  original_manifest_status: failed
+  original_run_error: summary.by_planner[0].path_length_ratio_mean must be a number.
+  original_run_exit_code: 0
+  original_run_finished_at: '2026-09-02T04:47:42+00:00'
+  original_run_started_at: '2026-09-02T04:47:28+00:00'
+  original_run_status: failed
+  posthoc_revalidation: true
+  rerun_performed: false
+  run_name: webots_validation_fast3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0
+  scenario:
+    obstacle_count: 3
+    obstacle_speed_range:
+    - 0.26
+    - 0.42
+  shield_profile:
+    resolved_config:
+      clearance_quantile: 0.0
+      front_half_angle: 1.0471975511965976
+      front_slowdown_distance: 0.75
+      front_stop_distance: 0.24
+      intervention_epsilon: 1.0e-06
+      lidar_max_range: 3.5
+      side_deadband: 0.03
+      side_inner_angle: 1.0471975511965976
+      side_outer_angle: 1.8325957145940461
+      side_slowdown_distance: 0.32
+      side_speed_floor: 1.0
+      side_stop_distance: 0.12
+      side_turn_weight: 0.55
+      turn_blend: 0.0
+      turn_gain: 0.9
+    semantic_sha256: 354ce9b831f01fb9e9c72a9ad1650574f18c98b1b5fafea26671f81ee000ec08
+    source_sha256: 6acd0b2bcafa7ffe48ac800ab94cf13636bc4a7c2dff2fb4e50fd7381262acf3
+  summary:
+    path: artifacts/results/webots_validation_fast3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/summary.json
+    sha256: d68eb044c98595e7a23221dacf1f2a2185834e9db78a0047bf4535afbfdbd0fd
+  sweep_manifest:
+    path: artifacts/results/webots_validation_fast3_checkpoint_sweep_seed11_r2b_rebaseline_v1_shield-r2a-front-brake-v1-354ce9b831f0/checkpoint_sweep.json
+    sha256: 2aae6eec5d51f7c2b671f9806a0e9761825f8c0c8e1f5bf7a20440f8f67493c5
+  validator_metrics:
+    collision_count: 20
+    collision_rate: 1.0
+    completion_time_s_mean: null
+    episodes: 20
+    error_count: 0
+    path_length_ratio_mean: null
+    success_count: 0
+    success_rate: 0.0
+    timeout_count: 0
+decision:
+  formal_model_promotion: forbidden
+  outcome: record_observed_development_stress_boundary_without_tuning_or_retry
+  passed: false
+evidence_artifact_integrity:
+  all_unchanged: true
+  artifact_count: 9
+  artifacts:
+  - condition_id: BASE1
+    kind: sweep_manifest
+    path: artifacts/results/webots_validation_base1_checkpoint_sweep_seed11_r2b_rebaseline_v1_shield-r2a-front-brake-v1-354ce9b831f0/checkpoint_sweep.json
+    sha256_after: f43c43d9930b216606bdbab8c2e8ef25b3fac544a8f3409b6ed010b1f5924681
+    sha256_before: f43c43d9930b216606bdbab8c2e8ef25b3fac544a8f3409b6ed010b1f5924681
+    unchanged: true
+  - condition_id: BASE1
+    kind: summary
+    path: artifacts/results/webots_validation_base1_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/summary.json
+    sha256_after: f8f7d1a726750cd39dce36e9c524e164cade88e256070ca5600c2c6a788cb691
+    sha256_before: f8f7d1a726750cd39dce36e9c524e164cade88e256070ca5600c2c6a788cb691
+    unchanged: true
+  - condition_id: BASE1
+    kind: episodes_csv
+    path: artifacts/results/webots_validation_base1_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/episodes.csv
+    sha256_after: 45ded3ffcf6e1f6569e2d69a74b522e2adcf6a1c69e2c3d916ee1a6f26b5ad1c
+    sha256_before: 45ded3ffcf6e1f6569e2d69a74b522e2adcf6a1c69e2c3d916ee1a6f26b5ad1c
+    unchanged: true
+  - condition_id: DENS3
+    kind: sweep_manifest
+    path: artifacts/results/webots_validation_dens3_checkpoint_sweep_seed11_r2b_rebaseline_v1_shield-r2a-front-brake-v1-354ce9b831f0/checkpoint_sweep.json
+    sha256_after: 52401cc79d74ee94273fae86ab1605f6fa453d5221efa075f71c0c51c9acb4c8
+    sha256_before: 52401cc79d74ee94273fae86ab1605f6fa453d5221efa075f71c0c51c9acb4c8
+    unchanged: true
+  - condition_id: DENS3
+    kind: summary
+    path: artifacts/results/webots_validation_dens3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/summary.json
+    sha256_after: accc630802bcc2e82dfc05f7b97fb8acc5e80f546ed8a208ddd016d5f9c2d8fc
+    sha256_before: accc630802bcc2e82dfc05f7b97fb8acc5e80f546ed8a208ddd016d5f9c2d8fc
+    unchanged: true
+  - condition_id: DENS3
+    kind: episodes_csv
+    path: artifacts/results/webots_validation_dens3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/episodes.csv
+    sha256_after: 9942055df8f2e3b37148d2175a2488606df58e166fec346144c05a0fa592bd1e
+    sha256_before: 9942055df8f2e3b37148d2175a2488606df58e166fec346144c05a0fa592bd1e
+    unchanged: true
+  - condition_id: FAST3
+    kind: sweep_manifest
+    path: artifacts/results/webots_validation_fast3_checkpoint_sweep_seed11_r2b_rebaseline_v1_shield-r2a-front-brake-v1-354ce9b831f0/checkpoint_sweep.json
+    sha256_after: 2aae6eec5d51f7c2b671f9806a0e9761825f8c0c8e1f5bf7a20440f8f67493c5
+    sha256_before: 2aae6eec5d51f7c2b671f9806a0e9761825f8c0c8e1f5bf7a20440f8f67493c5
+    unchanged: true
+  - condition_id: FAST3
+    kind: summary
+    path: artifacts/results/webots_validation_fast3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/summary.json
+    sha256_after: d68eb044c98595e7a23221dacf1f2a2185834e9db78a0047bf4535afbfdbd0fd
+    sha256_before: d68eb044c98595e7a23221dacf1f2a2185834e9db78a0047bf4535afbfdbd0fd
+    unchanged: true
+  - condition_id: FAST3
+    kind: episodes_csv
+    path: artifacts/results/webots_validation_fast3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0/episodes.csv
+    sha256_after: 92a0be6adda4474d0b7edc21ef80a0bb438a2192b14701ed741d82310418313b
+    sha256_before: 92a0be6adda4474d0b7edc21ef80a0bb438a2192b14701ed741d82310418313b
+    unchanged: true
+evidence_scope: development_validation
+execution_revision: 75af6a8e1096a366f0043572f53b3f40b634024a
+experiment_id: webots_rb2b_posthoc_dynamic_stress_v1
+finalization_revision: b1dbaa9464e93acd4abe9ef9204353c1fc8ab7cf
+kind: webots_rb2b_development_dynamic_stress
+no_rerun: true
+original_sweep_manifests_rewritten: false
+output_paths:
+  json: artifacts/results/webots_rb2b_posthoc_dynamic_stress_v1/dynamic_stress_report.json
+  sha256: artifacts/results/webots_rb2b_posthoc_dynamic_stress_v1/dynamic_stress_report.sha256
+  yaml: artifacts/results/webots_rb2b_posthoc_dynamic_stress_v1/dynamic_stress_report.yaml
+posthoc_revalidation: true
+preregistration_revision: 75af6a8e1096a366f0043572f53b3f40b634024a
+protocol_git_blob:
+  byte_identical: true
+  current_file_sha256: c662526d620d96b13d392549a39f84509645dcf4c4056e0203fbb7ce4630afe1
+  execution_blob_sha256: c662526d620d96b13d392549a39f84509645dcf4c4056e0203fbb7ce4630afe1
+  execution_revision: 75af6a8e1096a366f0043572f53b3f40b634024a
+  path: configs/eval/webots_rb2b_posthoc_dynamic_stress_v1.yaml
+purpose: post_training_pre_observation_dynamic_stress_characterization
+restrictions:
+  adaptive_retries: forbidden
+  formal_model_promotion: forbidden
+  held_out_formal_test_access: forbidden
+  outcome_dependent_reruns: forbidden
+scenario_seeds:
+- 8000
+- 8001
+- 8002
+- 8003
+- 8004
+- 8005
+- 8006
+- 8007
+- 8008
+- 8009
+- 8010
+- 8011
+- 8012
+- 8013
+- 8014
+- 8015
+- 8016
+- 8017
+- 8018
+- 8019
+schema_version: 1
+software_erratum:
+  affected_condition: FAST3
+  code: zero_success_nullable_metrics_rejected_v1
+  disposition: read_only_revalidation_no_rerun
+  execution_outputs_complete: true
+  original_error: summary.by_planner[0].path_length_ratio_mean must be a number.
+source_bindings:
+  config:
+    path: configs/eval/webots_rb2b_posthoc_dynamic_stress_v1.yaml
+    sha256: c662526d620d96b13d392549a39f84509645dcf4c4056e0203fbb7ce4630afe1
+  model:
+    endpoint_step: 81920
+    path: artifacts/models/webots/seed_11/r2b_rebaseline_v1/ppo_webots_s11_step000081920.zip
+    sha256: 498d970cfcf539d55943ace88dcbaad83445713ad852291098b391fd38a86cfa
+    variant: r2b_rebaseline_v1
+  runtime_inputs:
+    environment_adapter:
+      path: src/indoor_patrol_rl/envs/webots_patrol.py
+      sha256: 52697438d6c86265d3f56b598312566f541512e251456f95af8b8af2c4cc4432
+    evaluator:
+      path: controllers/webots_ppo_evaluate/webots_ppo_evaluate.py
+      sha256: 91f8ab0b91a5fdb56aa616822544bceaa85ac747be2b10b79d2e2487cb378fdb
+    world:
+      path: worlds/webots_ppo_evaluate.wbt
+      sha256: e0ae7ac8aa2a7981f94673d656d76940166cb12ceab8dd2b17a17329985d5425
+  shield_profile:
+    config:
+      clearance_quantile: 0.0
+      front_half_angle: 1.0471975511965976
+      front_slowdown_distance: 0.75
+      front_stop_distance: 0.24
+      intervention_epsilon: 1.0e-06
+      side_deadband: 0.03
+      side_inner_angle: 1.0471975511965976
+      side_outer_angle: 1.8325957145940461
+      side_slowdown_distance: 0.32
+      side_speed_floor: 1.0
+      side_stop_distance: 0.12
+      side_turn_weight: 0.55
+      turn_blend: 0.0
+      turn_gain: 0.9
+    enabled: true
+    lidar_max_range_source: LDS-01.getMaxRange()
+    profile_id: r2a-front-brake-v1
+    result_token: r2a-front-brake-v1-354ce9b831f0
+    semantic_sha256: 354ce9b831f01fb9e9c72a9ad1650574f18c98b1b5fafea26671f81ee000ec08
+    source_path: configs/eval/webots_r2a_front_brake_v1.yaml
+    source_sha256: 6acd0b2bcafa7ffe48ac800ab94cf13636bc4a7c2dff2fb4e50fd7381262acf3
+split: validation
+status: completed
+test_split_was_run: false
+webots_processes_launched: 0

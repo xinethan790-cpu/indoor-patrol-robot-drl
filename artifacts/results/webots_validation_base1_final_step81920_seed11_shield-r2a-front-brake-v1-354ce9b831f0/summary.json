@@ -1,0 +1,129 @@
+{
+  "schema_version": "1.0",
+  "split": "validation",
+  "episode_count": 20,
+  "planners": [
+    "ppo_base1_step81920"
+  ],
+  "conditions": [
+    "BASE1"
+  ],
+  "by_planner_condition": [
+    {
+      "planner": "ppo_base1_step81920",
+      "condition_id": "BASE1",
+      "episodes": 20,
+      "success_count": 14,
+      "collision_count": 6,
+      "timeout_count": 0,
+      "error_count": 0,
+      "success_rate": 0.7,
+      "collision_rate": 0.3,
+      "timeout_rate": 0.0,
+      "completion_time_s_mean": 13.101714285714289,
+      "path_length_ratio_mean": 0.969800199406316,
+      "minimum_clearance_m_mean": 0.19357829794287681,
+      "near_collision_ratio_mean": 0.08432202117085204,
+      "action_delta_sq_mean": 0.05345426538854574,
+      "inference_latency_p95_ms": 0.4994056015857494
+    }
+  ],
+  "by_planner": [
+    {
+      "planner": "ppo_base1_step81920",
+      "episodes": 20,
+      "success_count": 14,
+      "collision_count": 6,
+      "timeout_count": 0,
+      "error_count": 0,
+      "success_rate": 0.7,
+      "collision_rate": 0.3,
+      "timeout_rate": 0.0,
+      "completion_time_s_mean": 13.101714285714289,
+      "path_length_ratio_mean": 0.969800199406316,
+      "minimum_clearance_m_mean": 0.19357829794287681,
+      "near_collision_ratio_mean": 0.08432202117085204,
+      "action_delta_sq_mean": 0.05345426538854574,
+      "inference_latency_p95_ms": 0.4994056015857494
+    }
+  ],
+  "evaluation_provenance": {
+    "schema_version": 1,
+    "model_path": "artifacts/models/webots/seed_11/r2b_rebaseline_v1/ppo_webots_s11_step000081920.zip",
+    "model_sha256": "498d970cfcf539d55943ace88dcbaad83445713ad852291098b391fd38a86cfa",
+    "model_variant": "r2b_rebaseline_v1",
+    "training_seed": 11,
+    "split": "validation",
+    "condition_id": "BASE1",
+    "planner": "ppo",
+    "planner_label": "ppo_base1_step81920",
+    "scenario_seed_start": 8000,
+    "scenario_seed_count": 20,
+    "scenario_seeds": [
+      8000,
+      8001,
+      8002,
+      8003,
+      8004,
+      8005,
+      8006,
+      8007,
+      8008,
+      8009,
+      8010,
+      8011,
+      8012,
+      8013,
+      8014,
+      8015,
+      8016,
+      8017,
+      8018,
+      8019
+    ],
+    "obstacle_count": 1,
+    "obstacle_cross_lanes": null,
+    "obstacle_spawn_protocol": "training_random_cross_axis",
+    "obstacle_lane_seed_transform": null,
+    "obstacle_speed_range": [
+      0.18,
+      0.25
+    ],
+    "horizontal_route_half_length": 1.1,
+    "vertical_route_half_length": 1.1,
+    "static_layout": "train_a",
+    "safety_shield_enabled": true,
+    "safety_shield_config": {
+      "lidar_max_range": 3.5,
+      "front_stop_distance": 0.24,
+      "front_slowdown_distance": 0.75,
+      "side_stop_distance": 0.12,
+      "side_slowdown_distance": 0.32,
+      "front_half_angle": 1.0471975511965976,
+      "side_inner_angle": 1.0471975511965976,
+      "side_outer_angle": 1.8325957145940461,
+      "clearance_quantile": 0.0,
+      "side_speed_floor": 1.0,
+      "side_turn_weight": 0.55,
+      "turn_gain": 0.9,
+      "turn_blend": 0.0,
+      "side_deadband": 0.03,
+      "intervention_epsilon": 1e-06
+    },
+    "reference_path_definition": "euclidean_start_to_goal",
+    "robot_bounding_radius": 0.122,
+    "reset_health": {
+      "attempts": 20,
+      "successful": 20,
+      "finite_settle_checks": 40,
+      "readback_checks": 20,
+      "maximum_translation_error": 0.0,
+      "maximum_start_xy_error": 2.613261317908786e-05,
+      "maximum_gps_root_xy_distance": 0.03603206764174418,
+      "maximum_yaw_error": 3.002475478464106e-06,
+      "maximum_linear_speed": 0.07532712697045825,
+      "maximum_angular_speed": 1.2373384520334771
+    },
+    "episodes_csv_sha256": "45ded3ffcf6e1f6569e2d69a74b522e2adcf6a1c69e2c3d916ee1a6f26b5ad1c"
+  }
+}

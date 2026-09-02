@@ -226,6 +226,8 @@ python scripts/benchmark_kinematic.py --split validation \
 
 2026-09-02 的新 RB2A 基线在 clean commit 上完成 40,960 步 Webots 训练，并在预注册的 100 个验证种子中得到 `76/24/0/0`，以一个 episode 的窄余量通过开发门槛。随后哈希绑定的 RB2B 保留优化器继续训练到 81,920 步，在更高的 `0.18-0.25 m/s` 障碍速度分布上得到 `85/15/0/0`。模型、清单和逐回合数据见 [RB2A 报告](reports/webots_r2ab_targeted/r2a_rebaseline_v1_report.md)与 [RB2B 报告](reports/webots_r2ab_targeted/r2b_rebaseline_v1_report.md)，完整边界见[重建协议](reports/webots_r2ab_targeted/rebaseline_protocol_2026-09-02.md)。两阶段速度分布不同，不能把差值包装成严格配对提升；它们仍是 PPO 加安全盾的单 seed 开发结果，不是正式三 seed 或 policy-only 结论。Webots 正式训练、恢复、验证和最终测试门禁命令见[训练复现协议](docs/training-protocol.md)。
 
+同一 RB2B 最终模型随后在预先提交的 `8000～8019` 开发验证矩阵中接受密度与速度压力测试：单障碍 BASE1 为 `14 成功 / 6 碰撞`，同速三障碍 DENS3 为 `8 / 12`，高速三障碍 FAST3 为 `0 / 20`；三组均为 `0` 超时、`0` 程序错误且 reset `20/20`。三组都未达到 `成功率 >=0.75、碰撞率 <=0.25` 的开发门槛，因此这是一项明确暴露当前动态障碍能力边界的负结果，不构成模型晋级。原执行提交、零成功指标解析勘误和“不重跑”的只读归档链见 [RB2B 压力矩阵报告](reports/webots_r2ab_targeted/rb2b_dynamic_stress_v1_report.md)。受保护的 `10000～10019` 正式测试种子仍未访问。
+
 打开 Webots 动态避障演示：
 
 ```bash

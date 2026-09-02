@@ -16,6 +16,18 @@ SHA-256 is `498d970c...a86cfa`; both gates pass with `0.10` margin. See
 [`r2b_rebaseline_v1_report.md`](r2b_rebaseline_v1_report.md) for the raw evidence,
 hashes, cross-stage context and limitations.
 
+Post-hoc development stress update (2026-09-02): before observing outcomes, clean
+revision `75af6a8...024a` locked the exact RB2B endpoint, seeds `8000-8019` and
+the BASE1/DENS3/FAST3 matrix. The three arms produced respectively `14/6`, `8/12`
+and `0/20` success/collision counts, with zero timeout/error and complete reset
+health. All three arms failed the unchanged `0.75/0.25` development gates. A
+zero-success nullable-metric reader defect was corrected only for read-only
+finalization at `b1dbaa9...b7cf`; no Webots episode was rerun and the original
+failed FAST3 sweep manifest is preserved. See
+[`rb2b_dynamic_stress_v1_report.md`](rb2b_dynamic_stress_v1_report.md). This
+negative result narrows the supported RB2B claim and does not alter either
+accepted endpoint's original validation record.
+
 Date: 2026-09-02. This protocol supersedes the legacy R2a/R2b chain as the active
 training path. The legacy files are retained as an audit trail, but their claimed
 end-to-end provenance is withdrawn because the exact upstream warm-start model and

@@ -1,0 +1,2 @@
+UNSUPPORTED (log once): POSSIBLE ISSUE: unit 0 GLD_TEXTURE_INDEX_2D is unloadable and bound to sampler type (Float) - using zero texture because texture unloadable
+2026-09-02 12:46:57.561 webots[88300:7363563] error messaging the mach port for IMKCFRunLoopWakeUpReliable
