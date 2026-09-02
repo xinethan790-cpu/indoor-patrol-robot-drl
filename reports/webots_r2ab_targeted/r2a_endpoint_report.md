@@ -1,5 +1,11 @@
 # R2a targeted fine-tuning: endpoint result
 
+> Integrity status (2026-09-02): **historical validation record; not the active
+> baseline**. Its downstream outcome and artifact identity remain verifiable, but
+> its complete upstream training provenance is not clean-clone reproducible. It
+> must not be presented as the current result or an end-to-end reproducible gain.
+> See `rebaseline_protocol_2026-09-02.md`.
+
 This report records the completed R2a training endpoint before checkpoint selection.
 It is an exploratory single-obstacle result and is not evidence that multi-point patrol
 or multi-obstacle avoidance has been solved.

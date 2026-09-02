@@ -1,5 +1,10 @@
 # webots_r2a_front_brake_fixed_system_validation_v1 fixed-system safety report
 
+> Integrity status (2026-09-02): historical validation record, not the active
+> baseline. The `88/12` downstream result and bound artifacts remain verifiable;
+> the complete upstream training lineage is not clean-clone reproducible. See
+> `../webots_r2ab_targeted/rebaseline_protocol_2026-09-02.md`.
+
 Decision: **PASS** — `admit_r2a_front_brake_system_for_r2b_preregistration`.
 
 > This validates one model-plus-shield system. It never creates a policy-only alias

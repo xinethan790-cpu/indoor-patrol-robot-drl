@@ -1,5 +1,11 @@
 # R2a-v3 collision-penalty ablation
 
+> Integrity status (2026-09-02): **historical validation record; not the active
+> baseline**. Its downstream outcome and artifact identity remain verifiable, but
+> its complete upstream training provenance is not clean-clone reproducible. It
+> must not be presented as the current result or an end-to-end reproducible gain.
+> See `rebaseline_protocol_2026-09-02.md`.
+
 R2a-v3 changed only the terminal collision penalty from `-30` to `-40`.
 All other source, PPO, reward, scenario, and gate values remained identical to
 R2a-v2.

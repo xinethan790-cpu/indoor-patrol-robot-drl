@@ -27,6 +27,13 @@ artifacts/results/*
 !artifacts/videos/.gitkeep
 !artifacts/results/.gitkeep
 
+# Frozen, hash-bound inputs for the 2026-09-02 verified R2a rebaseline
+!artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+!artifacts/results/kinematic_validation_seed11/
+artifacts/results/kinematic_validation_seed11/*
+!artifacts/results/kinematic_validation_seed11/summary.json
+!artifacts/results/kinematic_validation_seed11/episodes.csv
+
 # Webots generated files
 controllers/**/__pycache__/
 controllers/**/runtime.ini

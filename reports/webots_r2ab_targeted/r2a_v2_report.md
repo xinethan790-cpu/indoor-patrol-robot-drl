@@ -1,5 +1,11 @@
 # R2a-v2 early-warning distance ablation
 
+> Integrity status (2026-09-02): **historical validation record; not the active
+> baseline**. Its downstream outcome and artifact identity remain verifiable, but
+> its complete upstream training provenance is not clean-clone reproducible. It
+> must not be presented as the current result or an end-to-end reproducible gain.
+> See `rebaseline_protocol_2026-09-02.md`.
+
 R2a-v2 changed only the proximity-speed warning distance from `0.60 m` to
 `0.70 m`.  All other source, PPO, reward, scenario, and gate values remained
 identical to R2a-v1.

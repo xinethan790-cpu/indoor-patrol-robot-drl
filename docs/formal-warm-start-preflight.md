@@ -21,5 +21,10 @@ warm-start 证据预检。入口为：
 降低期望哈希、跳过预检或启动 held-out test 来消除错误；应从原训练机或可信归档恢复精确
 匹配的模型和验证证据。恢复时先保留当前旧文件，不要直接覆盖后再追溯。
 
+截至 2026-09-02，该正式 requirement 的实际状态为 **NOT READY**：声明的
+`152060...` 模型及 `kinematic_validation_retrained_20260830` 两份原始文件均无法恢复。
+另行归档的 `e01bfc...` 冻结输入只用于新的单 seed RB2A 开发基线，不满足也不替换正式
+W0/W1/W2 三 seed requirement。
+
 该预检只检查训练输入完整性，不启动 Webots、不训练模型、不访问 `10000～10019` held-out
 test，也不创建正式 test ledger。

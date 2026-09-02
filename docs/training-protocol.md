@@ -97,16 +97,20 @@ python scripts/benchmark_kinematic.py \
   --output-dir artifacts/results/model_selection_stage2
 ```
 
-当前 seed 11 的验证结果为：
+下表保留 2026-09-02 完整性复核后的 registry 候选记录；其中只有 stage 2 的模型
+和原始验证 CSV 被归档为新开发基线输入，stage 1/3 不进入新基线。此前记录的
+`61/19` stage-2 结果及其模型哈希无法从仓库、本机历史或远端恢复，已撤回：
 
 | 候选模型 | 实际累计步数 | 成功率 | 碰撞率 | 处理决定 |
 |---|---:|---:|---:|---|
-| stage 0 `goal_following` | 102,400 | 0.6875 | 0.3125 | 不选 |
-| stage 1 `sparse_dynamic` | 253,952 | 0.7000 | 0.3000 | 不选 |
-| stage 2 `nominal_dynamic` | 557,056 | **0.7625** | **0.2375** | 选为 Webots 热启动 |
-| stage 3 `dense_fast` | 811,008 | 0.7250 | 0.2750 | 不选 |
+| stage 1 `sparse_dynamic` | 253,952 | 0.6500 | 0.3500 | 不选 |
+| stage 2 `nominal_dynamic` | 557,056 | **0.6875** | **0.3125** | 选为新开发基线的可复核热启动 |
+| stage 3 `dense_fast` | 811,008 | 0.6250 | 0.3750 | 不选 |
 
-选择 stage 2 是验证集上的模型选择，不代表它已经通过 Webots。stage 3 虽然训练更久，但验证性能退化，因此不能仅凭“最终权重”或“训练步数更多”自动选用。
+选择 stage 2 是验证集上的模型选择，不代表它已经通过 Webots，也不代表 PPO
+优于 Reactive。stage 3 虽然训练更久，但验证性能退化，因此不能仅凭“最终权重”
+或“训练步数更多”自动选用。新基线另外绑定该模型、原始 80 条 PPO 记录和完整
+240 条统一基准；详见 `reports/webots_r2ab_targeted/rebaseline_protocol_2026-09-02.md`。
 
 ## 6. 阶段 C：统一运动学基准
 

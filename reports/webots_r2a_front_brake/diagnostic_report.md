@@ -1,5 +1,10 @@
 # webots_r2a_front_brake_paired_diagnostic_v1 diagnostic report
 
+> Integrity status (2026-09-02): historical validation record, not the active
+> baseline. Its downstream paired observations remain auditable, but the model's
+> complete upstream training lineage is not clean-clone reproducible. See
+> `../webots_r2ab_targeted/rebaseline_protocol_2026-09-02.md`.
+
 Decision: **PASS** — `retain_front_brake_profile_for_fixed_r2a_validation`.
 
 > Validation-only exploratory safety diagnostic. Formal model promotion is forbidden; no model alias was created.

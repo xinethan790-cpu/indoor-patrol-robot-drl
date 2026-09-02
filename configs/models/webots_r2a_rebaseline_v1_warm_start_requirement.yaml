@@ -1,0 +1,31 @@
+schema_version: 1
+requirement_id: kinematic-seed11-stage2-recovered-baseline-20260902-v1
+curriculum:
+  config_path: configs/train/webots_r2a_rebaseline_v1.yaml
+  transfer_model_path: artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip
+model:
+  sha256: e01bfcfa5dba22db4a8adf8b0ae8b325a6f7ef7eb50c2b1af1840e3d0c079c67
+  actual_steps: 557056
+registry:
+  path: configs/models/registry.yaml
+  section: kinematic_seed11
+  candidate_id: stage2_nominal_dynamic
+validation:
+  split: validation
+  planner: ppo
+  conditions: [G0, G1, G2, G3]
+  seed_start: 5000
+  seed_count: 20
+  total_episode_count: 240
+  planner_episode_count: 80
+  success_count: 55
+  collision_count: 25
+  timeout_count: 0
+  error_count: 0
+  success_rate: 0.6875
+  collision_rate: 0.3125
+  timeout_rate: 0.0
+  summary_path: artifacts/results/kinematic_validation_seed11/summary.json
+  summary_sha256: d0b95fff6f252873f63f311d9a5bd9e7ed507f918afe759fdd4522e4d2048a7c
+  episodes_path: artifacts/results/kinematic_validation_seed11/episodes.csv
+  episodes_sha256: 5158b09e1551ffa86c1cca36d7eac8e6dcf03ce399acacd07fff2049d573815c

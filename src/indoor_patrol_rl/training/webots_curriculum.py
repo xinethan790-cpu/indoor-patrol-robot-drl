@@ -28,6 +28,7 @@ _CHECKPOINT_STEP_PATTERN = re.compile(r"_(?P<steps>\d+)_steps\.zip$")
 _MODEL_VARIANT_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
 _EVALUATION_RUN_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 _SHA256_PATTERN = re.compile(r"[0-9a-fA-F]{64}")
+_GIT_REVISION_PATTERN = re.compile(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}")
 _CONTROLLER_ENV_PATTERN = re.compile(r"WEBOTS_[A-Z0-9_]+")
 _RUN_MANIFEST_SCHEMA_VERSION = 2
 _DEFAULT_TRAINING_WORLD = "webots_ppo_train.wbt"
@@ -128,6 +129,7 @@ class WebotsCurriculumConfig:
     model_variant: str | None = None
     policy_transfer_model: Path | None = None
     warm_start_requirement: Path | None = None
+    require_clean_git: bool = False
     source_path: Path | None = None
 
     def __post_init__(self) -> None:
@@ -139,6 +141,8 @@ class WebotsCurriculumConfig:
         if len(stage_ids) != len(set(stage_ids)):
             raise ValueError("Webots curriculum stage ids must be unique.")
         _validate_model_variant(self.model_variant)
+        if type(self.require_clean_git) is not bool:
+            raise ValueError("require_clean_git must be a boolean.")
         for stage in self.stages:
             stage_variant = stage.controller_env.get("WEBOTS_MODEL_VARIANT")
             if stage_variant is not None and stage_variant != self.model_variant:
@@ -337,6 +341,9 @@ def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
     model_variant = model_variant_value
     policy_transfer_value = raw.get("policy_transfer_model")
     warm_start_requirement_value = raw.get("warm_start_requirement")
+    require_clean_git = raw.get("require_clean_git", False)
+    if type(require_clean_git) is not bool:
+        raise ValueError("require_clean_git must be a boolean.")
     return WebotsCurriculumConfig(
         transfer_model=Path(str(raw["transfer_model"])),
         port_base=int(raw.get("port_base", 12490)),
@@ -350,8 +357,48 @@ def load_webots_curriculum(path: Path) -> WebotsCurriculumConfig:
             if warm_start_requirement_value
             else None
         ),
+        require_clean_git=require_clean_git,
         source_path=path,
     )
+
+
+GitRunner = Callable[..., subprocess.CompletedProcess[Any]]
+
+
+def require_clean_git_worktree(
+    repository_root: Path,
+    *,
+    git_runner: GitRunner = subprocess.run,
+) -> str:
+    """Return HEAD only when tracked and untracked repository inputs are clean."""
+
+    def run_git(*arguments: str) -> str:
+        completed = git_runner(
+            ["git", *arguments],
+            cwd=repository_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout).strip()
+            raise RuntimeError(
+                f"git {' '.join(arguments)} failed: {detail or completed.returncode}"
+            )
+        return completed.stdout.strip()
+
+    revision = run_git("rev-parse", "--verify", "HEAD").casefold()
+    if _GIT_REVISION_PATTERN.fullmatch(revision) is None:
+        raise ValueError(
+            "git rev-parse HEAD did not return a full 40- or 64-character revision."
+        )
+    dirty = run_git("status", "--porcelain", "--untracked-files=all")
+    if dirty:
+        preview = " | ".join(dirty.splitlines()[:5])
+        raise RuntimeError(
+            "This curriculum requires a clean Git HEAD; commit or remove: " + preview
+        )
+    return revision
 
 
 def apply_preferred_resume_overrides(
@@ -1026,7 +1073,7 @@ class WebotsCurriculumRunner:
                     stage.preferred_resume_sha256
                 )
             stages.append(stage_payload)
-        return {
+        payload = {
             "semantic_schema_version": 1,
             "seed": self.seed,
             "transfer_model": _semantic_relative_path(
@@ -1055,6 +1102,11 @@ class WebotsCurriculumRunner:
             },
             "stages": stages,
         }
+        # Preserve fingerprints for legacy schema-v2 manifests that predate the
+        # opt-in clean-worktree gate.
+        if self.config.require_clean_git:
+            payload["require_clean_git"] = True
+        return payload
 
     def _load_or_create_manifest(self) -> dict[str, Any]:
         if self.manifest_path.is_file():
@@ -1988,6 +2040,14 @@ class WebotsCurriculumRunner:
 
         if not 0 <= start_stage <= stop_after_stage < len(self.config.stages):
             raise ValueError("Invalid Webots curriculum stage range.")
+        if self.config.require_clean_git and not self.dry_run:
+            revision = require_clean_git_worktree(self.repository_root)
+            recorded_revision = self.manifest.get("source_git_revision")
+            if recorded_revision is not None and recorded_revision != revision:
+                raise ValueError(
+                    "Existing run manifest source_git_revision does not match clean HEAD."
+                )
+            self.manifest["source_git_revision"] = revision
         # SHA-bound roots are prerequisites, even when their completed stages are
         # reused or skipped. Verify them before inspecting any reusable snapshot.
         for stage in self.config.stages[: stop_after_stage + 1]:

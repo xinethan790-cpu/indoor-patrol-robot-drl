@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -215,6 +216,20 @@ def test_model_hash_mismatch_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(WarmStartPreflightError, match="model SHA-256 mismatch"):
         verify_warm_start_requirement(repository_root=tmp_path, config=config)
+
+
+def test_policy_transfer_must_be_the_hash_bound_warm_start(tmp_path: Path) -> None:
+    config, _paths = _load_fixture(tmp_path)
+    mismatched = replace(
+        config,
+        policy_transfer_model=Path("artifacts/models/different-policy.zip"),
+    )
+
+    with pytest.raises(
+        WarmStartPreflightError,
+        match="policy_transfer_model differs from the warm-start requirement",
+    ):
+        verify_warm_start_requirement(repository_root=tmp_path, config=mismatched)
 
 
 def test_missing_validation_evidence_reports_both_files(tmp_path: Path) -> None:

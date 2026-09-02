@@ -3,9 +3,53 @@ from __future__ import annotations
 from pathlib import Path
 
 from indoor_patrol_rl.evaluation.checkpoint_sweep import load_safety_shield_profile
-from indoor_patrol_rl.training import load_webots_curriculum
+from indoor_patrol_rl.training import (
+    load_webots_curriculum,
+    verify_warm_start_requirement,
+)
 
 REPOSITORY_ROOT = Path(__file__).absolute().parents[1]
+
+
+def test_r2a_rebaseline_binds_recoverable_source_and_fresh_validation_grid() -> None:
+    config = load_webots_curriculum(
+        REPOSITORY_ROOT / "configs/train/webots_r2a_rebaseline_v1.yaml"
+    )
+
+    assert config.model_variant == "r2a_rebaseline_v1"
+    assert config.require_clean_git is True
+    assert config.transfer_model == config.policy_transfer_model == Path(
+        "artifacts/models/ppo_curriculum_seed11_stage2_nominal_dynamic.zip"
+    )
+    verification = verify_warm_start_requirement(
+        repository_root=REPOSITORY_ROOT,
+        config=config,
+    )
+    assert verification is not None
+    assert verification.model_sha256 == (
+        "e01bfcfa5dba22db4a8adf8b0ae8b325a6f7ef7eb50c2b1af1840e3d0c079c67"
+    )
+    assert verification.episode_count == 80
+    assert verification.success_rate == 0.6875
+    assert verification.collision_rate == 0.3125
+
+    assert len(config.stages) == 1
+    stage = config.stages[0]
+    assert stage.stage_id == "RB2A"
+    assert stage.training_steps == 40960
+    assert stage.gate.seed_start == 6000
+    assert stage.gate.episodes == 100
+    assert stage.gate.min_success_rate == 0.75
+    assert stage.gate.max_collision_rate == 0.25
+    assert stage.controller_env["WEBOTS_OBSTACLE_SPEED_MIN"] == "0.10"
+    assert stage.controller_env["WEBOTS_OBSTACLE_SPEED_MAX"] == "0.20"
+    assert stage.controller_env["WEBOTS_SAFETY_SHIELD"] == "true"
+    profile = load_safety_shield_profile(
+        REPOSITORY_ROOT / "configs/eval/webots_r2a_front_brake_v1.yaml",
+        repository_root=REPOSITORY_ROOT,
+    )
+    for name, value in profile.controller_environment.items():
+        assert stage.controller_env[name] == value
 
 
 def test_r2a_targeted_config_locks_policy_transfer_and_validation_gate() -> None:

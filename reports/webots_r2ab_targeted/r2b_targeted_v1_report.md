@@ -1,5 +1,11 @@
 # R2b medium-high-speed targeted fine-tuning
 
+> Integrity status (2026-09-02): **historical validation record; not the active
+> baseline**. Its `83/17` outcome, final model and downstream hashes remain
+> verifiable, but the run inherits an upstream training lineage that is not
+> clean-clone reproducible. It must not be presented as the current result or an
+> end-to-end reproducible gain. See `rebaseline_protocol_2026-09-02.md`.
+
 Date: 2026-08-31. This report records a development-stage Webots validation
 result. It is not a held-out test result and must not be presented as the final
 three-seed thesis conclusion.

@@ -535,6 +535,12 @@ def verify_warm_start_requirement(
     configured_transfer = Path(config.transfer_model.as_posix())
     if transfer_relative is not None and configured_transfer != transfer_relative:
         issues.append("curriculum transfer_model differs from the warm-start requirement")
+    if config.policy_transfer_model is not None:
+        configured_policy_transfer = Path(config.policy_transfer_model.as_posix())
+        if transfer_relative is not None and configured_policy_transfer != transfer_relative:
+            issues.append(
+                "curriculum policy_transfer_model differs from the warm-start requirement"
+            )
 
     model_path = _safe_file(repository_root, transfer_relative, "warm-start model", issues)
     actual_model_digest = _sha256(model_path) if model_path is not None else None

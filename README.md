@@ -73,7 +73,7 @@ python scripts/verify_inspection_bundle.py artifacts/results/<巡检结果目录
 
 该证据包提供完整性校验和确定性复放，不把普通文件哈希描述成数字签名或身份认证。环境巡检现已接入 Webots 四点控制器：机器人在每个巡检点驻留并采样，产生读数、告警、巡检点进度和异常证据；本地看板会将这些文件汇总成二维轨迹、任务进度、环境读数、活动告警、异常历史和终态指标。
 
-四点任务另外提供 `operational` 与 `stress` 两套动态障碍配置，并记录每一步 LiDAR 距离、稳健 TTC、PPO 动作、安全过滤动作、最终轮速与有界脱困事件。TTC 脱困只属于当前巡检应用的探索性保护层，不继承 R2a 单障碍组件资格，也不构成形式化安全保证。
+四点任务另外提供 `operational` 与 `stress` 两套动态障碍配置，并记录每一步 LiDAR 距离、稳健 TTC、PPO 动作、安全过滤动作、最终轮速与有界脱困事件。TTC 脱困只属于当前巡检应用的探索性保护层，不能把已归档的 R2a 单障碍记录扩展成巡检系统资格，也不构成形式化安全保证。
 
 ## 本地巡检看板
 
@@ -222,7 +222,7 @@ python scripts/benchmark_kinematic.py --split validation \
   --output-dir artifacts/results/kinematic_validation_seed11
 ```
 
-当前 240 回合运动学验证的成功率/碰撞率为：Reactive `0.725/0.275`、DWA `0.575/0.375`、PPO stage 2 `0.7625/0.2375`。PPO 在当前固定验证集上的总体指标最好，但这组结果只用于开发期比较，不能包装成最终 Webots 结论。Webots 正式训练、恢复、验证和最终测试门禁命令见[训练复现协议](docs/training-protocol.md)。
+当前可复核的 240 回合运动学验证成功率/碰撞率为：Reactive `0.725/0.275`、DWA `0.575/0.375`、PPO stage 2 `0.6875/0.3125`。Reactive 的总体成功率与碰撞率最好，PPO 的成功回合平均用时和路径长度比更低；这组结果只用于开发期比较，不能包装成最终 Webots 结论。2026-09-02 的证据复核与新 R2a/R2b 基线见[重建协议](reports/webots_r2ab_targeted/rebaseline_protocol_2026-09-02.md)，Webots 正式训练、恢复、验证和最终测试门禁命令见[训练复现协议](docs/training-protocol.md)。
 
 打开 Webots 动态避障演示：
 

@@ -30,6 +30,7 @@ from indoor_patrol_rl.training import (
     evaluation_controller_env,
     load_validation_metrics,
     load_webots_curriculum,
+    require_clean_git_worktree,
     resolve_stage_index,
     resolve_webots_executable,
     snapshot_matches_stage,
@@ -79,6 +80,23 @@ def make_config(
         model_variant=variant,
         policy_transfer_model=policy_transfer_model,
     )
+
+
+def test_clean_git_gate_returns_head_and_rejects_dirty_state(tmp_path: Path) -> None:
+    revision = "a" * 40
+
+    def clean_runner(command: list[str], **_kwargs: Any):
+        output = revision + "\n" if command[1] == "rev-parse" else ""
+        return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
+
+    assert require_clean_git_worktree(tmp_path, git_runner=clean_runner) == revision
+
+    def dirty_runner(command: list[str], **_kwargs: Any):
+        output = revision + "\n" if command[1] == "rev-parse" else "?? untracked.txt\n"
+        return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
+
+    with pytest.raises(RuntimeError, match="requires a clean Git HEAD"):
+        require_clean_git_worktree(tmp_path, git_runner=dirty_runner)
 
 
 def save_training_result(
