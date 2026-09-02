@@ -29,6 +29,7 @@
 - [x] 完成本地巡检看板：地图、轨迹、任务进度、环境数据、告警与终态结果
 - [x] 完成原生微信小程序演示端：离线动态回放、本机实时、云端同步代码、告警与结果追溯
 - [x] 完成 Webots → Mac HTTPS/HMAC 中转 → CloudBase → 微信小程序的链路实现与离线契约验证
+- [x] 完成 Webots 与云端中继的一键联动、首帧等待状态及只读巡检历史页
 - [ ] 完成真实 CloudBase 资源部署、合法 HMAC 探针和微信真机端到端验收
 - [ ] 完成 Webots 三 seed 正式训练、统一批量评测、泛化和奖励消融
 
@@ -87,7 +88,7 @@ python scripts/run_patrol_dashboard.py \
 
 ## 微信小程序演示端
 
-`wechat-miniprogram/` 是可直接导入微信开发者工具的原生小程序工程，包含巡检总览、Canvas 二维地图、动态障碍物与速度方向、PPO 原始动作到安全过滤再到最终执行的避障决策、P1～P4 任务进度、三类环境传感器、活动告警、异常时间线、终态指标与可审计运行身份。
+`wechat-miniprogram/` 是可直接导入微信开发者工具的原生小程序工程，包含巡检总览、Canvas 二维地图、动态障碍物与速度方向、PPO 原始动作到安全过滤再到最终执行的避障决策、P1～P4 任务进度、三类环境传感器、活动告警、异常时间线、终态指标、只读巡检历史与可审计运行身份。
 
 小程序提供三种明确区分的数据模式：
 
@@ -105,6 +106,19 @@ npm test
 详细导入、启动和验收步骤见[微信小程序说明](wechat-miniprogram/README.md)，云函数、数据库权限与 HTTPS 上报部署见[CloudBase 中转说明](cloudfunctions/README.md)。真机中的 `127.0.0.1` 指向手机自身，因此真机实时模式只走 CloudBase，不会暴露 Mac 端口。
 
 实时链路固定绑定云开发环境 `cloud1-5gpkygv2be4de05a`。上传密钥只存在于 Mac 进程和云函数环境变量中，不进入小程序或 Git。当前仓库只准备并验证了部署代码和配置清单；创建云资源、设置密钥、开放 HTTP 路由以及真机验收必须在部署时显式执行，验收记录模板见[CloudBase 真实链路验收](reports/cloudbase-live-acceptance.md)。
+
+云端资源就绪后，可用一条命令启动同一 `run_id` 的 Webots 巡检与只读上传中继：
+
+```bash
+PATROL_RELAY_UPLOAD_SECRET="$(security find-generic-password \
+  -a indoor-patrol-relay -s PATROL_RELAY_UPLOAD_SECRET -w)" \
+python scripts/run_patrol_with_relay.py \
+  --endpoint https://YOUR_CLOUDBASE_DOMAIN/api/patrol/ingest \
+  --scenario operational \
+  --seed 7000
+```
+
+组合入口会在启动前检查配置与密钥，让 relay 有界等待 Webots 首帧，并在巡检结束后等待云端终态 ACK；上传链路故障不会改写机器人的控制动作，但会让组合命令以非零状态明确报告失败。加上 `--headless` 可用于无界面快速运行。
 
 ## 架构
 

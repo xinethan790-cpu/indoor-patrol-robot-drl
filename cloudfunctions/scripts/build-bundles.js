@@ -11,6 +11,7 @@ const SHARED = path.join(ROOT, 'shared');
 const functions = [
   { name: 'ingestPatrol', handler: 'ingest-handler' },
   { name: 'getPatrolSnapshot', handler: 'snapshot-handler' },
+  { name: 'getPatrolHistory', handler: 'history-handler' },
   { name: 'cleanupPatrolNonces', handler: 'cleanup-handler' },
 ];
 

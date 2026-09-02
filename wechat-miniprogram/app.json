@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/dashboard/index",
+    "pages/history/index",
     "pages/alarms/index",
     "pages/result/index",
     "pages/about/index"
@@ -25,6 +26,10 @@
       {
         "pagePath": "pages/alarms/index",
         "text": "告警"
+      },
+      {
+        "pagePath": "pages/history/index",
+        "text": "历史"
       },
       {
         "pagePath": "pages/about/index",

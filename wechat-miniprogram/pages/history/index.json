@@ -1,0 +1,5 @@
+{
+  "navigationBarTitleText": "巡检历史",
+  "enablePullDownRefresh": true,
+  "onReachBottomDistance": 120
+}

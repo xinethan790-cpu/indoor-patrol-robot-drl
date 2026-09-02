@@ -1,0 +1,315 @@
+.history-page {
+  min-height: 100vh;
+}
+
+.history-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+  padding: 32rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(145deg, #0a2135, #164863);
+  color: #ffffff;
+  box-shadow: 0 14rpx 34rpx rgba(8, 36, 58, 0.16);
+}
+
+.history-hero__eyebrow,
+.history-hero__title,
+.history-hero__subtitle,
+.history-hero__number,
+.history-hero__unit {
+  display: block;
+}
+
+.history-hero__eyebrow {
+  color: #63bfe9;
+  font-size: 17rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.history-hero__title {
+  margin-top: 5rpx;
+  font-size: 40rpx;
+  font-weight: 720;
+}
+
+.history-hero__subtitle {
+  margin-top: 7rpx;
+  color: #9ab9ca;
+  font-size: 20rpx;
+}
+
+.history-hero__count {
+  min-width: 118rpx;
+  padding: 18rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.12);
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.07);
+  text-align: center;
+}
+
+.history-hero__number {
+  font-size: 39rpx;
+  font-weight: 750;
+}
+
+.history-hero__unit {
+  color: #9ab5c5;
+  font-size: 18rpx;
+}
+
+.history-state {
+  padding: 50rpx 28rpx;
+  text-align: center;
+}
+
+.history-state__icon,
+.history-state__spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 78rpx;
+  height: 78rpx;
+  margin: 0 auto 20rpx;
+  border-radius: 50%;
+  background: #e8f3fd;
+  color: #0878f9;
+  font-size: 34rpx;
+  font-weight: 760;
+}
+
+.history-state__icon--error {
+  background: #ffebed;
+  color: #bf3340;
+}
+
+.history-state__spinner {
+  border: 6rpx solid #d9ebfb;
+  border-top-color: #0878f9;
+  background: transparent;
+  animation: history-spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes history-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.history-state__title,
+.history-state__text {
+  display: block;
+}
+
+.history-state__title {
+  color: #294258;
+  font-size: 29rpx;
+  font-weight: 680;
+}
+
+.history-state__text {
+  margin-top: 10rpx;
+  color: #8190a1;
+  font-size: 21rpx;
+  line-height: 1.6;
+}
+
+.history-state__button {
+  margin-top: 28rpx;
+}
+
+.history-card {
+  margin-bottom: 18rpx;
+  padding: 25rpx;
+  border: 1rpx solid rgba(28, 76, 120, 0.08);
+  border-radius: 26rpx;
+  background: #ffffff;
+  box-shadow: 0 8rpx 28rpx rgba(19, 55, 91, 0.05);
+}
+
+.history-card__top,
+.history-card__heading,
+.history-card__progress-row,
+.history-card__metrics {
+  display: flex;
+  align-items: center;
+}
+
+.history-card__top,
+.history-card__progress-row {
+  justify-content: space-between;
+}
+
+.history-card__heading {
+  gap: 12rpx;
+}
+
+.history-card__time {
+  color: #21384e;
+  font-size: 28rpx;
+  font-weight: 680;
+}
+
+.history-card__tag {
+  font-size: 18rpx;
+}
+
+.tag--critical {
+  background: #ffebed;
+  color: #bf3340;
+}
+
+.history-card__sequence {
+  color: #8b99a7;
+  font-size: 18rpx;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-card__description {
+  display: block;
+  margin-top: 10rpx;
+  color: #758697;
+  font-size: 20rpx;
+}
+
+.history-card__run {
+  display: flex;
+  align-items: flex-start;
+  gap: 10rpx;
+  margin-top: 10rpx;
+  color: #8190a1;
+  font-size: 20rpx;
+  line-height: 1.5;
+}
+
+.history-card__run-label {
+  flex: none;
+}
+
+.history-card__run-id {
+  min-width: 0;
+  color: #5e7184;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.history-card__progress-row {
+  margin-top: 23rpx;
+  color: #617487;
+  font-size: 21rpx;
+}
+
+.history-card__progress {
+  height: 10rpx;
+  margin-top: 10rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: #edf2f6;
+}
+
+.history-card__progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #0878f9;
+}
+
+.history-card__progress-fill--success {
+  background: #18aa72;
+}
+
+.tag--active {
+  background: #e5f1ff;
+  color: #0878f9;
+}
+
+.tag--terminal {
+  background: #edf3f7;
+  color: #526d84;
+}
+
+.tag--legacy {
+  background: #f1edff;
+  color: #6753a6;
+}
+
+.history-card__progress-fill--active {
+  background: #0878f9;
+}
+
+.history-card__progress-fill--terminal {
+  background: #617b90;
+}
+
+.history-card__progress-fill--legacy {
+  background: #806cc3;
+}
+
+.history-card__progress-fill--critical {
+  background: #e94d5b;
+}
+
+.history-card__progress-fill--warning {
+  background: #efac36;
+}
+
+.history-card__metrics {
+  justify-content: space-between;
+  margin-top: 23rpx;
+  padding: 19rpx 15rpx;
+  border-radius: 18rpx;
+  background: #f5f8fb;
+  text-align: center;
+}
+
+.history-card__metrics > view {
+  flex: 1;
+}
+
+.history-card__metric-value,
+.history-card__metric-label {
+  display: block;
+}
+
+.history-card__metric-value {
+  color: #274157;
+  font-size: 24rpx;
+  font-weight: 680;
+}
+
+.history-card__metric-label {
+  margin-top: 4rpx;
+  color: #8a98a6;
+  font-size: 18rpx;
+}
+
+.history-more-error {
+  margin: 12rpx 0 18rpx;
+  padding: 18rpx;
+  border-radius: 18rpx;
+  background: #fff3e1;
+  color: #966020;
+  font-size: 21rpx;
+  text-align: center;
+}
+
+.history-more-error button {
+  margin-top: 10rpx;
+  background: transparent;
+  color: #855116;
+  font-size: 21rpx;
+}
+
+.history-load-more {
+  margin-top: 8rpx;
+}
+
+.history-end {
+  display: block;
+  padding: 22rpx;
+  color: #98a5b1;
+  font-size: 20rpx;
+  text-align: center;
+}

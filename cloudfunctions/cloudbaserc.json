@@ -39,6 +39,24 @@
       ]
     },
     {
+      "name": "getPatrolHistory",
+      "timeout": 5,
+      "handler": "index.main",
+      "runtime": "Nodejs18.15",
+      "memorySize": 128,
+      "installDependency": true,
+      "dir": ".dist/getPatrolHistory",
+      "envVariables": {
+        "PATROL_CLOUDBASE_ENV_ID": "cloud1-5gpkygv2be4de05a",
+        "PATROL_RELAY_DEVICE_ID": "macmini-m4"
+      },
+      "triggers": [],
+      "ignore": [
+        "node_modules",
+        ".git"
+      ]
+    },
+    {
       "name": "cleanupPatrolNonces",
       "timeout": 20,
       "handler": "index.main",

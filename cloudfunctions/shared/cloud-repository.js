@@ -67,6 +67,12 @@ function stateDocument(upload, runStartedAt) {
 }
 
 function runDocument(upload, runStartedAt) {
+  const payload = upload.payload;
+  const task = payload.task;
+  const alarms = payload.alarms;
+  const terminalResult = upload.terminal && payload.result.available === true
+    ? payload.result
+    : null;
   const result = {
     schema_version: RUN_SCHEMA_VERSION,
     device_id: upload.device_id,
@@ -78,6 +84,18 @@ function runDocument(upload, runStartedAt) {
     latest_body_sha256: upload.body_sha256,
     latest_received_at_utc: upload.received_at_utc,
     latest_received_at_epoch_ms: upload.received_at_epoch_ms,
+    state: typeof payload.run.state === 'string' ? payload.run.state : null,
+    runtime_outcome: typeof payload.run.outcome === 'string' ? payload.run.outcome : null,
+    progress_percent: task.progress_percent,
+    completed_checkpoint_count: task.completed_checkpoint_count,
+    checkpoint_count: task.checkpoint_count,
+    active_alarm_count: alarms.active_count,
+    alarm_history_count: alarms.history_count,
+    incomplete: Boolean(terminalResult && terminalResult.incomplete === true),
+    result_outcome: terminalResult && typeof terminalResult.outcome === 'string'
+      ? terminalResult.outcome
+      : null,
+    result_validated: terminalResult ? terminalResult.validated === true : false,
   };
   if (upload.terminal) {
     result.terminal_payload = upload.payload;
@@ -147,11 +165,9 @@ class CloudPatrolRepository {
       await transaction.collection(COLLECTIONS.live).doc(LIVE_DOCUMENT_ID).set({
         data: liveDocument(upload),
       });
-      if (decision.disposition === 'new_run' || upload.terminal) {
-        await transaction.collection(COLLECTIONS.runs).doc(runId).set({
-          data: runDocument(upload, runStartedAt),
-        });
-      }
+      await transaction.collection(COLLECTIONS.runs).doc(runId).set({
+        data: runDocument(upload, runStartedAt),
+      });
       return {
         disposition: decision.disposition,
         received_at_epoch_ms: upload.received_at_epoch_ms,
@@ -162,6 +178,55 @@ class CloudPatrolRepository {
 
   async getLiveSnapshot() {
     return readOptional(this.database.collection(COLLECTIONS.live).doc(LIVE_DOCUMENT_ID));
+  }
+
+  async getPatrolHistoryPage(options) {
+    const settings = options || {};
+    const { deviceId, pageSize, offset } = settings;
+    if (typeof deviceId !== 'string' || deviceId.length === 0 || deviceId.length > 64) {
+      throw new TypeError('history deviceId must be a non-empty string');
+    }
+    if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 20) {
+      throw new TypeError('history pageSize must be an integer between 1 and 20');
+    }
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) {
+      throw new TypeError('history offset must be a bounded non-negative integer');
+    }
+
+    const result = await this.database.collection(COLLECTIONS.runs)
+      .where({ device_id: deviceId })
+      .orderBy('first_received_at_epoch_ms', 'desc')
+      .orderBy('run_id', 'desc')
+      .skip(offset)
+      .limit(pageSize + 1)
+      .field({
+        schema_version: true,
+        device_id: true,
+        run_id: true,
+        first_received_at_utc: true,
+        first_received_at_epoch_ms: true,
+        latest_sequence: true,
+        latest_received_at_utc: true,
+        latest_received_at_epoch_ms: true,
+        terminal: true,
+        state: true,
+        runtime_outcome: true,
+        progress_percent: true,
+        completed_checkpoint_count: true,
+        checkpoint_count: true,
+        active_alarm_count: true,
+        alarm_history_count: true,
+        incomplete: true,
+        result_outcome: true,
+        result_validated: true,
+      })
+      .get();
+    const rows = result && Array.isArray(result.data) ? result.data : [];
+    return {
+      documents: rows.slice(0, pageSize),
+      hasMore: rows.length > pageSize,
+      nextOffset: offset + Math.min(rows.length, pageSize),
+    };
   }
 }
 
@@ -183,4 +248,5 @@ module.exports = {
   liveDocument,
   opaqueId,
   readOptional,
+  runDocument,
 };

@@ -8,6 +8,9 @@
   "getPatrolSnapshot": {
     "invoke": "auth.loginType != 'ANONYMOUS' && auth != null"
   },
+  "getPatrolHistory": {
+    "invoke": "auth.loginType != 'ANONYMOUS' && auth != null"
+  },
   "cleanupPatrolNonces": {
     "invoke": false
   }

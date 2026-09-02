@@ -31,7 +31,7 @@
     },
     {
       "name": "patrol_runs",
-      "purpose": "Private run-id registry and terminal evidence archive",
+      "purpose": "Private run registry, lightweight history summaries, and terminal evidence archive",
       "rules": "rules/admin_only.json",
       "indexes": [
         {
@@ -43,6 +43,23 @@
             },
             {
               "field": "latest_received_at_epoch_ms",
+              "direction": "desc"
+            }
+          ]
+        },
+        {
+          "name": "device_first_run_1",
+          "fields": [
+            {
+              "field": "device_id",
+              "direction": "asc"
+            },
+            {
+              "field": "first_received_at_epoch_ms",
+              "direction": "desc"
+            },
+            {
+              "field": "run_id",
               "direction": "desc"
             }
           ]

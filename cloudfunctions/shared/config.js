@@ -5,6 +5,7 @@ const DASHBOARD_SCHEMA_VERSION = 'patrol-dashboard/v1';
 const SNAPSHOT_SCHEMA_VERSION = 'patrol-cloud-snapshot/v1';
 const RELAY_STATE_SCHEMA_VERSION = 'patrol-relay-state/v1';
 const RUN_SCHEMA_VERSION = 'patrol-cloud-run/v1';
+const HISTORY_SCHEMA_VERSION = 'patrol-history/v1';
 const NONCE_SCHEMA_VERSION = 'patrol-relay-nonce/v1';
 const SIGNATURE_VERSION = 'patrol-hmac-sha256-v1';
 
@@ -13,6 +14,8 @@ const MAX_BODY_BYTES = 128 * 1024;
 const MAX_CLOCK_SKEW_SECONDS = 300;
 const NONCE_RETENTION_MS = 24 * 60 * 60 * 1000;
 const STALE_AFTER_MS = 8 * 1000;
+const DEFAULT_HISTORY_PAGE_SIZE = 10;
+const MAX_HISTORY_PAGE_SIZE = 20;
 const MIN_UPLOAD_SECRET_BYTES = 32;
 
 const SECRET_TEMPLATE_PATTERN = /(?:\{\{[^{}\r\n]+\}\}|\$\{[^{}\r\n]+\})/;
@@ -97,10 +100,13 @@ module.exports = {
   CLOUD_ENV_ID,
   COLLECTIONS,
   DASHBOARD_SCHEMA_VERSION,
+  DEFAULT_HISTORY_PAGE_SIZE,
   DEFAULT_DEVICE_ID,
   LIVE_DOCUMENT_ID,
+  HISTORY_SCHEMA_VERSION,
   MAX_BODY_BYTES,
   MAX_CLOCK_SKEW_SECONDS,
+  MAX_HISTORY_PAGE_SIZE,
   MIN_UPLOAD_SECRET_BYTES,
   NONCE_RETENTION_MS,
   NONCE_SCHEMA_VERSION,

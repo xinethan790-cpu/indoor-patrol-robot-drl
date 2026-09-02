@@ -1,0 +1,79 @@
+<view class="page-shell history-page">
+  <view class="history-hero">
+    <view>
+      <text class="history-hero__eyebrow">PATROL ARCHIVE</text>
+      <text class="history-hero__title">巡检历史</text>
+      <text class="history-hero__subtitle">{{deviceLabel}} · 只读摘要</text>
+    </view>
+    <view class="history-hero__count">
+      <text class="history-hero__number">{{items.length}}</text>
+      <text class="history-hero__unit">已加载</text>
+    </view>
+  </view>
+
+  <view wx:if="{{initialLoading}}" class="section-card history-state">
+    <view class="history-state__spinner"></view>
+    <text class="history-state__title">正在读取巡检记录</text>
+    <text class="history-state__text">仅同步任务摘要，不读取上传密钥或原始终态负载</text>
+  </view>
+
+  <view wx:elif="{{errorMessage && items.length === 0}}" class="section-card history-state">
+    <view class="history-state__icon history-state__icon--error">!</view>
+    <text class="history-state__title">历史记录暂时不可用</text>
+    <text class="history-state__text">{{errorMessage}}</text>
+    <button class="secondary-button history-state__button" bindtap="retry">重新读取</button>
+  </view>
+
+  <view wx:elif="{{empty}}" class="section-card history-state">
+    <view class="history-state__icon">⌁</view>
+    <text class="history-state__title">尚无巡检历史</text>
+    <text class="history-state__text">仿真端首次上报后，任务摘要会显示在这里</text>
+  </view>
+
+  <view wx:else class="history-list">
+    <view wx:for="{{items}}" wx:key="runId" class="history-card">
+      <view class="history-card__top">
+        <view class="history-card__heading">
+          <text class="history-card__time">{{item.timeText}}</text>
+          <text class="tag history-card__tag tag--{{item.statusTone}}">{{item.statusLabel}}</text>
+        </view>
+        <text class="history-card__sequence">{{item.sequenceText}}</text>
+      </view>
+      <text class="history-card__description">{{item.statusDescription}}</text>
+      <view class="history-card__run">
+        <text class="history-card__run-label">运行编号</text>
+        <text class="history-card__run-id" selectable>{{item.runId}}</text>
+      </view>
+      <view class="history-card__progress-row">
+        <text>任务进度</text>
+        <text>{{item.progressText}}</text>
+      </view>
+      <view class="history-card__progress">
+        <view class="history-card__progress-fill history-card__progress-fill--{{item.statusTone}}" style="{{item.progressStyle}}"></view>
+      </view>
+      <view class="history-card__metrics">
+        <view>
+          <text class="history-card__metric-value">{{item.checkpointText}}</text>
+          <text class="history-card__metric-label">巡检点</text>
+        </view>
+        <view>
+          <text class="history-card__metric-value">{{item.alarmText}}</text>
+          <text class="history-card__metric-label">告警记录</text>
+        </view>
+        <view>
+          <text class="history-card__metric-value">{{item.durationText}}</text>
+          <text class="history-card__metric-label">入云跨度</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{errorMessage}}" class="history-more-error">
+      <text>{{errorMessage}}</text>
+      <button bindtap="retry">重试本页</button>
+    </view>
+    <button wx:if="{{hasMore}}" class="secondary-button history-load-more" loading="{{loading}}" disabled="{{loading}}" bindtap="loadMore">
+      {{loading ? "正在加载" : "加载更多"}}
+    </button>
+    <text wx:elif="{{items.length > 0}}" class="history-end">已显示全部巡检记录</text>
+  </view>
+</view>
