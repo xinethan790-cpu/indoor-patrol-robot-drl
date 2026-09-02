@@ -70,6 +70,104 @@ test('accepts the patrol-dashboard/v1 envelope', () => {
   assert.equal(parseDashboardBody(JSON.stringify(payload)).run.sequence, 12);
 });
 
+test('accepts the complete run/result lifecycle matrix', () => {
+  for (const state of ['navigating', 'dwelling', 'sampling']) {
+    const payload = validPayload();
+    payload.run.state = state;
+    assert.equal(validateDashboardPayload(payload), payload, state);
+  }
+
+  const terminalCases = [
+    ['completed', 'success', 'completed', true],
+    ['failed', 'collision', 'collision', false],
+    ['failed', 'safety_stop', 'safety_stop', false],
+    ['failed', 'timeout', 'timeout', false],
+    ['failed', 'inspection_failed', 'error', false],
+    ['failed', 'error', 'error', false],
+  ];
+  for (const [state, runOutcome, resultOutcome, success] of terminalCases) {
+    const payload = validPayload({ terminal: true });
+    payload.run.state = state;
+    payload.run.outcome = runOutcome;
+    payload.result.outcome = resultOutcome;
+    payload.result.success = success;
+    assert.equal(validateDashboardPayload(payload), payload, runOutcome);
+  }
+});
+
+test('rejects every inconsistent terminal run/result lifecycle combination', () => {
+  const mutations = [
+    (payload) => { delete payload.run.state; },
+    (payload) => { delete payload.run.outcome; },
+    (payload) => { payload.run.state = 'navigating'; },
+    (payload) => { payload.run.state = 'failed'; },
+    (payload) => { payload.run.outcome = 'running'; },
+    (payload) => { payload.run.outcome = 'collision'; },
+    (payload) => { payload.source.mode = 'live'; },
+    (payload) => { payload.result.available = false; },
+    (payload) => { payload.result.validated = false; },
+    (payload) => { payload.result.success = false; },
+    (payload) => { payload.result.outcome = 'collision'; },
+    (payload) => { payload.result.validation = 'different-validation-scope'; },
+    (payload) => { payload.result.checkpoints_visited = 0; },
+    (payload) => { payload.result.checkpoints_total = 2; },
+    (payload) => { payload.result.incomplete = true; },
+    (payload) => {
+      payload.run.state = 'failed';
+      payload.run.outcome = 'inspection_failed';
+      payload.result.outcome = 'inspection_failed';
+      payload.result.success = false;
+    },
+  ];
+  for (const mutate of mutations) {
+    const payload = validPayload({ terminal: true });
+    mutate(payload);
+    assert.throws(
+      () => validateDashboardPayload(payload),
+      (error) => error.code === 'INVALID_PAYLOAD',
+    );
+  }
+});
+
+test('rejects terminal state, outcome, and result markers on non-terminal runs', () => {
+  const mutations = [
+    (payload) => { delete payload.run.state; },
+    (payload) => { delete payload.run.outcome; },
+    (payload) => { payload.run.state = 'completed'; },
+    (payload) => { payload.run.state = 'failed'; },
+    (payload) => { payload.run.outcome = 'success'; },
+    (payload) => { payload.run.outcome = 'collision'; },
+    (payload) => { payload.source.mode = 'terminal'; },
+    (payload) => {
+      payload.result = {
+        available: true,
+        validated: true,
+        outcome: 'completed',
+        success: true,
+        checkpoints_visited: 1,
+        checkpoints_total: 1,
+        collision_count: 0,
+        sample_count: 3,
+      };
+    },
+    (payload) => { payload.result.validated = true; },
+    (payload) => { payload.result.success = true; },
+    (payload) => { payload.result.success = false; },
+    (payload) => { payload.result.validation = 'terminal-validation'; },
+    (payload) => { payload.result.outcome = 'completed'; },
+    (payload) => { payload.result.failure_reason = 'terminal failure'; },
+    (payload) => { payload.result.incomplete = true; },
+  ];
+  for (const mutate of mutations) {
+    const payload = validPayload();
+    mutate(payload);
+    assert.throws(
+      () => validateDashboardPayload(payload),
+      (error) => error.code === 'INVALID_PAYLOAD',
+    );
+  }
+});
+
 test('accepts only a bounded, explicitly incomplete runtime-abort terminal', () => {
   const accepted = validRuntimeAbortPayload({
     sequence: 12,
@@ -212,6 +310,33 @@ test('rejects checkpoint cardinality, duplicate ids, and task-count mismatches',
     () => validateDashboardPayload(countMismatch),
     (error) => error.code === 'INVALID_PAYLOAD',
   );
+});
+
+test('derives task progress from completed checkpoint counts', () => {
+  const payload = validPayload({ terminal: true });
+  payload.map.checkpoints = Array.from({ length: 4 }, (_, index) => ({
+    ...checkpoint(index),
+    status: 'completed',
+  }));
+  payload.task.completed_checkpoint_count = 4;
+  payload.task.checkpoint_count = 4;
+  payload.task.progress_ratio = 1;
+  payload.task.progress_percent = 100;
+  payload.result.checkpoints_visited = 4;
+  payload.result.checkpoints_total = 4;
+  assert.equal(validateDashboardPayload(payload), payload);
+
+  for (const mutate of [
+    (forged) => { forged.task.progress_ratio = 0; },
+    (forged) => { forged.task.progress_percent = 0; },
+  ]) {
+    const forged = structuredClone(payload);
+    mutate(forged);
+    assert.throws(
+      () => validateDashboardPayload(forged),
+      (error) => error.code === 'INVALID_PAYLOAD',
+    );
+  }
 });
 
 test('rejects excessive static obstacles and inconsistent trajectory metadata', () => {

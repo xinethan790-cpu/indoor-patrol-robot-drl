@@ -68,6 +68,12 @@ relay 使用相同规则，并且错误和预检输出都不会包含密钥本�
 同 nonce 重放、序号回退、同序号内容冲突、终态后追加、运行中切换 run ID、历史 run ID
 复用均返回 `409`。
 
+云端还会校验运行生命周期，而不是只相信 `terminal` 布尔值：非终态只能处于
+`navigating/dwelling/sampling + running`，且不能携带终态结果；完整终态必须是
+`completed + success` 或 `failed + 明确失败结果`，并同时具有匹配的验证范围、巡检点计数和
+由计数推导出的进度比例。受控的运行时异常中止仍使用独立的最小证据分支。任何相互矛盾的
+状态都会在写入终态锁之前失败关闭。
+
 ## 云数据库
 
 先按 [database/collections.json](database/collections.json) 创建四个集合并配置索引：

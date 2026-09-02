@@ -16,13 +16,20 @@ function validPayload(overrides) {
   return {
     schema_version: 'patrol-dashboard/v1',
     generated_at_utc: '2023-11-14T22:13:20.000Z',
-    source: { mode: 'live' },
+    source: terminal
+      ? {
+        mode: 'terminal',
+        terminal_validation: 'inspection_bundle_and_runtime_consistency',
+      }
+      : { mode: 'live' },
     run: {
       run_id: changes.runId || 'test-run-001',
       sequence: changes.sequence ?? 0,
       terminal: changes.terminal ?? false,
       control_step: changes.controlStep ?? 0,
       simulation_time_s: changes.simulationTime ?? 0,
+      state: terminal ? 'completed' : 'navigating',
+      outcome: terminal ? 'success' : 'running',
     },
     map: {
       origin: { x_m: -2.25, y_m: -1.75 },
@@ -78,13 +85,23 @@ function validPayload(overrides) {
       ? {
         available: true,
         validated: true,
+        validation: 'inspection_bundle_and_runtime_consistency',
+        outcome: 'completed',
         success: true,
+        failure_reason: null,
         checkpoints_visited: 1,
         checkpoints_total: 1,
         collision_count: 0,
         sample_count: 3,
       }
-      : { available: false, validated: false },
+      : {
+        available: false,
+        validated: false,
+        validation: null,
+        outcome: null,
+        success: null,
+        failure_reason: null,
+      },
   };
 }
 

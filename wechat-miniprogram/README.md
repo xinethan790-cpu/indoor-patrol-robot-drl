@@ -45,7 +45,7 @@ CloudBase patrol_runs
 }
 ```
 
-其中 `payload` 是未经改形的完整看板 DTO；顶层 `run_id`、`sequence` 和 `terminal` 必须与 `payload.run` 一致。客户端会先深度检查地图、轨迹、任务、传感器、告警、结果及数组边界，再交给原有 `run_id + sequence` 协议门禁。
+其中 `payload` 是未经改形的完整看板 DTO；顶层 `run_id`、`sequence` 和 `terminal` 必须与 `payload.run` 一致。客户端会先深度检查地图、轨迹、任务、传感器、告警、结果及数组边界，再交给原有 `run_id + sequence` 协议门禁。运行态、终态标记、结果可用性、验证结论、巡检点计数和进度比例必须属于同一个生命周期状态；矛盾组合会在进入页面状态前失败关闭。
 
 实时连接具备以下保护：
 

@@ -11,6 +11,15 @@ const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const RUNTIME_ABORT_EVIDENCE_SCOPE = 'runtime_abort_minimal_evidence';
 const RUNTIME_ABORT_REASON_CODE = 'unhandled_controller_exception';
 const RUNTIME_ABORT_EXCEPTION_TYPE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const NON_TERMINAL_RUN_STATES = new Set(['navigating', 'dwelling', 'sampling']);
+const TERMINAL_RESULT_OUTCOME_BY_RUN_OUTCOME = Object.freeze({
+  success: 'completed',
+  collision: 'collision',
+  safety_stop: 'safety_stop',
+  timeout: 'timeout',
+  inspection_failed: 'error',
+  error: 'error',
+});
 
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key);
@@ -328,6 +337,56 @@ function validatePayloadSize(payload) {
   }
 }
 
+function isNullish(value) {
+  return value === null || value === undefined;
+}
+
+function validateRunResultConsistency(source, run, result, task, runtimeAbort) {
+  if (runtimeAbort) return;
+
+  if (!run.terminal) {
+    if (!NON_TERMINAL_RUN_STATES.has(run.state)
+      || run.outcome !== 'running'
+      || source.mode !== 'live') {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', '非终态运行状态必须保持 live/running');
+    }
+    if (result.available !== false
+      || result.validated !== false
+      || result.incomplete === true
+      || !isNullish(result.validation)
+      || !isNullish(result.outcome)
+      || !isNullish(result.success)
+      || !isNullish(result.failure_reason)) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', '非终态运行不能携带终态结果');
+    }
+    return;
+  }
+
+  const expectedResultOutcome = TERMINAL_RESULT_OUTCOME_BY_RUN_OUTCOME[run.outcome];
+  const expectedState = run.outcome === 'success' ? 'completed' : 'failed';
+  if (run.state !== expectedState || expectedResultOutcome === undefined) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', '终态运行状态与运行结果不一致');
+  }
+  if (source.mode !== 'terminal') {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', '完整终态必须标记为 terminal 来源');
+  }
+  if (result.available !== true
+    || result.validated !== true
+    || result.incomplete === true
+    || result.outcome !== expectedResultOutcome
+    || result.success !== (expectedResultOutcome === 'completed')) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', '完整终态的验证结果与运行结果不一致');
+  }
+  const validation = requireString(result.validation, 'result.validation', { maxLength: 128 });
+  if (source.terminal_validation !== validation) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', '完整终态的证据验证范围不一致');
+  }
+  if (result.checkpoints_visited !== task.completed_checkpoint_count
+    || result.checkpoints_total !== task.checkpoint_count) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', '终态结果的巡检进度与任务状态不一致');
+  }
+}
+
 function utf8ByteLength(value) {
   let length = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -370,6 +429,8 @@ function validateDashboardPayload(payload) {
     throw new PayloadProtocolError('INVALID_PAYLOAD', 'run.sequence 必须是非负安全整数');
   }
   requireBoolean(run.terminal, 'run.terminal');
+  requireString(run.state, 'run.state', { maxLength: 32 });
+  requireString(run.outcome, 'run.outcome', { maxLength: 32 });
   if (run.control_step !== null) {
     requireIntegerInRange(run.control_step, 'run.control_step', 0, Number.MAX_SAFE_INTEGER);
   }
@@ -447,6 +508,12 @@ function validateDashboardPayload(payload) {
   const progressPercent = requireFiniteNumber(task.progress_percent, 'task.progress_percent');
   if (progressRatio < 0 || progressRatio > 1 || progressPercent < 0 || progressPercent > 100) {
     throw new PayloadProtocolError('INVALID_PAYLOAD', '任务进度必须位于有效范围');
+  }
+  const expectedProgressRatio = completedCount / checkpointCount;
+  const expectedProgressPercent = Math.round(expectedProgressRatio * 1000) / 10;
+  if (Math.abs(progressRatio - expectedProgressRatio) > 1e-9
+    || Math.abs(progressPercent - expectedProgressPercent) > 1e-9) {
+    throw new PayloadProtocolError('INVALID_PAYLOAD', '任务进度与已完成巡检点数量不一致');
   }
   if (run.terminal && completedCount === checkpointCount && task.current_checkpoint_id !== null) {
     throw new PayloadProtocolError('INVALID_PAYLOAD', '终态完成任务不应仍有当前巡检点');
@@ -543,6 +610,7 @@ function validateDashboardPayload(payload) {
       throw new PayloadProtocolError('INVALID_PAYLOAD', '异常中止时间与运行状态不一致');
     }
   }
+  validateRunResultConsistency(source, run, result, task, runtimeAbort);
   return root;
 }
 

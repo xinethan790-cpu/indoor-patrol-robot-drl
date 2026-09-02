@@ -183,6 +183,54 @@ test('mini protocol accepts only an explicitly incomplete and redacted runtime a
   });
 });
 
+test('mini protocol rejects contradictory terminal lifecycle states before display', () => {
+  const runningMarkedTerminal = buildDashboardPayload(fixture, 0);
+  runningMarkedTerminal.run.terminal = true;
+  assert.throws(
+    () => validateDashboardPayload(runningMarkedTerminal),
+    (error) => error instanceof PayloadProtocolError && error.code === 'INVALID_PAYLOAD',
+  );
+
+  const completedMarkedRunning = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  completedMarkedRunning.run.terminal = false;
+  assert.throws(
+    () => validateDashboardPayload(completedMarkedRunning),
+    (error) => error instanceof PayloadProtocolError && error.code === 'INVALID_PAYLOAD',
+  );
+
+  const unavailableCompleted = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  unavailableCompleted.result.available = false;
+  unavailableCompleted.result.validated = false;
+  assert.throws(
+    () => validateDashboardPayload(unavailableCompleted),
+    (error) => error instanceof PayloadProtocolError && error.code === 'INVALID_PAYLOAD',
+  );
+
+  const forgedProgress = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  forgedProgress.task.progress_ratio = 0;
+  forgedProgress.task.progress_percent = 0;
+  assert.throws(
+    () => validateDashboardPayload(forgedProgress),
+    (error) => error instanceof PayloadProtocolError && error.code === 'INVALID_PAYLOAD',
+  );
+});
+
+test('mini protocol keeps validated normal failures distinct from runtime aborts', () => {
+  const failed = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  failed.run.state = 'failed';
+  failed.run.outcome = 'collision';
+  failed.result.outcome = 'collision';
+  failed.result.success = false;
+  assert.equal(validateDashboardPayload(failed), failed);
+
+  const mismatched = structuredClone(failed);
+  mismatched.run.outcome = 'timeout';
+  assert.throws(
+    () => validateDashboardPayload(mismatched),
+    (error) => error instanceof PayloadProtocolError && error.code === 'INVALID_PAYLOAD',
+  );
+});
+
 test('payload gate pins run_id and rejects foreign evidence', () => {
   const gate = createPayloadGate({ expectedRunId: fixture.run.run_id });
   gate.accept(buildDashboardPayload(fixture, 0));
@@ -210,7 +258,7 @@ test('payload gate rejects conflicting content at one sequence', () => {
   const first = buildDashboardPayload(fixture, 2);
   gate.accept(first);
   const conflict = buildDashboardPayload(fixture, 2);
-  conflict.task.progress_percent = 99;
+  conflict.map.robot.x_m += 0.01;
   assert.throws(
     () => gate.accept(conflict),
     (error) => error instanceof PayloadProtocolError && error.code === 'SEQUENCE_CONFLICT',

@@ -13,6 +13,15 @@ const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const RUNTIME_ABORT_EVIDENCE_SCOPE = 'runtime_abort_minimal_evidence';
 const RUNTIME_ABORT_REASON_CODE = 'unhandled_controller_exception';
 const RUNTIME_ABORT_EXCEPTION_TYPE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const ACTIVE_RUN_STATES = new Set(['navigating', 'dwelling', 'sampling']);
+const TERMINAL_RESULT_OUTCOME_BY_RUN_OUTCOME = new Map([
+  ['success', 'completed'],
+  ['collision', 'collision'],
+  ['safety_stop', 'safety_stop'],
+  ['timeout', 'timeout'],
+  ['inspection_failed', 'error'],
+  ['error', 'error'],
+]);
 
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key);
@@ -322,6 +331,60 @@ function rejectDangerousKeys(value, depth) {
   }
 }
 
+function isNullish(value) {
+  return value === null || value === undefined;
+}
+
+function validateRunResultLifecycle(source, run, result, task, runtimeAbort) {
+  if (!run.terminal) {
+    if (!ACTIVE_RUN_STATES.has(run.state)
+        || run.outcome !== 'running'
+        || source.mode !== 'live') {
+      invalidPayload('a non-terminal run must be active with source=live and outcome=running');
+    }
+    if (result.available !== false
+        || result.validated !== false
+        || result.incomplete === true
+        || !isNullish(result.validation)
+        || !isNullish(result.outcome)
+        || !isNullish(result.success)
+        || !isNullish(result.failure_reason)) {
+      invalidPayload('a non-terminal run cannot contain terminal result markers');
+    }
+    return;
+  }
+
+  if (runtimeAbort) return;
+
+  const expectedResultOutcome = TERMINAL_RESULT_OUTCOME_BY_RUN_OUTCOME.get(run.outcome);
+  const expectedState = run.outcome === 'success' ? 'completed' : 'failed';
+  if (expectedResultOutcome === undefined || run.state !== expectedState) {
+    invalidPayload('a terminal run state and outcome are inconsistent');
+  }
+  if (source.mode !== 'terminal') {
+    invalidPayload('a complete terminal run must use source.mode=terminal');
+  }
+  if (!result.available
+      || !result.validated
+      || result.incomplete === true
+      || result.outcome !== expectedResultOutcome
+      || result.success !== (expectedResultOutcome === 'completed')) {
+    invalidPayload('a terminal result does not match the run outcome');
+  }
+  const validation = requireString(
+    result.validation,
+    'result.validation',
+    { maxLength: 128 },
+  );
+  if (source.terminal_validation !== validation) {
+    invalidPayload('a terminal result does not match the source validation scope');
+  }
+  if (result.checkpoints_visited !== task.completed_checkpoint_count
+      || result.checkpoints_total !== task.checkpoint_count) {
+    invalidPayload('a terminal result does not match task checkpoint progress');
+  }
+}
+
 function validateDashboardPayload(payload) {
   const root = normalizeDashboardPayload(payload);
   rejectDangerousKeys(root, 0);
@@ -345,6 +408,8 @@ function validateDashboardPayload(payload) {
   if (typeof run.terminal !== 'boolean') {
     invalidPayload('run.terminal must be a boolean', 'INVALID_TERMINAL');
   }
+  requireString(run.state, 'run.state', { maxLength: 32 });
+  requireString(run.outcome, 'run.outcome', { maxLength: 32 });
   if (run.control_step !== null) {
     requireIntegerInRange(run.control_step, 'run.control_step', 0, Number.MAX_SAFE_INTEGER);
   }
@@ -438,6 +503,12 @@ function validateDashboardPayload(payload) {
   if (progressRatio < 0 || progressRatio > 1 || progressPercent < 0 || progressPercent > 100) {
     invalidPayload('task progress is outside the supported range');
   }
+  const expectedProgressRatio = completedCount / checkpointCount;
+  const expectedProgressPercent = Math.round(expectedProgressRatio * 1000) / 10;
+  if (Math.abs(progressRatio - expectedProgressRatio) > 1e-9
+      || Math.abs(progressPercent - expectedProgressPercent) > 1e-9) {
+    invalidPayload('task progress does not match completed checkpoint counts');
+  }
   if (run.terminal && completedCount === checkpointCount && task.current_checkpoint_id !== null) {
     invalidPayload('a completed terminal task cannot retain a current checkpoint');
   }
@@ -524,6 +595,7 @@ function validateDashboardPayload(payload) {
   const runtimeAbort = result.incomplete === true
     || result.outcome === 'aborted'
     || source.mode === 'aborted';
+  validateRunResultLifecycle(source, run, result, task, runtimeAbort);
   if (runtimeAbort) {
     if (!run.terminal || run.state !== 'failed' || run.outcome !== 'error') {
       invalidPayload('runtime abort evidence requires a failed error terminal run');
