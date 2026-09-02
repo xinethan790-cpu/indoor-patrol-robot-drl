@@ -14,6 +14,12 @@ from indoor_patrol_rl.application.live_status import (
     read_patrol_live_events,
     read_patrol_live_status,
 )
+from indoor_patrol_rl.application.runtime_abort import (
+    RUNTIME_ABORT_EVIDENCE_SCOPE,
+    RUNTIME_ABORT_FILENAME,
+    PatrolRuntimeAbort,
+)
+from indoor_patrol_rl.application.task import PatrolTaskState
 from indoor_patrol_rl.dashboard.alarm_history import (
     active_rule_ids_from_history,
     snapshot_alarm_history,
@@ -49,6 +55,7 @@ class DashboardEvidence:
     alarm_history: tuple[dict[str, object], ...]
     alarm_history_source: str
     terminal_validation: str | None
+    runtime_abort: PatrolRuntimeAbort | None
 
     @property
     def terminal(self) -> bool:
@@ -109,12 +116,22 @@ class PatrolDashboardRepository:
         current = event_current
         run_id = current.run_id
 
-        summary = self._optional_json("summary.json", expected_run_id=run_id)
-        inspection_summary = self._optional_json(
-            "inspection_summary.json", expected_run_id=run_id
-        )
         terminal = current.state.value in _TERMINAL_STATES
-        if terminal:
+        runtime_abort_candidate = self._optional_runtime_abort(expected_run_id=run_id)
+        runtime_abort: PatrolRuntimeAbort | None = None
+        if terminal and runtime_abort_candidate is not None:
+            self._validate_runtime_abort(current, runtime_abort_candidate)
+            runtime_abort = runtime_abort_candidate
+            summary = None
+            inspection_summary = None
+            history = snapshot_alarm_history(snapshots)
+            history_source = "runtime_abort_snapshot_diff"
+            terminal_validation = RUNTIME_ABORT_EVIDENCE_SCOPE
+        elif terminal:
+            summary = self._optional_json("summary.json", expected_run_id=run_id)
+            inspection_summary = self._optional_json(
+                "inspection_summary.json", expected_run_id=run_id
+            )
             if summary is None:
                 raise DashboardEvidenceError("终态巡检缺少 summary.json。")
             if inspection_summary is None:
@@ -154,6 +171,10 @@ class PatrolDashboardRepository:
             history_source = "verified_inspection_bundle"
             terminal_validation = "inspection_bundle_and_runtime_consistency"
         else:
+            summary = self._optional_json("summary.json", expected_run_id=run_id)
+            inspection_summary = self._optional_json(
+                "inspection_summary.json", expected_run_id=run_id
+            )
             history = snapshot_alarm_history(snapshots)
             history_source = "live_snapshot_diff"
             terminal_validation = None
@@ -167,6 +188,7 @@ class PatrolDashboardRepository:
             alarm_history=history,
             alarm_history_source=history_source,
             terminal_validation=terminal_validation,
+            runtime_abort=runtime_abort,
         )
 
     def _path(self, filename: str) -> Path:
@@ -201,6 +223,30 @@ class PatrolDashboardRepository:
             raise DashboardEvidenceError(f"{filename} 的 run_id 与 status.json 不一致。")
         return raw
 
+    def _optional_runtime_abort(
+        self,
+        *,
+        expected_run_id: str,
+    ) -> PatrolRuntimeAbort | None:
+        path = self._path(RUNTIME_ABORT_FILENAME)
+        if not path.exists():
+            return None
+        try:
+            evidence = PatrolRuntimeAbort.from_dict(
+                _read_json_object(path, RUNTIME_ABORT_FILENAME)
+            )
+        except DashboardEvidenceError:
+            raise
+        except (TypeError, ValueError) as error:
+            raise DashboardEvidenceError(
+                f"{RUNTIME_ABORT_FILENAME} 巡检证据读取失败：{error}"
+            ) from error
+        if evidence.run_id != expected_run_id:
+            raise DashboardEvidenceError(
+                f"{RUNTIME_ABORT_FILENAME} 的 run_id 与 status.json 不一致。"
+            )
+        return evidence
+
     def _required_json_lines(self, filename: str) -> tuple[Mapping[str, Any], ...]:
         path = self._required_file(filename)
         try:
@@ -223,6 +269,38 @@ class PatrolDashboardRepository:
                 raise DashboardEvidenceError(f"{filename} 第 {line_number} 行必须是对象。")
             records.append(raw)
         return tuple(records)
+
+    @staticmethod
+    def _validate_runtime_abort(
+        current: PatrolLiveSnapshot,
+        evidence: PatrolRuntimeAbort,
+    ) -> None:
+        if current.state is not PatrolTaskState.FAILED or current.outcome.value != "error":
+            raise DashboardEvidenceError(
+                "runtime_abort.json 只允许绑定 outcome=error 的 failed 终态。"
+            )
+        expected = {
+            "run_id": current.run_id,
+            "sequence": current.sequence,
+            "seed": current.seed,
+            "control_step": current.control_step,
+            "checkpoints_visited": current.completed_checkpoint_count,
+            "checkpoints_total": current.checkpoint_count,
+        }
+        for name, value in expected.items():
+            if getattr(evidence, name) != value:
+                raise DashboardEvidenceError(
+                    f"runtime_abort.json 的 {name} 与终态 status.json 不一致。"
+                )
+        if not math.isclose(
+            evidence.simulation_time_s,
+            current.simulation_time_s,
+            rel_tol=0.0,
+            abs_tol=1e-9,
+        ):
+            raise DashboardEvidenceError(
+                "runtime_abort.json 的 simulation_time_s 与终态 status.json 不一致。"
+            )
 
     @staticmethod
     def _validate_terminal_consistency(

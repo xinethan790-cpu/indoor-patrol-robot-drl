@@ -152,7 +152,11 @@ def project_dashboard(
         "generated_at_utc": refreshed.astimezone(UTC).isoformat().replace("+00:00", "Z"),
         "source": {
             "run_directory_name": evidence.run_directory.name,
-            "mode": "terminal" if terminal else "live",
+            "mode": (
+                "aborted"
+                if evidence.runtime_abort is not None
+                else ("terminal" if terminal else "live")
+            ),
             "alarm_history_source": evidence.alarm_history_source,
             "terminal_validation": evidence.terminal_validation,
             "map_source_file": dashboard_map.source_file,
@@ -267,7 +271,7 @@ def _validate_map_matches_run(
         expected = dashboard_map.checkpoints[current.current_checkpoint_ordinal - 1]
         if current.current_checkpoint_id != expected.checkpoint_id:
             raise DashboardEvidenceError("当前巡检点 id/ordinal 与演示地图顺序不一致。")
-    if not evidence.terminal:
+    if not evidence.terminal or evidence.runtime_abort is not None:
         return
     assert evidence.summary is not None
     raw_records = evidence.summary.get("checkpoint_records")
@@ -405,6 +409,24 @@ def _terminal_result(evidence: DashboardEvidence) -> dict[str, object]:
             "outcome": None,
             "success": None,
             "failure_reason": None,
+        }
+    if evidence.runtime_abort is not None:
+        abort = evidence.runtime_abort
+        return {
+            "available": True,
+            "validated": False,
+            "validation": evidence.terminal_validation,
+            "incomplete": True,
+            "outcome": "aborted",
+            "success": False,
+            "failure_reason": abort.failure_reason,
+            "failure_code": abort.reason_code,
+            "failure_type": abort.exception_type,
+            "checkpoints_visited": abort.checkpoints_visited,
+            "checkpoints_total": abort.checkpoints_total,
+            "collision_count": abort.collision_count,
+            "sample_count": abort.sample_count,
+            "elapsed_simulation_time_s": abort.simulation_time_s,
         }
     assert evidence.summary is not None
     assert evidence.inspection_summary is not None

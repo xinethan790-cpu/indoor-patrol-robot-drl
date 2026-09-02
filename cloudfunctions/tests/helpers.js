@@ -88,6 +88,43 @@ function validPayload(overrides) {
   };
 }
 
+function validRuntimeAbortPayload(overrides) {
+  const changes = overrides || {};
+  const failureType = changes.failureType || 'RuntimeError';
+  const payload = validPayload({
+    runId: changes.runId || 'test-run-001',
+    sequence: changes.sequence ?? 1,
+    terminal: false,
+    controlStep: changes.controlStep ?? 7,
+    simulationTime: changes.simulationTime ?? 0.896,
+  });
+  payload.source = {
+    mode: 'aborted',
+    terminal_validation: 'runtime_abort_minimal_evidence',
+  };
+  payload.run.terminal = true;
+  payload.run.state = 'failed';
+  payload.run.outcome = 'error';
+  payload.map.local_goal = null;
+  payload.result = {
+    available: true,
+    validated: false,
+    validation: 'runtime_abort_minimal_evidence',
+    incomplete: true,
+    outcome: 'aborted',
+    success: false,
+    failure_reason: `unhandled controller exception (${failureType})`,
+    failure_code: 'unhandled_controller_exception',
+    failure_type: failureType,
+    checkpoints_visited: 0,
+    checkpoints_total: 1,
+    collision_count: changes.collisionCount ?? 0,
+    sample_count: changes.sampleCount ?? 0,
+    elapsed_simulation_time_s: payload.run.simulation_time_s,
+  };
+  return payload;
+}
+
 function signedEvent(payload, options) {
   const config = options || {};
   const rawBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
@@ -128,4 +165,5 @@ module.exports = {
   signedEvent,
   testEnv,
   validPayload,
+  validRuntimeAbortPayload,
 };

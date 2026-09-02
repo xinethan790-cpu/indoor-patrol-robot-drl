@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { CloudPatrolRepository } = require('../shared/cloud-repository');
-const { validPayload } = require('./helpers');
+const { validPayload, validRuntimeAbortPayload } = require('./helpers');
 
 class MemoryDocument {
   constructor(store, collection, id) {
@@ -66,7 +66,7 @@ function upload(overrides) {
     terminal,
     received_at_epoch_ms: 1_700_000_000_000 + (sequence * 1000),
     received_at_utc: new Date(1_700_000_000_000 + (sequence * 1000)).toISOString(),
-    payload: validPayload({ runId, sequence, terminal }),
+    payload: changes.payload || validPayload({ runId, sequence, terminal }),
   };
 }
 
@@ -147,6 +147,33 @@ test('repository allows a new run only after terminal and rejects old run-id reu
     })),
     (error) => error.code === 'RUN_ID_REUSE',
   );
+});
+
+test('an incomplete runtime-abort terminal releases the device for a new run', async () => {
+  const repository = new CloudPatrolRepository(new MemoryDatabase());
+  await repository.commitUpload(upload());
+  const abortedPayload = validRuntimeAbortPayload({ runId: 'run-a', sequence: 1 });
+  const aborted = upload({
+    sequence: 1,
+    terminal: true,
+    hash: 'b'.repeat(64),
+    nonce: 'nonce-runtime-abort-00001',
+    payload: abortedPayload,
+  });
+
+  assert.equal((await repository.commitUpload(aborted)).disposition, 'terminal');
+  const terminalSnapshot = await repository.getLiveSnapshot();
+  assert.equal(terminalSnapshot.terminal, true);
+  assert.equal(terminalSnapshot.payload.result.validated, false);
+  assert.equal(terminalSnapshot.payload.result.incomplete, true);
+
+  const next = upload({
+    runId: 'run-b',
+    sequence: 0,
+    hash: 'c'.repeat(64),
+    nonce: 'nonce-after-runtime-abort-1',
+  });
+  assert.equal((await repository.commitUpload(next)).disposition, 'new_run');
 });
 
 test('live snapshot has the documented public shape and does not refresh on retry', async () => {

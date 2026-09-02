@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { parseDashboardBody, validateDashboardPayload } = require('../shared/payload');
-const { validPayload } = require('./helpers');
+const { validPayload, validRuntimeAbortPayload } = require('./helpers');
 
 function checkpoint(index) {
   return {
@@ -68,6 +68,39 @@ function alarmEvent(index) {
 test('accepts the patrol-dashboard/v1 envelope', () => {
   const payload = validPayload({ sequence: 12, simulationTime: 4.8 });
   assert.equal(parseDashboardBody(JSON.stringify(payload)).run.sequence, 12);
+});
+
+test('accepts only a bounded, explicitly incomplete runtime-abort terminal', () => {
+  const accepted = validRuntimeAbortPayload({
+    sequence: 12,
+    collisionCount: 1,
+    sampleCount: 6,
+  });
+  assert.equal(validateDashboardPayload(accepted), accepted);
+
+  const mutations = [
+    (payload) => { payload.run.terminal = false; },
+    (payload) => { payload.run.state = 'completed'; },
+    (payload) => { payload.run.outcome = 'success'; },
+    (payload) => { payload.source.mode = 'terminal'; },
+    (payload) => { payload.source.terminal_validation = 'inspection_bundle_and_runtime_consistency'; },
+    (payload) => { payload.result.validated = true; },
+    (payload) => { payload.result.success = true; },
+    (payload) => { payload.result.incomplete = false; },
+    (payload) => { payload.result.failure_code = 'runtime_error'; },
+    (payload) => { payload.result.failure_type = 'Runtime Error'; },
+    (payload) => { payload.result.failure_reason = 'database password was exposed'; },
+    (payload) => { payload.result.checkpoints_visited = 1; },
+    (payload) => { payload.result.elapsed_simulation_time_s += 1; },
+  ];
+  for (const mutate of mutations) {
+    const payload = structuredClone(accepted);
+    mutate(payload);
+    assert.throws(
+      () => validateDashboardPayload(payload),
+      (error) => error.code === 'INVALID_PAYLOAD',
+    );
+  }
 });
 
 test('normalizes legacy v1 telemetry without mutating an old outbox payload', () => {

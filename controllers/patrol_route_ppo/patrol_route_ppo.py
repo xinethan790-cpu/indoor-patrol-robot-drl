@@ -40,6 +40,7 @@ from indoor_patrol_rl.application import (
     PatrolLiveReadings,
     PatrolLiveSnapshot,
     PatrolLiveStatusWriter,
+    PatrolRuntimeAbort,
     PatrolRuntimeIdentity,
     PatrolTaskCheckpoint,
     PatrolTaskMachine,
@@ -52,6 +53,7 @@ from indoor_patrol_rl.application import (
     policy_lidar_sector_clearance,
     validate_checkpoint_layout,
     validate_patrol_run_id,
+    write_patrol_runtime_abort,
 )
 from indoor_patrol_rl.core import (
     DifferentialDriveMapper,
@@ -87,7 +89,7 @@ from indoor_patrol_rl.planning import (
     plan_world_path,
 )
 
-_emergency_live_failure: Callable[[], None] | None = None
+_emergency_live_failure: Callable[[BaseException], None] | None = None
 
 
 @dataclass
@@ -127,11 +129,11 @@ def main() -> None:
     supervisor = Supervisor()
     try:
         run_patrol(supervisor, repository_root)
-    except Exception:
+    except Exception as error:
         traceback.print_exc()
         if _emergency_live_failure is not None:
             try:
-                _emergency_live_failure()
+                _emergency_live_failure(error)
             except Exception:
                 traceback.print_exc()
         _stop_robot(supervisor)
@@ -654,20 +656,39 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             else:
                 active_live_alerts.pop(event.rule_id, None)
 
-    def publish_unhandled_failure() -> None:
+    def publish_unhandled_failure(error: BaseException) -> None:
         last_snapshot = live_writer.last_snapshot
-        if last_snapshot is None or last_snapshot.state in {
-            PatrolTaskState.COMPLETED,
-            PatrolTaskState.FAILED,
-        }:
+        if last_snapshot is None or last_snapshot.state is PatrolTaskState.COMPLETED:
             return
-        publish_live(
-            state=PatrolTaskState.FAILED,
-            outcome=PatrolLiveOutcome.ERROR,
+        abort_sequence = (
+            last_snapshot.sequence
+            if last_snapshot.state is PatrolTaskState.FAILED
+            else last_snapshot.sequence + 1
+        )
+        abort_evidence = PatrolRuntimeAbort.from_exception(
+            error,
+            run_id=run_id,
+            sequence=abort_sequence,
+            seed=seed,
             control_step=last_snapshot.control_step,
             simulation_time_s=last_snapshot.simulation_time_s,
-            current_position=last_snapshot.position,
+            checkpoints_visited=len(task_machine.completed_checkpoint_ids),
+            checkpoints_total=len(checkpoints),
+            collision_count=len(collision_records),
+            sample_count=len(inspection.samples),
         )
+        # Persist the bounded abort marker first.  The repository will ignore it
+        # until the matching failed snapshot is visible, so the sidecar can
+        # safely race this two-file emergency update without inventing a state.
+        write_patrol_runtime_abort(output_directory, abort_evidence)
+        if last_snapshot.state is not PatrolTaskState.FAILED:
+            publish_live(
+                state=PatrolTaskState.FAILED,
+                outcome=PatrolLiveOutcome.ERROR,
+                control_step=last_snapshot.control_step,
+                simulation_time_s=last_snapshot.simulation_time_s,
+                current_position=last_snapshot.position,
+            )
 
     global _emergency_live_failure
     _emergency_live_failure = publish_unhandled_failure

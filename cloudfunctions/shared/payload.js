@@ -10,6 +10,9 @@ const MAX_DYNAMIC_OBSTACLES = 32;
 const MAX_ALARM_EVENTS = 200;
 const DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M = 1e-6;
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const RUNTIME_ABORT_EVIDENCE_SCOPE = 'runtime_abort_minimal_evidence';
+const RUNTIME_ABORT_REASON_CODE = 'unhandled_controller_exception';
+const RUNTIME_ABORT_EXCEPTION_TYPE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key);
@@ -518,6 +521,55 @@ function validateDashboardPayload(payload) {
       Number.MAX_SAFE_INTEGER,
     );
   }
+  const runtimeAbort = result.incomplete === true
+    || result.outcome === 'aborted'
+    || source.mode === 'aborted';
+  if (runtimeAbort) {
+    if (!run.terminal || run.state !== 'failed' || run.outcome !== 'error') {
+      invalidPayload('runtime abort evidence requires a failed error terminal run');
+    }
+    if (source.mode !== 'aborted'
+        || source.terminal_validation !== RUNTIME_ABORT_EVIDENCE_SCOPE) {
+      invalidPayload('runtime abort source markers are inconsistent');
+    }
+    if (result.available !== true
+        || result.validated !== false
+        || result.validation !== RUNTIME_ABORT_EVIDENCE_SCOPE
+        || result.incomplete !== true
+        || result.outcome !== 'aborted'
+        || result.success !== false
+        || result.failure_code !== RUNTIME_ABORT_REASON_CODE) {
+      invalidPayload('runtime abort result markers are inconsistent');
+    }
+    const failureType = requireString(
+      result.failure_type,
+      'result.failure_type',
+      { maxLength: 64 },
+    );
+    if (!RUNTIME_ABORT_EXCEPTION_TYPE_PATTERN.test(failureType)) {
+      invalidPayload('result.failure_type is invalid');
+    }
+    const failureReason = requireString(
+      result.failure_reason,
+      'result.failure_reason',
+      { maxLength: 128 },
+    );
+    if (failureReason !== `unhandled controller exception (${failureType})`) {
+      invalidPayload('runtime abort failure reason is not the redacted representation');
+    }
+    if (result.checkpoints_visited !== completedCount
+        || result.checkpoints_total !== checkpointCount) {
+      invalidPayload('runtime abort checkpoint counts do not match task progress');
+    }
+    const abortElapsed = requireFiniteNumber(
+      result.elapsed_simulation_time_s,
+      'result.elapsed_simulation_time_s',
+      0,
+    );
+    if (Math.abs(abortElapsed - run.simulation_time_s) > 1e-9) {
+      invalidPayload('runtime abort elapsed time does not match the terminal run');
+    }
+  }
   return root;
 }
 
@@ -539,6 +591,8 @@ module.exports = {
   MAX_STATIC_OBSTACLES,
   MAX_TRAJECTORY_POINTS,
   RUN_ID_PATTERN,
+  RUNTIME_ABORT_EVIDENCE_SCOPE,
+  RUNTIME_ABORT_REASON_CODE,
   isPlainObject,
   normalizeDashboardPayload,
   parseDashboardBody,

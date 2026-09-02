@@ -11,6 +11,7 @@ const {
   signedEvent,
   testEnv,
   validPayload,
+  validRuntimeAbortPayload,
 } = require('./helpers');
 
 test('ingest success returns the sidecar acknowledgement contract', async () => {
@@ -47,6 +48,31 @@ test('ingest success returns the sidecar acknowledgement contract', async () => 
   assert.equal(body.disposition, 'new_run');
   assert.equal(committed.request_timestamp_epoch_s, 1_700_000_000);
   assert.equal(committed.received_at_utc, '2023-11-14T22:13:20.000Z');
+});
+
+test('ingest accepts a signed incomplete runtime-abort terminal without upgrading it', async () => {
+  let committed;
+  const handler = createIngestHandler({
+    env: testEnv(),
+    now: () => TEST_NOW_MS,
+    repository: {
+      async commitUpload(upload) {
+        committed = upload;
+        return { disposition: 'terminal', received_at_utc: upload.received_at_utc };
+      },
+    },
+  });
+  const payload = validRuntimeAbortPayload({ sequence: 8, sampleCount: 3 });
+
+  const response = await handler(signedEvent(payload));
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).terminal, true);
+  assert.equal(committed.terminal, true);
+  assert.equal(committed.payload.source.mode, 'aborted');
+  assert.equal(committed.payload.result.validated, false);
+  assert.equal(committed.payload.result.incomplete, true);
+  assert.equal(committed.payload.result.failure_type, 'RuntimeError');
 });
 
 test('new cloud accepts a signed legacy outbox body and commits compatibility defaults', async () => {
