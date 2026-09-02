@@ -64,6 +64,10 @@ function createPatrolSession(options) {
       },
       onStatus(event) {
         if (token !== generation || !started || closed) return;
+        if (event && event.status === 'waiting') {
+          lastError = null;
+          lastErrorDetails = null;
+        }
         publishStatus(event);
       },
       onError(error, details) {

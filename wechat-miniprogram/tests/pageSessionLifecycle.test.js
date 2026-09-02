@@ -183,7 +183,7 @@ test('visible pages atomically clear old demo values when cloud has no snapshot'
   assert.ok(alarms.data.historyCount > 0);
   alarmHarness.subscribers[0].onClear({ mode: 'cloud', reason: 'mode_changed' });
   assert.equal(alarms.data.historyCount, 0);
-  assert.equal(alarms.data.sourceLabel, '云端实时异常记录');
+  assert.equal(alarms.data.sourceLabel, '正在准备云端异常记录');
 
   const resultHarness = createAppHarness('demo');
   const result = loadPage('../pages/result/index.js', resultHarness.app);
@@ -194,6 +194,47 @@ test('visible pages atomically clear old demo values when cloud has no snapshot'
   resultHarness.subscribers[0].onClear({ mode: 'cloud', reason: 'mode_changed' });
   assert.equal(result.data.resultTone, 'waiting');
   assert.equal(result.data.dashboardMap, null);
+});
+
+test('cloud pages distinguish healthy waiting, degraded polling, and fail-closed errors', () => {
+  const dashboardHarness = createAppHarness('cloud');
+  const dashboard = loadPage('../pages/dashboard/index.js', dashboardHarness.app, {
+    getDeviceInfo: () => ({ platform: 'ios' }),
+  });
+  dashboard.onLoad();
+  dashboard.onShow();
+
+  dashboardHarness.subscribers[0].onStatus({ status: 'waiting', mode: 'cloud', transport: 'watch' });
+  assert.equal(dashboard.data.connectionLabel, '云端已连接，等待 Mac 开始巡检');
+  assert.equal(dashboard.data.cloudTransportLabel, '等待任务');
+  assert.equal(dashboard.data.errorMessage, '');
+
+  dashboardHarness.subscribers[0].onStatus({ status: 'waiting', mode: 'cloud', transport: 'polling' });
+  assert.equal(dashboard.data.connectionLabel, '云端已连接，正在轮询等待巡检任务');
+  assert.equal(dashboard.data.cloudTransportLabel, '轮询等待');
+
+  dashboardHarness.subscribers[0].onStatus({ status: 'polling', mode: 'cloud', transport: 'polling' });
+  assert.match(dashboard.data.connectionLabel, /实时订阅中断/);
+  assert.equal(dashboard.data.cloudTransportLabel, '轮询保障');
+
+  dashboardHarness.subscribers[0].onStatus({
+    status: 'error',
+    mode: 'cloud',
+    code: 'CLOUD_SNAPSHOT_REMOVED',
+  });
+  assert.match(dashboard.data.connectionLabel, /快照已被移除/);
+  assert.equal(dashboard.data.connectionTone, 'offline');
+
+  const alarmHarness = createAppHarness('cloud');
+  const alarms = loadPage('../pages/alarms/index.js', alarmHarness.app);
+  alarms.onLoad();
+  alarms.onShow();
+  alarmHarness.subscribers[0].onStatus({ status: 'waiting', mode: 'cloud' });
+  assert.equal(alarms.data.sourceLabel, '云端已连接 · 等待巡检任务');
+  assert.equal(alarms.data.modeTone, 'waiting');
+  alarmHarness.subscribers[0].onStatus({ status: 'error', mode: 'cloud' });
+  assert.equal(alarms.data.sourceLabel, '云端数据异常 · 保留最后异常记录');
+  assert.equal(alarms.data.modeTone, 'offline');
 });
 
 test('alarms labels cloud correctly and updates while subscribed', () => {

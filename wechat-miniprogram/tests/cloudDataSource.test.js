@@ -175,6 +175,158 @@ test('watch accepts only new sequences and marks unchanged data stale after eigh
   assert.equal(scheduler.pending()[0].delay, 8000);
 });
 
+test('an initially empty watch stays connected and waits for the first snapshot', () => {
+  const scheduler = createManualScheduler();
+  const harness = createCloudHarness();
+  const data = [];
+  const errors = [];
+  const statuses = [];
+  const source = createCloudDataSource({
+    env: ENV_ID,
+    wxApi: harness.wxApi,
+    scheduler,
+    clock: () => 1788242400000,
+  });
+  source.start({
+    onData: (payload) => data.push(payload.run.sequence),
+    onError: (error) => errors.push(error),
+    onStatus: (event) => statuses.push(event),
+  });
+
+  harness.watchOptions.onChange({ docs: [] });
+
+  assert.equal(source.getState().status, 'waiting');
+  assert.equal(source.getState().transport, 'watch');
+  assert.equal(harness.observerClosed, false);
+  assert.equal(harness.callFunctionCalls.length, 0);
+  assert.equal(errors.length, 0);
+  assert.equal(scheduler.pending().length, 0);
+  assert.equal(statuses.at(-1).reason, 'no_snapshot');
+
+  harness.watchOptions.onChange({ docs: [createSnapshot(0)] });
+
+  assert.deepEqual(data, [0]);
+  assert.equal(source.getState().status, 'running');
+  assert.equal(source.getState().transport, 'watch');
+  assert.equal(scheduler.pending()[0].delay, 8000);
+});
+
+test('empty fallback polling remains a healthy fixed-interval waiting state', async () => {
+  const scheduler = createManualScheduler();
+  const harness = createCloudHarness(() => Promise.resolve({
+    result: { found: false, server_time_epoch_ms: 1788242400000 },
+  }));
+  const errors = [];
+  const source = createCloudDataSource({
+    env: ENV_ID,
+    wxApi: harness.wxApi,
+    scheduler,
+    pollIntervalMs: 2000,
+    maxPollBackoffMs: 30000,
+  });
+  source.start({ onError: (error, details) => errors.push({ error, details }) });
+  harness.watchOptions.onError({ errMsg: 'watch disconnected' });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(source.getState().status, 'waiting');
+  assert.equal(source.getState().transport, 'polling');
+  assert.equal(source.getState().pollingFailures, 0);
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].details.fallback, true);
+  assert.deepEqual(scheduler.pending().map((task) => task.delay), [2000]);
+
+  scheduler.runNext();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(harness.callFunctionCalls.length, 2);
+  assert.equal(source.getState().pollingFailures, 0);
+  assert.deepEqual(scheduler.pending().map((task) => task.delay), [2000]);
+});
+
+test('an authentication error in an empty polling response fails closed', async () => {
+  const scheduler = createManualScheduler();
+  const harness = createCloudHarness(() => Promise.resolve({
+    result: {
+      found: false,
+      error: 'AUTH_REQUIRED',
+      message: 'WeChat identity is required',
+    },
+  }));
+  const errors = [];
+  const statuses = [];
+  const source = createCloudDataSource({ env: ENV_ID, wxApi: harness.wxApi, scheduler });
+  source.start({
+    onError: (error, details) => errors.push({ error, details }),
+    onStatus: (event) => statuses.push(event),
+  });
+  harness.watchOptions.onError({ errMsg: 'watch disconnected' });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(source.getState().status, 'error');
+  assert.equal(source.getState().transport, null);
+  assert.equal(errors.at(-1).error.code, 'AUTH_REQUIRED');
+  assert.deepEqual(errors.at(-1).details, { retrying: false, protocol: true });
+  assert.equal(statuses.at(-1).code, 'AUTH_REQUIRED');
+  assert.equal(scheduler.pending().length, 0);
+});
+
+test('removing the live document after a valid snapshot fails closed', () => {
+  const scheduler = createManualScheduler();
+  const harness = createCloudHarness();
+  const errors = [];
+  const statuses = [];
+  const source = createCloudDataSource({
+    env: ENV_ID,
+    wxApi: harness.wxApi,
+    scheduler,
+    clock: () => 1788242400000,
+  });
+  source.start({
+    onError: (error, details) => errors.push({ error, details }),
+    onStatus: (event) => statuses.push(event),
+  });
+  harness.watchOptions.onChange({ docs: [createSnapshot(0)] });
+  harness.watchOptions.onChange({ docs: [] });
+
+  assert.equal(source.getState().status, 'error');
+  assert.equal(source.getState().transport, null);
+  assert.equal(harness.observerClosed, true);
+  assert.equal(errors.at(-1).error.code, 'CLOUD_SNAPSHOT_REMOVED');
+  assert.equal(statuses.at(-1).code, 'CLOUD_SNAPSHOT_REMOVED');
+  assert.equal(statuses.some((event) => event.status === 'waiting'), false);
+  assert.equal(scheduler.pending().length, 0);
+});
+
+test('stop and start begins a clean source session before an empty watch', () => {
+  const scheduler = createManualScheduler();
+  const harness = createCloudHarness();
+  const source = createCloudDataSource({
+    env: ENV_ID,
+    wxApi: harness.wxApi,
+    scheduler,
+    clock: () => 1788242400000,
+  });
+  source.start({});
+  harness.watchOptions.onChange({ docs: [createSnapshot(0)] });
+  assert.equal(source.getState().lastFreshSequence, 0);
+
+  source.stop();
+  const errors = [];
+  source.start({ onError: (error) => errors.push(error) });
+  harness.watchOptions.onChange({ docs: [] });
+
+  assert.equal(source.getState().status, 'waiting');
+  assert.equal(source.getState().transport, 'watch');
+  assert.equal(source.getState().lastFreshSequence, -1);
+  assert.equal(source.getState().lastFreshAt, null);
+  assert.equal(source.getState().pollingFailures, 0);
+  assert.equal(harness.callFunctionCalls.length, 0);
+  assert.equal(errors.length, 0);
+});
+
 test('watch failure avoids re-closing the SDK observer and falls back to cloud-function polling', async () => {
   const scheduler = createManualScheduler();
   const harness = createCloudHarness(() => Promise.resolve({

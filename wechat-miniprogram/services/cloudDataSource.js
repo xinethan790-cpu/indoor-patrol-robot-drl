@@ -127,6 +127,32 @@ function validatePollingFreshness(result, snapshot) {
   };
 }
 
+function validateEmptyPollingResult(result) {
+  if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+    throw new PayloadProtocolError('INVALID_CLOUD_SNAPSHOT', '云函数空快照响应必须是对象');
+  }
+  if (result.error !== undefined) {
+    const code = result.error === 'AUTH_REQUIRED' ? 'AUTH_REQUIRED' : 'CLOUD_FUNCTION_ERROR';
+    const message = typeof result.message === 'string' && result.message.trim()
+      ? result.message
+      : '云函数拒绝读取巡检快照';
+    throw new PayloadProtocolError(code, message);
+  }
+  if (result.found !== false) {
+    throw new PayloadProtocolError(
+      'INVALID_CLOUD_SNAPSHOT',
+      '云函数响应必须明确声明是否找到巡检快照',
+    );
+  }
+  if (!Number.isSafeInteger(result.server_time_epoch_ms) || result.server_time_epoch_ms < 0) {
+    throw new PayloadProtocolError(
+      'INVALID_CLOUD_SNAPSHOT',
+      '空快照响应的 server_time_epoch_ms 必须是非负安全整数',
+    );
+  }
+  return { serverTimeEpochMs: result.server_time_epoch_ms };
+}
+
 function createCloudDataSource(options) {
   const config = options || {};
   const wxApi = config.wxApi || (typeof wx === 'undefined' ? null : wx);
@@ -245,6 +271,19 @@ function createCloudDataSource(options) {
     announce('error', { code: error.code || 'PROTOCOL_ERROR' });
   }
 
+  function snapshotRemovedError() {
+    return new PayloadProtocolError(
+      'CLOUD_SNAPSHOT_REMOVED',
+      '云端巡检快照在本次会话已接收有效数据后被移除',
+    );
+  }
+
+  function waitForFirstSnapshot(details) {
+    clearTimer('stale');
+    pollingFailures = 0;
+    announce('waiting', { reason: 'no_snapshot', ...(details || {}) });
+  }
+
   function acceptDocument(input, activeTransport, pollingFreshness) {
     const { snapshot, payload } = validateCloudSnapshot(input);
     pollingFailures = 0;
@@ -333,8 +372,20 @@ function createCloudDataSource(options) {
     Promise.resolve(request).then((response) => {
       if (token !== generation || status === 'stopped') return;
       const result = response && response.result;
-      const snapshot = result && result.found === true ? result.snapshot : null;
-      if (!snapshot) throw new Error('云端尚未收到巡检快照');
+      if (!result || result.error !== undefined || result.found !== true) {
+        const empty = validateEmptyPollingResult(result);
+        if (lastFreshSequence >= 0) throw snapshotRemovedError();
+        waitForFirstSnapshot(empty);
+        schedulePoll(token, pollIntervalMs);
+        return;
+      }
+      const snapshot = result.snapshot;
+      if (!snapshot) {
+        throw new PayloadProtocolError(
+          'INVALID_CLOUD_SNAPSHOT',
+          '云函数声称找到快照但未返回 snapshot',
+        );
+      }
       const pollingFreshness = validatePollingFreshness(result, snapshot);
       acceptDocument(snapshot, 'polling', pollingFreshness);
       if (status !== 'error') {
@@ -383,7 +434,11 @@ function createCloudDataSource(options) {
           if (token !== generation || activeWatch !== watchIdentity || status === 'stopped') return;
           const snapshot = pickSnapshot(change);
           if (!snapshot) {
-            enterPolling(new Error('云端尚未收到巡检快照'), token);
+            if (lastFreshSequence >= 0) {
+              failClosed(snapshotRemovedError());
+              return;
+            }
+            waitForFirstSnapshot();
             return;
           }
           try {
@@ -441,9 +496,14 @@ function createCloudDataSource(options) {
 
   return {
     start(nextCallbacks) {
-      if (['connecting', 'watching', 'running', 'polling', 'stale', 'terminal'].includes(status)
+      if (['connecting', 'watching', 'waiting', 'running', 'polling', 'stale', 'terminal'].includes(status)
           && transport !== null) return;
-      if (status === 'stopped') gate.reset(config.expectedRunId || null);
+      if (status === 'stopped') {
+        gate.reset(config.expectedRunId || null);
+        lastFreshSequence = -1;
+        lastFreshAt = null;
+        pollingFailures = 0;
+      }
       callbacks = nextCallbacks || {};
       generation += 1;
       const token = generation;
@@ -498,6 +558,7 @@ module.exports = {
   DEFAULT_MAX_POLL_BACKOFF_MS,
   createCloudDataSource,
   pickSnapshot,
+  validateEmptyPollingResult,
   validatePollingFreshness,
   validateCloudSnapshot,
 };

@@ -15,7 +15,7 @@ global.Page = () => {};
 global.wx = {};
 
 const { buildView, formatReceivedTime } = require("../pages/dashboard/index.js");
-const { filterEvents, projectEvent } = require("../pages/alarms/index.js");
+const { filterEvents, projectEvent, sourcePresentation } = require("../pages/alarms/index.js");
 const { projectResult, shortHash } = require("../pages/result/index.js");
 
 test("dashboard view projects the verified terminal result", () => {
@@ -56,6 +56,19 @@ test("alarm page filters projected event types", () => {
   assert.equal(filterEvents(projected, "cleared").length, 3);
   assert.equal(filterEvents(projected, "critical").length, 4);
   assert.match(projected[0].message, /告警触发/);
+});
+
+test("alarm page distinguishes cloud waiting, polling, stale, and error states", () => {
+  assert.deepEqual(sourcePresentation("cloud", "waiting"), {
+    label: "云端已连接 · 等待巡检任务",
+    tone: "waiting",
+  });
+  assert.deepEqual(sourcePresentation("cloud", "polling"), {
+    label: "实时订阅中断 · 轮询读取异常记录",
+    tone: "waiting",
+  });
+  assert.equal(sourcePresentation("cloud", "stale").tone, "offline");
+  assert.equal(sourcePresentation("cloud", "error").tone, "offline");
 });
 
 test("result page exposes auditable success metrics", () => {

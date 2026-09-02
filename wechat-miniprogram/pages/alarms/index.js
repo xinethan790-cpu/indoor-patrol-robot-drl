@@ -48,8 +48,14 @@ function filterEvents(events, filter) {
 
 function sourcePresentation(mode, status) {
   if (mode === "cloud") {
+    if (status === "waiting") return { label: "云端已连接 · 等待巡检任务", tone: "waiting" };
+    if (status === "polling") return { label: "实时订阅中断 · 轮询读取异常记录", tone: "waiting" };
     if (status === "stale") return { label: "云端数据停滞 · 显示最后异常记录", tone: "offline" };
+    if (status === "error") return { label: "云端数据异常 · 保留最后异常记录", tone: "offline" };
     if (status === "stopped") return { label: "云端同步已暂停 · 显示最后异常记录", tone: "demo" };
+    if (["idle", "connecting", "watching"].includes(status)) {
+      return { label: "正在准备云端异常记录", tone: "waiting" };
+    }
     return { label: "云端实时异常记录", tone: "online" };
   }
   if (mode === "local") return { label: "本机实时异常记录", tone: "online" };

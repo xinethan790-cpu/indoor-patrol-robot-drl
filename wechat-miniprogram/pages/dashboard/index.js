@@ -402,6 +402,18 @@ Page({
       });
       return;
     }
+    if (status === "waiting") {
+      const polling = event && event.transport === "polling";
+      this.setData({
+        connectionLabel: polling
+          ? "云端已连接，正在轮询等待巡检任务"
+          : "云端已连接，等待 Mac 开始巡检",
+        connectionTone: "warning",
+        cloudTransportLabel: polling ? "轮询等待" : "等待任务",
+        errorMessage: "",
+      });
+      return;
+    }
     if (status === "polling") {
       this.setData({
         connectionLabel: "实时订阅中断，已自动切换轮询",
@@ -423,7 +435,15 @@ Page({
       return;
     }
     if (status === "error") {
-      this.setData({ connectionLabel: "数据协议校验失败", connectionTone: "offline" });
+      const errorLabels = {
+        AUTH_REQUIRED: "云端身份校验失败",
+        CLOUD_SNAPSHOT_REMOVED: "云端数据异常：巡检快照已被移除",
+      };
+      this.setData({
+        connectionLabel: errorLabels[event && event.code] || "数据协议校验失败",
+        connectionTone: "offline",
+        cloudTransportLabel: "连接异常",
+      });
       return;
     }
     if (status === "stopped") {

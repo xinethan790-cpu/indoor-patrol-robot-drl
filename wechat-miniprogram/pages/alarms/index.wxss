@@ -81,6 +81,14 @@
   background: #1ebd82;
 }
 
+.mode-notice__dot--waiting {
+  background: #e5a72d;
+}
+
+.mode-notice__dot--offline {
+  background: #e05263;
+}
+
 .mode-notice__dot--demo {
   background: #1689ef;
 }

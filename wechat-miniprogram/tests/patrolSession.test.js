@@ -87,6 +87,25 @@ test('late pages immediately receive the latest payload and connection status', 
   ]);
 });
 
+test('a healthy waiting status clears a recovered fallback error', () => {
+  const factory = createSourceFactory();
+  const session = createPatrolSession({ initialMode: 'cloud', createSource: factory.createSource });
+  session.start();
+  const source = factory.created[0];
+  source.callbacks.onError(new Error('watch disconnected'), {
+    retrying: true,
+    transport: 'polling',
+    fallback: true,
+  });
+  assert.equal(session.getState().error.message, 'watch disconnected');
+
+  source.callbacks.onStatus({ status: 'waiting', transport: 'polling' });
+
+  assert.equal(session.getState().status, 'waiting');
+  assert.equal(session.getState().error, null);
+  assert.equal(session.getState().errorDetails, null);
+});
+
 test('mode replacement is atomic, restarts one source, and ignores the old source', () => {
   const factory = createSourceFactory();
   const session = createPatrolSession({ initialMode: 'cloud', createSource: factory.createSource });
