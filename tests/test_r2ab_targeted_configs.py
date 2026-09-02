@@ -119,6 +119,86 @@ def test_r2b_rebaseline_resumes_exact_rb2a_endpoint_and_changes_only_speed() -> 
     assert model_data["action_space"]["_shape"] == [2]
 
 
+def test_r2c_density2_resumes_exact_rb2b_endpoint_and_changes_only_density() -> None:
+    r2b = load_webots_curriculum(
+        REPOSITORY_ROOT / "configs/train/webots_r2b_rebaseline_v1.yaml"
+    )
+    r2c = load_webots_curriculum(
+        REPOSITORY_ROOT / "configs/train/webots_r2c_density2_v1.yaml"
+    )
+
+    source = Path(
+        "artifacts/models/webots/seed_11/r2c_density2_v1/sources/"
+        "ppo_webots_s11_r2c_density2_v1_source_r2b_rebaseline_v1_81920_steps.zip"
+    )
+    source_path = REPOSITORY_ROOT / source
+    rb2b_endpoint = (
+        REPOSITORY_ROOT
+        / "artifacts/models/webots/seed_11/r2b_rebaseline_v1/"
+        "ppo_webots_s11_step000081920.zip"
+    )
+    source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
+
+    assert r2c.model_variant == "r2c_density2_v1"
+    assert r2c.require_clean_git is True
+    assert r2c.transfer_model == source
+    assert r2c.policy_transfer_model is None
+    assert r2c.warm_start_requirement is None
+    assert source_sha256 == hashlib.sha256(rb2b_endpoint.read_bytes()).hexdigest()
+    assert source_sha256 == (
+        "498d970cfcf539d55943ace88dcbaad83445713ad852291098b391fd38a86cfa"
+    )
+
+    assert len(r2c.stages) == 1
+    rb2b_stage = r2b.stages[0]
+    r2c_stage = r2c.stages[0]
+    assert r2c_stage.stage_id == "R2C1"
+    assert r2c_stage.obstacle_count == 2
+    assert r2c_stage.training_steps == 40960
+    assert r2c_stage.training_steps % 2048 == 0
+    assert r2c_stage.training_steps % 10240 == 0
+    assert 81920 + r2c_stage.training_steps == 122880
+    assert r2c_stage.preferred_resume_model == source
+    assert r2c_stage.preferred_resume_sha256 == source_sha256
+    assert r2c_stage.gate.seed_start == 8200
+    assert r2c_stage.gate.episodes == 100
+    assert r2c_stage.gate.min_success_rate == 0.75
+    assert r2c_stage.gate.max_collision_rate == 0.25
+    validation_seeds = set(range(8200, 8300))
+    assert validation_seeds.isdisjoint(range(6000, 6100))
+    assert validation_seeds.isdisjoint(range(8000, 8020))
+    assert validation_seeds.isdisjoint(range(10000, 10020))
+
+    rb2b_environment = dict(rb2b_stage.controller_env)
+    r2c_environment = dict(r2c_stage.controller_env)
+    assert rb2b_environment.pop("WEBOTS_RUN_ID") == "r2b_rebaseline_v1"
+    assert r2c_environment.pop("WEBOTS_RUN_ID") == "r2c_density2_v1"
+    assert r2c_environment == rb2b_environment
+    assert "WEBOTS_PPO_INITIAL_ACTION_STD" not in r2c_environment
+    assert "WEBOTS_PPO_RESET_LINEAR_HEAD" not in r2c_environment
+
+    profile = load_safety_shield_profile(
+        REPOSITORY_ROOT / "configs/eval/webots_r2a_front_brake_v1.yaml",
+        repository_root=REPOSITORY_ROOT,
+    )
+    for name, value in profile.controller_environment.items():
+        assert r2c_stage.controller_env[name] == value
+
+    with ZipFile(source_path) as archive:
+        assert "policy.optimizer.pth" in archive.namelist()
+        model_data = json.loads(archive.read("data"))
+    assert model_data["num_timesteps"] == 81920
+    assert model_data["n_steps"] == 2048
+    assert model_data["batch_size"] == 128
+    assert model_data["n_epochs"] == 5
+    assert model_data["learning_rate"] == 3e-05
+    assert model_data["ent_coef"] == 0.001
+    assert model_data["gamma"] == 0.995
+    assert model_data["target_kl"] == 0.02
+    assert model_data["observation_space"]["_shape"] == [79]
+    assert model_data["action_space"]["_shape"] == [2]
+
+
 def test_r2a_targeted_config_locks_policy_transfer_and_validation_gate() -> None:
     config = load_webots_curriculum(
         REPOSITORY_ROOT / "configs/train/webots_r2a_targeted_v1.yaml"
