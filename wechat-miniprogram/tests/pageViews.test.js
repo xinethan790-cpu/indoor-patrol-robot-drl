@@ -72,3 +72,28 @@ test("result page exposes auditable success metrics", () => {
   assert.equal(view.failureReason, "无");
   assert.match(shortHash(fixture.run.runtime_identity.model_sha256), /…/);
 });
+
+test("result page honestly labels an incomplete controller abort", () => {
+  const payload = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  payload.run.state = "failed";
+  payload.run.outcome = "error";
+  payload.result = {
+    available: true,
+    validated: false,
+    validation: "runtime_abort_minimal_evidence",
+    incomplete: true,
+    outcome: "aborted",
+    success: false,
+    failure_reason: "unhandled controller exception (RuntimeError)",
+    checkpoints_visited: 2,
+    checkpoints_total: 4,
+    collision_count: 0,
+    sample_count: 18,
+    elapsed_simulation_time_s: 42.0,
+  };
+  const view = projectResult(payload);
+  assert.equal(view.resultTone, "failure");
+  assert.equal(view.resultTitle, "巡检任务异常中止");
+  assert.match(view.validationLabel, /未生成完整巡检证据/);
+  assert.equal(view.failureReason, "控制器发生未处理异常（RuntimeError）");
+});

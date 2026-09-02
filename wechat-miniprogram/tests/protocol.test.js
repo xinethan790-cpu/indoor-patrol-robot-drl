@@ -138,6 +138,51 @@ test('dashboard validator enforces dynamic-obstacle and avoidance boundaries', (
   assert.throws(() => validateDashboardPayload(inconsistent), PayloadProtocolError);
 });
 
+test('mini protocol accepts only an explicitly incomplete and redacted runtime abort', () => {
+  const accepted = buildDashboardPayload(fixture, fixture.frames.length - 1);
+  accepted.source.mode = 'aborted';
+  accepted.source.terminal_validation = 'runtime_abort_minimal_evidence';
+  accepted.run.state = 'failed';
+  accepted.run.outcome = 'error';
+  accepted.result = {
+    available: true,
+    validated: false,
+    validation: 'runtime_abort_minimal_evidence',
+    incomplete: true,
+    outcome: 'aborted',
+    success: false,
+    failure_reason: 'unhandled controller exception (RuntimeError)',
+    failure_code: 'unhandled_controller_exception',
+    failure_type: 'RuntimeError',
+    checkpoints_visited: 4,
+    checkpoints_total: 4,
+    collision_count: 0,
+    sample_count: 36,
+    elapsed_simulation_time_s: accepted.run.simulation_time_s,
+  };
+  assert.equal(validateDashboardPayload(accepted), accepted);
+
+  const mutations = [
+    (payload) => { payload.run.terminal = false; },
+    (payload) => { payload.run.outcome = 'success'; },
+    (payload) => { payload.source.mode = 'terminal'; },
+    (payload) => { payload.result.validated = true; },
+    (payload) => { payload.result.incomplete = false; },
+    (payload) => { payload.result.failure_type = 'Runtime Error'; },
+    (payload) => { payload.result.failure_reason = 'private deployment path'; },
+    (payload) => { payload.result.checkpoints_visited = 3; },
+    (payload) => { payload.result.elapsed_simulation_time_s += 1; },
+  ];
+  mutations.forEach((mutate) => {
+    const payload = structuredClone(accepted);
+    mutate(payload);
+    assert.throws(
+      () => validateDashboardPayload(payload),
+      (error) => error instanceof PayloadProtocolError && error.code === 'INVALID_PAYLOAD',
+    );
+  });
+});
+
 test('payload gate pins run_id and rejects foreign evidence', () => {
   const gate = createPayloadGate({ expectedRunId: fixture.run.run_id });
   gate.accept(buildDashboardPayload(fixture, 0));

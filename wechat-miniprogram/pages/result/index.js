@@ -9,6 +9,13 @@ const FAILURE_REASON_LABELS = {
   "maximum control-step budget reached": "达到最大控制步数",
 };
 
+function localizeFailureReason(reason) {
+  if (!reason) return "无";
+  if (FAILURE_REASON_LABELS[reason]) return FAILURE_REASON_LABELS[reason];
+  const runtimeAbort = /^unhandled controller exception \(([A-Za-z_][A-Za-z0-9_]{0,63})\)$/.exec(reason);
+  return runtimeAbort ? `控制器发生未处理异常（${runtimeAbort[1]}）` : reason;
+}
+
 function shortHash(value) {
   if (typeof value !== "string" || !value) return "—";
   return value.length > 20 ? `${value.slice(0, 12)}…${value.slice(-8)}` : value;
@@ -44,11 +51,13 @@ function projectResult(payload) {
   return {
     resultTone: !available ? "waiting" : (success ? "success" : "failure"),
     resultIcon: !available ? "…" : (success ? "✓" : "!"),
-    resultTitle: !available ? "巡检仍在进行" : (success ? "巡检任务顺利完成" : "巡检任务异常结束"),
+    resultTitle: !available ? "巡检仍在进行" : (success ? "巡检任务顺利完成" : (result.incomplete ? "巡检任务异常中止" : "巡检任务异常结束")),
     resultSummary: !available
       ? "终态后将展示已校验结果"
       : `${visited}/${total} 个点位 · ${result.collision_count || 0} 次碰撞 · ${result.sample_count || 0} 条采样`,
-    validationLabel: result.validated ? "巡检证据与运行身份一致性已校验" : "等待终态完整性校验",
+    validationLabel: result.incomplete
+      ? "已确认异常中止；本次未生成完整巡检证据"
+      : (result.validated ? "巡检证据与运行身份一致性已校验" : "等待终态完整性校验"),
     metrics: [
       metric("巡检覆盖", `${visited} / ${total}`, "已完成点位", success ? "success" : "neutral"),
       metric("物理碰撞", String(result.collision_count ?? "—"), "Webots 接触检测", result.collision_count === 0 ? "success" : "warning"),
@@ -73,7 +82,7 @@ function projectResult(payload) {
     seed: run.seed ?? "—",
     modelHash: shortHash(identity.model_sha256),
     shieldId: identity.safety_shield_enabled ? (identity.safety_shield_id || "已启用") : "未启用",
-    failureReason: FAILURE_REASON_LABELS[result.failure_reason] || result.failure_reason || "无",
+    failureReason: localizeFailureReason(result.failure_reason),
   };
 }
 
@@ -108,4 +117,4 @@ Page({
   },
 });
 
-module.exports = { projectResult, shortHash };
+module.exports = { localizeFailureReason, projectResult, shortHash };

@@ -8,6 +8,9 @@ const MAX_ALARM_EVENTS = 200;
 const MAX_DYNAMIC_OBSTACLES = 32;
 const DYNAMIC_OBSTACLE_BOUNDARY_TOLERANCE_M = 1e-6;
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const RUNTIME_ABORT_EVIDENCE_SCOPE = 'runtime_abort_minimal_evidence';
+const RUNTIME_ABORT_REASON_CODE = 'unhandled_controller_exception';
+const RUNTIME_ABORT_EXCEPTION_TYPE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key);
@@ -499,6 +502,46 @@ function validateDashboardPayload(payload) {
     requireIntegerInRange(result.checkpoints_total, 'result.checkpoints_total', 1, 64);
     requireIntegerInRange(result.collision_count, 'result.collision_count', 0, Number.MAX_SAFE_INTEGER);
     requireIntegerInRange(result.sample_count, 'result.sample_count', 0, Number.MAX_SAFE_INTEGER);
+  }
+  const runtimeAbort = result.incomplete === true
+    || result.outcome === 'aborted'
+    || source.mode === 'aborted';
+  if (runtimeAbort) {
+    if (!run.terminal || run.state !== 'failed' || run.outcome !== 'error') {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', '异常中止证据必须绑定 failed/error 终态');
+    }
+    if (source.mode !== 'aborted'
+      || source.terminal_validation !== RUNTIME_ABORT_EVIDENCE_SCOPE) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', '异常中止来源标记不一致');
+    }
+    if (result.available !== true
+      || result.validated !== false
+      || result.validation !== RUNTIME_ABORT_EVIDENCE_SCOPE
+      || result.incomplete !== true
+      || result.outcome !== 'aborted'
+      || result.success !== false
+      || result.failure_code !== RUNTIME_ABORT_REASON_CODE) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', '异常中止结果标记不一致');
+    }
+    const failureType = requireString(result.failure_type, 'result.failure_type', { maxLength: 64 });
+    if (!RUNTIME_ABORT_EXCEPTION_TYPE_PATTERN.test(failureType)) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', 'result.failure_type 格式无效');
+    }
+    const failureReason = requireString(result.failure_reason, 'result.failure_reason', { maxLength: 128 });
+    if (failureReason !== `unhandled controller exception (${failureType})`) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', '异常中止原因不是脱敏后的固定表达');
+    }
+    if (result.checkpoints_visited !== completedCount
+      || result.checkpoints_total !== checkpointCount) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', '异常中止进度与任务状态不一致');
+    }
+    const abortElapsed = requireNonNegativeNumber(
+      result.elapsed_simulation_time_s,
+      'result.elapsed_simulation_time_s',
+    );
+    if (Math.abs(abortElapsed - run.simulation_time_s) > 1e-9) {
+      throw new PayloadProtocolError('INVALID_PAYLOAD', '异常中止时间与运行状态不一致');
+    }
   }
   return root;
 }

@@ -682,6 +682,8 @@ def test_frontend_contract_serializes_polling_and_exposes_accessible_status() ->
     assert "map.dynamic_obstacles" in javascript
     assert "safety_shield" in javascript
     assert "escape_guard" in javascript
+    assert "异常中止 · 证据不完整" in javascript
+    assert 'data.source.mode === "aborted"' in javascript
     assert 'id="avoidance-state"' in html
     assert 'aria-label="强化学习动作经过安全过滤后执行"' in html
     assert 'aria-label="巡检点完成进度"' in html

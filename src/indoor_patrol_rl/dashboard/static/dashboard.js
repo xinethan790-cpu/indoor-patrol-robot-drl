@@ -2,7 +2,7 @@
 
 const svgNS = "http://www.w3.org/2000/svg";
 const stateNames = { navigating: "导航中", dwelling: "驻留检测", sampling: "环境采样", completed: "已完成", failed: "已终止" };
-const outcomeNames = { running: "进行中", success: "巡检成功", collision: "发生碰撞", safety_stop: "安全停止", timeout: "任务超时", inspection_failed: "采样失败", error: "运行异常", completed: "巡检成功" };
+const outcomeNames = { running: "进行中", success: "巡检成功", collision: "发生碰撞", safety_stop: "安全停止", timeout: "任务超时", inspection_failed: "采样失败", error: "运行异常", completed: "巡检成功", aborted: "异常中止" };
 const severityNames = { info: "提示", warning: "警告", critical: "严重" };
 const eventNames = { raised: "触发", cleared: "解除" };
 const sensorNames = { temperature: "温度", smoke_obscuration: "烟雾遮蔽率", carbon_monoxide: "一氧化碳浓度" };
@@ -43,6 +43,8 @@ function alarmDescription(sensorId, message) {
 function localizeFailureReason(reason) {
   if (!reason) return "无";
   if (failureReasonNames[reason]) return failureReasonNames[reason];
+  const runtimeAbort = /^unhandled controller exception \(([A-Za-z_][A-Za-z0-9_]{0,63})\)$/.exec(reason);
+  if (runtimeAbort) return `控制器发生未处理异常（${runtimeAbort[1]}）`;
   const samplingPrefix = "inspection sampling failed: ";
   return reason.startsWith(samplingPrefix) ? `环境采样失败：${reason.slice(samplingPrefix.length)}` : reason;
 }
@@ -271,11 +273,12 @@ function renderResult(data) {
   badge.className = `pill ${result.success ? "success" : "failure"}`;
   content.className = "result-metrics";
   const metrics = [
+    ["证据完整性", result.incomplete ? "异常中止记录" : "完整终态已校验"],
     ["巡检覆盖", `${result.checkpoints_visited} / ${result.checkpoints_total}`],
-    ["物理碰撞", String(result.collision_count)],
-    ["采样数据", String(result.sample_count)],
-    ["异常触发", String(result.alarms_raised)],
-    ["异常解除", String(result.alarms_cleared)],
+    ["物理碰撞", String(result.collision_count ?? "—")],
+    ["采样数据", String(result.sample_count ?? "—")],
+    ["异常触发", String(result.alarms_raised ?? "—")],
+    ["异常解除", String(result.alarms_cleared ?? "—")],
     ["最高告警级别", severityNames[result.highest_event_severity] || result.highest_event_severity || "无"],
     ["运行时间", `${show(result.elapsed_simulation_time_s, 1)} s`],
     ["路径长度", `${show(result.actual_path_length_m, 2)} m`],
@@ -297,9 +300,11 @@ function render(data) {
   lastSequence = data.run.sequence;
   renderMap(data); renderTask(data); renderSensors(data); renderAvoidance(data); renderAlarms(data); renderResult(data);
   byId("map-note").textContent = data.source.map_boundary_note;
-  byId("map-mode").textContent = data.source.mode === "terminal" ? "FINAL" : "LIVE";
+  byId("map-mode").textContent = data.source.mode === "aborted" ? "ABORTED" : (data.source.mode === "terminal" ? "FINAL" : "LIVE");
   byId("updated-at").textContent = `run ${data.run.run_id} · ${new Date(data.generated_at_utc).toLocaleTimeString("zh-CN")}`;
-  byId("connection-label").textContent = data.run.terminal ? "终态汇总已校验" : "实时数据已连接";
+  byId("connection-label").textContent = data.run.terminal
+    ? (data.result.incomplete ? "异常中止 · 证据不完整" : "终态汇总已校验")
+    : "实时数据已连接";
   byId("connection-dot").className = "connection-dot online";
   byId("error-banner").hidden = true;
   return data.run.terminal;
