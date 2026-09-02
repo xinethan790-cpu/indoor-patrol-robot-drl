@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 import yaml
 
+import indoor_patrol_rl.evaluation.checkpoint_sweep as checkpoint_sweep_module
 from indoor_patrol_rl.core import (
     SAFETY_SHIELD_CONFIG_ENV_FIELDS,
     SafetyShieldConfig,
@@ -29,12 +30,30 @@ from scripts.run_webots_checkpoint_sweep import _default_output_directory
 REPOSITORY_ROOT = Path(__file__).absolute().parents[1]
 
 
+def _exact_endpoint_path(
+    root: Path,
+    *,
+    seed: int = 11,
+    model_variant: str = "r2a_targeted_v1",
+    step: int = 81920,
+) -> Path:
+    return (
+        root
+        / "artifacts/models/webots"
+        / f"seed_{seed}"
+        / model_variant
+        / f"ppo_webots_s{seed}_step{step:09d}.zip"
+    )
+
+
 def _request(
     root: Path,
     *,
     steps: tuple[int, ...] = (10, 20),
     workers: int = 2,
     shield_profile: WebotsSafetyShieldProfile | None = None,
+    exact_model_path: Path | None = None,
+    exact_model_sha256: str | None = None,
 ) -> WebotsCheckpointSweepRequest:
     world = root / "worlds/webots_ppo_evaluate.wbt"
     world.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +90,8 @@ def _request(
         workers=workers,
         timeout_seconds=30.0,
         shield_profile=shield_profile,
+        exact_model_path=exact_model_path,
+        exact_model_sha256=exact_model_sha256,
     )
 
 
@@ -230,6 +251,287 @@ def test_sweep_runs_checkpoints_with_clean_environment_and_unique_ports(
     assert on_disk["manifest_paths"] == manifest["manifest_paths"]
     assert all(run["model_sha256"] for run in on_disk["runs"])
     assert "safety_shield_profile" not in on_disk["request"]
+    assert "result_kind" not in on_disk["request"]
+    assert "exact_model_path" not in on_disk["request"]
+    assert "exact_model_sha256" not in on_disk["request"]
+
+
+def test_exact_final_model_uses_final_identity_and_records_binding(
+    tmp_path: Path,
+) -> None:
+    endpoint = _exact_endpoint_path(tmp_path)
+    endpoint.parent.mkdir(parents=True, exist_ok=True)
+    endpoint.write_bytes(b"post-update-final-endpoint")
+    endpoint_sha256 = sha256_file(endpoint)
+    request = _request(
+        tmp_path,
+        steps=(81920,),
+        workers=1,
+        exact_model_path=endpoint,
+        exact_model_sha256=endpoint_sha256,
+    )
+    calls: list[dict[str, str]] = []
+
+    assert request.result_kind == "final"
+    assert request.model_path(81920) == endpoint.resolve()
+    assert request.run_name(81920) == (
+        "webots_validation_r2a_final_step81920_seed11"
+    )
+    assert request.planner(81920) == "ppo_r2a_step81920"
+
+    def runner(
+        command: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        calls.append(dict(environment))
+        assert environment["WEBOTS_EVAL_MODEL"] == (
+            "artifacts/models/webots/seed_11/r2a_targeted_v1/"
+            "ppo_webots_s11_step000081920.zip"
+        )
+        assert environment["WEBOTS_EVAL_MODEL_SHA256"] == endpoint_sha256
+        assert environment["WEBOTS_EVAL_RUN_NAME"] == request.run_name(81920)
+        assert environment["WEBOTS_EVAL_PLANNER_LABEL"] == request.planner(81920)
+        _write_summary(tmp_path, environment)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    manifest = run_checkpoint_sweep(
+        request,
+        output_directory=tmp_path / "artifacts/results/exact-final-sweep",
+        process_runner=runner,
+        port_allocator=_sequential_port,
+    )
+
+    assert len(calls) == 1
+    assert manifest["status"] == "completed"
+    assert manifest["runs"][0]["run_name"] == request.run_name(81920)
+    assert manifest["runs"][0]["model_path"] == (
+        "artifacts/models/webots/seed_11/r2a_targeted_v1/"
+        "ppo_webots_s11_step000081920.zip"
+    )
+    assert manifest["runs"][0]["model_sha256"] == endpoint_sha256
+    assert manifest["runs"][0]["stdout_log"].endswith(
+        "/final_step81920.stdout.log"
+    )
+    assert manifest["runs"][0]["stderr_log"].endswith(
+        "/final_step81920.stderr.log"
+    )
+    assert manifest["request"]["result_kind"] == "final"
+    assert manifest["request"]["exact_model_path"] == manifest["runs"][0][
+        "model_path"
+    ]
+    assert manifest["request"]["exact_model_sha256"] == endpoint_sha256
+
+    def unexpected_runner(
+        _command: Sequence[str],
+        **_kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("A strictly matching final summary should be reused.")
+
+    reused = run_checkpoint_sweep(
+        request,
+        output_directory=tmp_path / "artifacts/results/exact-final-sweep-reused",
+        process_runner=unexpected_runner,
+        port_allocator=_sequential_port,
+    )
+    assert reused["runs"][0]["status"] == "reused"
+
+
+def test_exact_final_model_drift_fails_before_process_launch(tmp_path: Path) -> None:
+    endpoint = _exact_endpoint_path(tmp_path)
+    endpoint.parent.mkdir(parents=True, exist_ok=True)
+    endpoint.write_bytes(b"bound-endpoint")
+    request = _request(
+        tmp_path,
+        steps=(81920,),
+        exact_model_path=endpoint,
+        exact_model_sha256=sha256_file(endpoint),
+    )
+    endpoint.write_bytes(b"drifted-after-request")
+    process_started = False
+    port_allocated = False
+
+    def runner(
+        command: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal process_started
+        process_started = True
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    def port_allocator(preferred: int, reserved: set[int]) -> int:
+        nonlocal port_allocated
+        port_allocated = True
+        return _sequential_port(preferred, reserved)
+
+    output_directory = tmp_path / "artifacts/results/must-not-start"
+    with pytest.raises(ValueError, match="Exact model SHA-256 mismatch"):
+        run_checkpoint_sweep(
+            request,
+            output_directory=output_directory,
+            process_runner=runner,
+            port_allocator=port_allocator,
+        )
+
+    assert process_started is False
+    assert port_allocated is False
+    assert not output_directory.exists()
+
+
+def test_exact_final_model_reuse_rechecks_binding_after_summary_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    endpoint = _exact_endpoint_path(tmp_path)
+    endpoint.parent.mkdir(parents=True, exist_ok=True)
+    endpoint.write_bytes(b"reusable-final-endpoint")
+    endpoint_sha256 = sha256_file(endpoint)
+    request = _request(
+        tmp_path,
+        steps=(81920,),
+        workers=1,
+        exact_model_path=endpoint,
+        exact_model_sha256=endpoint_sha256,
+    )
+
+    def first_runner(
+        command: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        _write_summary(tmp_path, kwargs["env"])
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    first = run_checkpoint_sweep(
+        request,
+        output_directory=tmp_path / "artifacts/results/first-final-sweep",
+        process_runner=first_runner,
+        port_allocator=_sequential_port,
+    )
+    assert first["runs"][0]["status"] == "completed"
+
+    original_validator = checkpoint_sweep_module.validate_existing_summary
+
+    def validator_then_drift(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        metrics = original_validator(*args, **kwargs)
+        endpoint.write_bytes(b"drifted-before-reuse-acceptance")
+        return metrics
+
+    monkeypatch.setattr(
+        checkpoint_sweep_module,
+        "validate_existing_summary",
+        validator_then_drift,
+    )
+    process_started = False
+    port_allocated = False
+
+    def unexpected_runner(
+        command: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal process_started
+        process_started = True
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    def unexpected_port(preferred: int, reserved: set[int]) -> int:
+        nonlocal port_allocated
+        port_allocated = True
+        return _sequential_port(preferred, reserved)
+
+    with pytest.raises(ValueError, match="Exact model SHA-256 mismatch"):
+        run_checkpoint_sweep(
+            request,
+            output_directory=tmp_path / "artifacts/results/reuse-must-fail",
+            process_runner=unexpected_runner,
+            port_allocator=unexpected_port,
+        )
+
+    assert process_started is False
+    assert port_allocated is False
+
+
+@pytest.mark.parametrize(
+    ("path_mode", "sha_mode", "steps", "message"),
+    [
+        ("inside", None, (10,), "provided together"),
+        (None, "correct", (10,), "provided together"),
+        ("inside", "correct", (10, 20), "exactly one step"),
+        ("outside", "correct", (10,), "stay inside the repository"),
+        ("inside", "invalid", (10,), "lowercase SHA-256"),
+        ("inside", "wrong", (10,), "SHA-256 mismatch"),
+    ],
+)
+def test_exact_final_model_request_rejects_invalid_binding(
+    tmp_path: Path,
+    path_mode: str | None,
+    sha_mode: str | None,
+    steps: tuple[int, ...],
+    message: str,
+) -> None:
+    inside = _exact_endpoint_path(tmp_path, step=10)
+    inside.parent.mkdir(parents=True, exist_ok=True)
+    inside.write_bytes(b"final")
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-final.zip"
+    outside.write_bytes(b"final")
+    paths = {None: None, "inside": inside, "outside": outside}
+    digests = {
+        None: None,
+        "correct": sha256_file(inside),
+        "invalid": "not-a-digest",
+        "wrong": "0" * 64,
+    }
+
+    with pytest.raises((FileNotFoundError, ValueError), match=message):
+        _request(
+            tmp_path,
+            steps=steps,
+            exact_model_path=paths[path_mode],
+            exact_model_sha256=digests[sha_mode],
+        )
+
+
+@pytest.mark.parametrize(
+    ("model_variant", "candidate", "message"),
+    [
+        (None, "canonical", "non-empty model_variant"),
+        ("r2a_targeted_v1", "wrong-seed", "canonical final endpoint path"),
+        ("r2a_targeted_v1", "wrong-variant", "canonical final endpoint path"),
+        ("r2a_targeted_v1", "wrong-step", "canonical final endpoint path"),
+        ("r2a_targeted_v1", "non-zip", "canonical final endpoint path"),
+    ],
+)
+def test_exact_final_model_requires_canonical_seed_variant_step_path(
+    tmp_path: Path,
+    model_variant: str | None,
+    candidate: str,
+    message: str,
+) -> None:
+    canonical = _exact_endpoint_path(tmp_path)
+    candidates = {
+        "canonical": canonical,
+        "wrong-seed": _exact_endpoint_path(tmp_path, seed=22),
+        "wrong-variant": _exact_endpoint_path(
+            tmp_path,
+            model_variant="another_variant",
+        ),
+        "wrong-step": _exact_endpoint_path(tmp_path, step=81919),
+        "non-zip": canonical.with_suffix(".bin"),
+    }
+    endpoint = candidates[candidate]
+    endpoint.parent.mkdir(parents=True, exist_ok=True)
+    endpoint.write_bytes(b"candidate")
+
+    values: dict[str, Any] = {
+        "repository_root": tmp_path,
+        "webots_executable": tmp_path / "webots",
+        "seed": 11,
+        "condition": "BASE1",
+        "model_variant": model_variant,
+        "steps": (81920,),
+        "exact_model_path": endpoint,
+        "exact_model_sha256": sha256_file(endpoint),
+    }
+    with pytest.raises(ValueError, match=message):
+        WebotsCheckpointSweepRequest(**values)
 
 
 def test_sweep_reuses_only_a_strict_scenario_match(tmp_path: Path) -> None:

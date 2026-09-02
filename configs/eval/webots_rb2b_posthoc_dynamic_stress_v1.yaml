@@ -1,0 +1,104 @@
+# Post-training, pre-observation development stress matrix for the frozen RB2B
+# endpoint. This is validation-only evidence: it cannot access the protected
+# formal test split, select a different model, extend the seed window, or retry
+# a condition in response to its outcome.
+schema_version: 1
+experiment_id: webots_rb2b_posthoc_dynamic_stress_v1
+purpose: post_training_pre_observation_dynamic_stress_characterization
+evidence_scope: development_validation
+split: validation
+test_split_was_run: false
+training_seed: 11
+scenario_seed_start: 8000
+episodes: 20
+model:
+  path: artifacts/models/webots/seed_11/r2b_rebaseline_v1/ppo_webots_s11_step000081920.zip
+  sha256: 498d970cfcf539d55943ace88dcbaad83445713ad852291098b391fd38a86cfa
+  variant: r2b_rebaseline_v1
+  endpoint_step: 81920
+scenario:
+  static_layout: train_a
+  horizontal_route_half_length: 1.10
+  vertical_route_half_length: 1.10
+  deterministic_policy: true
+  action_repeat: 4
+  max_episode_steps: 300
+runtime_inputs:
+  world:
+    path: worlds/webots_ppo_evaluate.wbt
+    sha256: e0ae7ac8aa2a7981f94673d656d76940166cb12ceab8dd2b17a17329985d5425
+  evaluator:
+    path: controllers/webots_ppo_evaluate/webots_ppo_evaluate.py
+    sha256: 91f8ab0b91a5fdb56aa616822544bceaa85ac747be2b10b79d2e2487cb378fdb
+  environment_adapter:
+    path: src/indoor_patrol_rl/envs/webots_patrol.py
+    sha256: 52697438d6c86265d3f56b598312566f541512e251456f95af8b8af2c4cc4432
+shield_profile:
+  path: configs/eval/webots_r2a_front_brake_v1.yaml
+  source_sha256: 6acd0b2bcafa7ffe48ac800ab94cf13636bc4a7c2dff2fb4e50fd7381262acf3
+  semantic_sha256: 354ce9b831f01fb9e9c72a9ad1650574f18c98b1b5fafea26671f81ee000ec08
+  result_token: r2a-front-brake-v1-354ce9b831f0
+  enabled: true
+  expected_resolved_config:
+    lidar_max_range: 3.5
+    front_stop_distance: 0.24
+    front_slowdown_distance: 0.75
+    side_stop_distance: 0.12
+    side_slowdown_distance: 0.32
+    front_half_angle: 1.0471975511965976
+    side_inner_angle: 1.0471975511965976
+    side_outer_angle: 1.8325957145940461
+    clearance_quantile: 0.0
+    side_speed_floor: 1.0
+    side_turn_weight: 0.55
+    turn_gain: 0.90
+    turn_blend: 0.0
+    side_deadband: 0.03
+    intervention_epsilon: 0.000001
+conditions:
+  - id: BASE1
+    obstacle_count: 1
+    obstacle_speed_range: [0.18, 0.25]
+    port_base: 14320
+    run_name: webots_validation_base1_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0
+    sweep_directory: artifacts/results/webots_validation_base1_checkpoint_sweep_seed11_r2b_rebaseline_v1_shield-r2a-front-brake-v1-354ce9b831f0
+  - id: DENS3
+    obstacle_count: 3
+    obstacle_speed_range: [0.18, 0.25]
+    port_base: 14330
+    run_name: webots_validation_dens3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0
+    sweep_directory: artifacts/results/webots_validation_dens3_checkpoint_sweep_seed11_r2b_rebaseline_v1_shield-r2a-front-brake-v1-354ce9b831f0
+  - id: FAST3
+    obstacle_count: 3
+    obstacle_speed_range: [0.26, 0.42]
+    port_base: 14340
+    run_name: webots_validation_fast3_final_step81920_seed11_shield-r2a-front-brake-v1-354ce9b831f0
+    sweep_directory: artifacts/results/webots_validation_fast3_checkpoint_sweep_seed11_r2b_rebaseline_v1_shield-r2a-front-brake-v1-354ce9b831f0
+preregistration:
+  fixed_model: true
+  fixed_profile: true
+  paired_same_scenario_seeds: true
+  condition_order: [BASE1, DENS3, FAST3]
+  run_all_conditions_regardless_of_gate_outcomes: true
+  parameter_scan: forbidden
+  checkpoint_selection: forbidden
+  adaptive_extension: forbidden
+  adaptive_retries: forbidden
+  outcome_dependent_reruns: forbidden
+  failed_episode_exclusion: forbidden
+  held_out_formal_test_access: forbidden
+  protected_test_seed_window: [10000, 10019]
+gate:
+  apply_to_each_condition: true
+  require_all: true
+  required_episode_count: 20
+  minimum_success_rate: 0.75
+  maximum_collision_rate: 0.25
+  maximum_error_count: 0
+  required_reset_attempts: 20
+  required_successful_resets: 20
+decision:
+  pass: record_all_condition_development_gates_passed
+  fail: record_observed_development_stress_boundary_without_tuning_or_retry
+  formal_model_promotion: forbidden
+  output_directory: artifacts/results/webots_rb2b_posthoc_dynamic_stress_v1

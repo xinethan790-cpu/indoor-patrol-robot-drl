@@ -28,6 +28,7 @@ from indoor_patrol_rl.core import (
 )
 from indoor_patrol_rl.evaluation.checkpoint_selection import (
     CheckpointSelectionGate,
+    load_strict_candidate_summary,
     make_candidate_record,
     parse_result_identity,
     sha256_file,
@@ -173,7 +174,13 @@ class WebotsSafetyShieldProfile:
 
 @dataclass(frozen=True)
 class WebotsCheckpointSweepRequest:
-    """Immutable scenario and model identity for one checkpoint sweep."""
+    """Immutable scenario and model identity for one validation sweep.
+
+    The default mode resolves each requested step through the historical
+    checkpoint filename convention. ``exact_model_path`` and
+    ``exact_model_sha256`` opt into a single final-endpoint evaluation without
+    copying that endpoint into the checkpoint directory.
+    """
 
     repository_root: Path
     webots_executable: Path
@@ -192,6 +199,8 @@ class WebotsCheckpointSweepRequest:
     workers: int = 1
     timeout_seconds: float = 3600.0
     shield_profile: WebotsSafetyShieldProfile | None = None
+    exact_model_path: Path | None = None
+    exact_model_sha256: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "repository_root", self.repository_root.resolve())
@@ -209,6 +218,51 @@ class WebotsCheckpointSweepRequest:
         if len(set(self.steps)) != len(self.steps):
             raise ValueError("steps must not contain duplicates.")
         object.__setattr__(self, "steps", tuple(sorted(self.steps)))
+
+        exact_path_provided = self.exact_model_path is not None
+        exact_sha_provided = self.exact_model_sha256 is not None
+        if exact_path_provided != exact_sha_provided:
+            raise ValueError(
+                "exact_model_path and exact_model_sha256 must be provided together."
+            )
+        if exact_path_provided:
+            if len(self.steps) != 1:
+                raise ValueError("Exact model mode requires exactly one step.")
+            if self.model_variant is None:
+                raise ValueError("Exact model mode requires a non-empty model_variant.")
+            assert self.exact_model_path is not None
+            assert self.exact_model_sha256 is not None
+            exact_model_path = _resolve_inside_repository(
+                Path(self.exact_model_path),
+                self.repository_root,
+                "exact_model_path",
+            )
+            step = self.steps[0]
+            canonical_model_path = (
+                self.repository_root
+                / "artifacts/models/webots"
+                / f"seed_{self.seed}"
+                / self.model_variant
+                / f"ppo_webots_s{self.seed}_step{step:09d}.zip"
+            ).resolve()
+            if exact_model_path != canonical_model_path:
+                raise ValueError(
+                    "exact_model_path must equal the canonical final endpoint path "
+                    f"{canonical_model_path}."
+                )
+            if not exact_model_path.is_file():
+                raise FileNotFoundError(
+                    f"Exact model does not exist: {exact_model_path}"
+                )
+            if (
+                not isinstance(self.exact_model_sha256, str)
+                or _SHA256_PATTERN.fullmatch(self.exact_model_sha256) is None
+            ):
+                raise ValueError(
+                    "exact_model_sha256 must be a lowercase SHA-256 digest."
+                )
+            object.__setattr__(self, "exact_model_path", exact_model_path)
+            self.verify_exact_model()
         if isinstance(self.episodes, bool) or self.episodes <= 0:
             raise ValueError("episodes must be a positive integer.")
         if isinstance(self.seed_start, bool) or self.seed_start < 0:
@@ -256,6 +310,10 @@ class WebotsCheckpointSweepRequest:
         return directory / self.model_variant if self.model_variant else directory
 
     def model_path(self, step: int) -> Path:
+        if self.exact_model_path is not None:
+            if step != self.steps[0]:
+                raise ValueError("Exact model mode only supports its declared step.")
+            return self.exact_model_path
         variant_token = f"_{self.model_variant}" if self.model_variant else ""
         return (
             self.model_directory
@@ -269,13 +327,42 @@ class WebotsCheckpointSweepRequest:
             if self.shield_profile is not None
             else ""
         )
+        result_identity = (
+            f"final_step{step}"
+            if self.exact_model_path is not None
+            else f"checkpoint{step}"
+        )
         return (
             f"webots_validation_{self.condition.casefold()}_"
-            f"checkpoint{step}_seed{self.seed}{shield_suffix}"
+            f"{result_identity}_seed{self.seed}{shield_suffix}"
         )
 
     def planner(self, step: int) -> str:
         return f"ppo_{self.condition.casefold()}_step{step}"
+
+    @property
+    def result_kind(self) -> str:
+        """Return the result-directory identity used by the strict parser."""
+
+        return "final" if self.exact_model_path is not None else "checkpoint"
+
+    def verify_exact_model(self) -> str | None:
+        """Fail if an exact final endpoint is missing or has changed."""
+
+        if self.exact_model_path is None:
+            return None
+        assert self.exact_model_sha256 is not None
+        if not self.exact_model_path.is_file():
+            raise FileNotFoundError(
+                f"Exact model does not exist: {self.exact_model_path}"
+            )
+        actual_sha256 = sha256_file(self.exact_model_path)
+        if actual_sha256 != self.exact_model_sha256:
+            raise ValueError(
+                "Exact model SHA-256 mismatch: "
+                f"{actual_sha256} != {self.exact_model_sha256}."
+            )
+        return actual_sha256
 
 
 def _portable(path: Path, repository_root: Path) -> str:
@@ -409,13 +496,21 @@ def validate_existing_summary(
         ),
     )
     identity = parse_result_identity(summary_path)
-    if identity.kind != "checkpoint" or identity.step != step:
-        raise ValueError("Validation summary does not identify the requested checkpoint.")
-    candidate = make_candidate_record(
-        summary_path,
-        repository_root=request.repository_root,
-        gate=gate,
-    )
+    if identity.kind != request.result_kind or identity.step != step:
+        raise ValueError(
+            "Validation summary does not identify the requested "
+            f"{request.result_kind} model."
+        )
+    if request.exact_model_path is None:
+        candidate = make_candidate_record(
+            summary_path,
+            repository_root=request.repository_root,
+            gate=gate,
+        )
+        candidate_model_sha256 = candidate["model_sha256"]
+    else:
+        candidate = load_strict_candidate_summary(summary_path, identity, gate)
+        candidate_model_sha256 = candidate["evaluation_model_sha256"]
     metrics = load_validation_metrics(
         summary_path,
         repository_root=request.repository_root,
@@ -504,7 +599,7 @@ def validate_existing_summary(
         or sha256_file(episodes_path) != episodes_sha256
     ):
         raise ValueError("Validation episodes.csv is missing or fails its SHA-256 binding.")
-    if candidate["model_sha256"] != model_sha256:
+    if candidate_model_sha256 != model_sha256:
         raise ValueError("Validation candidate model SHA-256 does not match the sweep model.")
     return {
         "episodes": int(metrics["episodes"]),
@@ -607,8 +702,13 @@ def _execute_candidate(
         model_sha256=model_sha256,
     )
     command = _command(request, port)
-    stdout_path = output_directory / f"checkpoint{step}.stdout.log"
-    stderr_path = output_directory / f"checkpoint{step}.stderr.log"
+    log_identity = (
+        f"final_step{step}"
+        if request.exact_model_path is not None
+        else f"checkpoint{step}"
+    )
+    stdout_path = output_directory / f"{log_identity}.stdout.log"
+    stderr_path = output_directory / f"{log_identity}.stderr.log"
     record.update(
         {
             "status": "running",
@@ -624,6 +724,7 @@ def _execute_candidate(
         }
     )
     try:
+        request.verify_exact_model()
         completed = process_runner(
             command,
             cwd=request.repository_root,
@@ -648,6 +749,7 @@ def _execute_candidate(
             model_path=model_path,
             model_sha256=model_sha256,
         )
+        request.verify_exact_model()
         summary_path = (
             request.repository_root
             / "artifacts/results"
@@ -728,6 +830,9 @@ def run_checkpoint_sweep(
     """Reuse strict summaries and execute all remaining checkpoints."""
 
     repository_root = request.repository_root.resolve()
+    # Exact endpoint identity is fail-fast: a missing or drifted model must be
+    # rejected before output setup, port allocation, or any Webots subprocess.
+    request.verify_exact_model()
     executable = request.webots_executable.resolve()
     if not executable.is_file():
         raise FileNotFoundError(f"Webots executable does not exist: {executable}")
@@ -737,6 +842,26 @@ def run_checkpoint_sweep(
         raise FileNotFoundError(f"Webots evaluation world does not exist: {world_path}")
     if not controller_path.is_file():
         raise FileNotFoundError(f"Webots evaluator does not exist: {controller_path}")
+    model_bindings: list[tuple[int, Path, str | None]] = []
+    for step in request.steps:
+        model_path = request.model_path(step).resolve()
+        if not model_path.is_file():
+            model_bindings.append((step, model_path, None))
+            continue
+        actual_model_sha256 = sha256_file(model_path)
+        if request.exact_model_path is not None:
+            assert request.exact_model_sha256 is not None
+            if actual_model_sha256 != request.exact_model_sha256:
+                raise ValueError(
+                    "Exact model SHA-256 mismatch: "
+                    f"{actual_model_sha256} != {request.exact_model_sha256}."
+                )
+            model_sha256 = request.exact_model_sha256
+        else:
+            model_sha256 = actual_model_sha256
+        model_bindings.append((step, model_path, model_sha256))
+
+    request.verify_exact_model()
     output_directory = _resolve_inside_repository(
         output_directory,
         repository_root,
@@ -748,28 +873,21 @@ def run_checkpoint_sweep(
     reserved_ports: set[int] = set()
     records: list[dict[str, Any]] = []
     pending: list[dict[str, Any]] = []
-    for index, step in enumerate(request.steps):
-        model_path = request.model_path(step).resolve()
-        if not model_path.is_file():
-            record = _base_record(
-                request,
-                step=step,
-                model_path=model_path,
-                model_sha256=None,
-            )
-            record.update({"status": "failed", "error": "Checkpoint model is missing."})
-            records.append(record)
-            continue
-        model_sha256 = sha256_file(model_path)
+    for index, (step, model_path, model_sha256) in enumerate(model_bindings):
         record = _base_record(
             request,
             step=step,
             model_path=model_path,
             model_sha256=model_sha256,
         )
+        if model_sha256 is None:
+            record.update({"status": "failed", "error": "Checkpoint model is missing."})
+            records.append(record)
+            continue
         summary_path = repository_root / str(record["summary_path"])
         if summary_path.is_file():
             try:
+                request.verify_exact_model()
                 metrics = validate_existing_summary(
                     summary_path,
                     request=request,
@@ -777,6 +895,7 @@ def run_checkpoint_sweep(
                     model_path=model_path,
                     model_sha256=model_sha256,
                 )
+                request.verify_exact_model()
             except (OSError, ValueError) as error:
                 record["prior_summary_rejection"] = str(error)
             else:
@@ -789,6 +908,7 @@ def run_checkpoint_sweep(
                 )
                 records.append(record)
                 continue
+        request.verify_exact_model()
         record["port"] = port_allocator(request.port_base + index, reserved_ports)
         pending.append(record)
 
@@ -853,6 +973,13 @@ def run_checkpoint_sweep(
         request_record["safety_shield_profile"] = (
             request.shield_profile.manifest_record(repository_root)
         )
+    if request.exact_model_path is not None:
+        request_record["result_kind"] = "final"
+        request_record["exact_model_path"] = _portable(
+            request.exact_model_path,
+            repository_root,
+        )
+        request_record["exact_model_sha256"] = request.exact_model_sha256
 
     manifest: dict[str, Any] = {
         "schema_version": 1,
