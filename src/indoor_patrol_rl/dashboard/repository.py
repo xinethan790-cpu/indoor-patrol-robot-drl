@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +12,7 @@ from typing import Any
 
 from indoor_patrol_rl.application.live_status import (
     PatrolLiveSnapshot,
-    read_patrol_live_events,
+    _validate_successor,
     read_patrol_live_status,
 )
 from indoor_patrol_rl.application.runtime_abort import (
@@ -62,6 +63,118 @@ class DashboardEvidence:
         return self.current.state.value in _TERMINAL_STATES
 
 
+@dataclass(frozen=True)
+class EventStreamDiagnostics:
+    """Observable work counters for incremental JSONL regression tests and telemetry."""
+
+    data_read_operations: int
+    parse_attempts: int
+    cache_rebuilds: int
+
+
+class _IncrementalLiveEventsReader:
+    """Parse only complete records appended since the previous coherent read."""
+
+    def __init__(self) -> None:
+        self._identity: tuple[int, int] | None = None
+        self._size = 0
+        self._offset = 0
+        self._pending = b""
+        self._snapshots: tuple[PatrolLiveSnapshot, ...] = ()
+        self._data_read_operations = 0
+        self._parse_attempts = 0
+        self._cache_rebuilds = 0
+
+    @property
+    def diagnostics(self) -> EventStreamDiagnostics:
+        return EventStreamDiagnostics(
+            data_read_operations=self._data_read_operations,
+            parse_attempts=self._parse_attempts,
+            cache_rebuilds=self._cache_rebuilds,
+        )
+
+    def read(self, path: Path) -> tuple[PatrolLiveSnapshot, ...]:
+        try:
+            descriptor = os.open(
+                path,
+                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            )
+        except OSError as error:
+            raise ValueError(f"Cannot read live events from {path}: {error}") from error
+
+        try:
+            with os.fdopen(descriptor, "rb") as stream:
+                before = os.fstat(stream.fileno())
+                identity = (before.st_dev, before.st_ino)
+                rebuild = (
+                    self._identity != identity
+                    or before.st_size < self._offset
+                    or before.st_size < self._size
+                )
+                offset = 0 if rebuild else self._offset
+                pending = b"" if rebuild else self._pending
+                snapshots = () if rebuild else self._snapshots
+
+                payload = b""
+                if before.st_size > offset:
+                    stream.seek(offset)
+                    payload = stream.read()
+                    self._data_read_operations += 1
+                after = os.fstat(stream.fileno())
+                if (after.st_dev, after.st_ino) != identity or after.st_size < offset + len(
+                    payload
+                ):
+                    raise ValueError(f"Live events changed while reading {path}.")
+        except Exception:
+            # os.fdopen owns descriptor after successful construction.  If construction
+            # itself failed, close the original descriptor before propagating the error.
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+            raise
+
+        combined = pending + payload
+        complete_end = combined.rfind(b"\n")
+        if complete_end < 0:
+            complete = b""
+            new_pending = combined
+        else:
+            complete = combined[: complete_end + 1]
+            new_pending = combined[complete_end + 1 :]
+
+        parsed = list(snapshots)
+        if complete:
+            records = complete.split(b"\n")[:-1]
+            first_line_number = len(snapshots) + 1
+            for index, record in enumerate(records):
+                self._parse_attempts += 1
+                line_number = first_line_number + index
+                if not record.strip():
+                    raise ValueError(f"Blank JSONL records are not allowed in {path}.")
+                try:
+                    raw = json.loads(record.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                    raise ValueError(
+                        f"Invalid JSON in {path} at line {line_number}: {error}"
+                    ) from error
+                snapshot = PatrolLiveSnapshot.from_dict(raw)
+                previous = parsed[-1] if parsed else None
+                _validate_successor(previous, snapshot)
+                parsed.append(snapshot)
+
+        # Commit only after every newly completed record validates.  A bad append is
+        # therefore retried and can never be skipped because the byte offset advanced.
+        self._identity = identity
+        self._size = after.st_size
+        self._offset = offset + len(payload)
+        self._pending = new_pending
+        self._snapshots = tuple(parsed)
+        if rebuild:
+            self._cache_rebuilds += 1
+        return self._snapshots
+
+
 class PatrolDashboardRepository:
     """Read only fixed evidence filenames beneath an explicit run directory.
 
@@ -75,12 +188,17 @@ class PatrolDashboardRepository:
         try:
             resolved = requested.resolve(strict=True)
         except OSError as error:
-            raise DashboardEvidenceError(
-                f"巡检结果目录不存在或不可访问：{requested}"
-            ) from error
+            raise DashboardEvidenceError(f"巡检结果目录不存在或不可访问：{requested}") from error
         if not resolved.is_dir():
             raise DashboardEvidenceError(f"巡检结果路径不是目录：{resolved}")
         self.run_directory = resolved
+        self._events_reader = _IncrementalLiveEventsReader()
+
+    @property
+    def event_stream_diagnostics(self) -> EventStreamDiagnostics:
+        """Return counters without exposing or modifying cached evidence."""
+
+        return self._events_reader.diagnostics
 
     def read(self) -> DashboardEvidence:
         """Read a coherent snapshot, retrying once across an atomic update."""
@@ -100,7 +218,7 @@ class PatrolDashboardRepository:
         status_path = self._required_file("status.json")
         events_path = self._required_file("events.jsonl")
         current_from_status = read_patrol_live_status(status_path)
-        snapshots = read_patrol_live_events(events_path)
+        snapshots = self._events_reader.read(events_path)
         if not snapshots:
             raise DashboardEvidenceError("events.jsonl 尚无可显示的巡检快照。")
         event_current = snapshots[-1]
@@ -143,9 +261,10 @@ class PatrolDashboardRepository:
                 "inspection_manifest.json",
             )
             patrol_binding = manifest_preview.get("patrol_summary")
-            if not isinstance(patrol_binding, Mapping) or patrol_binding.get(
-                "path"
-            ) != "summary.json":
+            if (
+                not isinstance(patrol_binding, Mapping)
+                or patrol_binding.get("path") != "summary.json"
+            ):
                 raise DashboardEvidenceError(
                     "inspection manifest 必须绑定当前目录内的 summary.json。"
                 )
@@ -232,9 +351,7 @@ class PatrolDashboardRepository:
         if not path.exists():
             return None
         try:
-            evidence = PatrolRuntimeAbort.from_dict(
-                _read_json_object(path, RUNTIME_ABORT_FILENAME)
-            )
+            evidence = PatrolRuntimeAbort.from_dict(_read_json_object(path, RUNTIME_ABORT_FILENAME))
         except DashboardEvidenceError:
             raise
         except (TypeError, ValueError) as error:
@@ -263,9 +380,7 @@ class PatrolDashboardRepository:
                 raise DashboardEvidenceError(
                     f"{filename} 第 {line_number} 行不是有效 JSON：{error}"
                 ) from error
-            if not isinstance(raw, Mapping) or not all(
-                isinstance(key, str) for key in raw
-            ):
+            if not isinstance(raw, Mapping) or not all(isinstance(key, str) for key in raw):
                 raise DashboardEvidenceError(f"{filename} 第 {line_number} 行必须是对象。")
             records.append(raw)
         return tuple(records)
