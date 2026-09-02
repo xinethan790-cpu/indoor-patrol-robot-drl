@@ -1,12 +1,18 @@
 # R2a/R2b verified rebaseline protocol
 
-Status: **pre-registered; no new Webots result is claimed in this document**.
+Status: **RB2A completed and passed; RB2B is authorized but not yet claimed**.
+
+Outcome update (2026-09-02): the pre-registered RB2A endpoint completed from the
+clean source revision and produced `76 success / 24 collision / 0 timeout / 0
+error` on the exact 100-seed validation grid. Both locked gates pass by `0.01`.
+See [`r2a_rebaseline_v1_report.md`](r2a_rebaseline_v1_report.md) for the bound
+model, raw evidence, hashes and limitations. The protocol text below remains the
+pre-observation design; this outcome note does not redefine its thresholds.
 
 Date: 2026-09-02. This protocol supersedes the legacy R2a/R2b chain as the active
-training path. No new R2a/R2b result is citable until this run finishes. The legacy
-files are retained as an audit trail, but their claimed end-to-end provenance is
-withdrawn because the exact upstream warm-start model and its declared validation
-CSV/summary cannot be recovered.
+training path. The legacy files are retained as an audit trail, but their claimed
+end-to-end provenance is withdrawn because the exact upstream warm-start model and
+its declared validation CSV/summary cannot be recovered.
 
 ## Why a new baseline is required
 

@@ -222,7 +222,7 @@ python scripts/benchmark_kinematic.py --split validation \
   --output-dir artifacts/results/kinematic_validation_seed11
 ```
 
-当前可复核的 240 回合运动学验证成功率/碰撞率为：Reactive `0.725/0.275`、DWA `0.575/0.375`、PPO stage 2 `0.6875/0.3125`。Reactive 的总体成功率与碰撞率最好，PPO 的成功回合平均用时和路径长度比更低；这组结果只用于开发期比较，不能包装成最终 Webots 结论。2026-09-02 的证据复核与新 R2a/R2b 基线见[重建协议](reports/webots_r2ab_targeted/rebaseline_protocol_2026-09-02.md)，Webots 正式训练、恢复、验证和最终测试门禁命令见[训练复现协议](docs/training-protocol.md)。
+当前可复核的 240 回合运动学验证成功率/碰撞率为：Reactive `0.725/0.275`、DWA `0.575/0.375`、PPO stage 2 `0.6875/0.3125`。Reactive 的总体成功率与碰撞率最好，PPO 的成功回合平均用时和路径长度比更低；这组结果只用于开发期比较，不能包装成最终 Webots 结论。2026-09-02 的新 RB2A 基线在 clean commit 上完成 40,960 步 Webots 训练，并在预注册的 100 个验证种子中得到 `76/24/0/0`，以一个 episode 的窄余量通过开发门槛；模型、清单和逐回合数据见[端点报告](reports/webots_r2ab_targeted/r2a_rebaseline_v1_report.md)，完整边界见[重建协议](reports/webots_r2ab_targeted/rebaseline_protocol_2026-09-02.md)。这仍是 PPO 加安全盾的单 seed 开发结果，不是正式三 seed 或 policy-only 结论。Webots 正式训练、恢复、验证和最终测试门禁命令见[训练复现协议](docs/training-protocol.md)。
 
 打开 Webots 动态避障演示：
 

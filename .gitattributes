@@ -3,3 +3,4 @@
 artifacts/results/**/episodes.csv binary
 artifacts/results/**/*.stdout.log binary
 artifacts/results/**/*.stderr.log binary
+artifacts/logs/**/*.monitor.csv binary
