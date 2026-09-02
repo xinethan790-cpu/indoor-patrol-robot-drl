@@ -100,6 +100,7 @@ test('tracked project pins the review base library and demo controls expose acce
   assert.match(dashboard, /aria-label="跳转到下一个关键事件"/);
   assert.match(dashboard, /aria-label="演示播放速度"/);
   assert.match(dashboard, /aria-pressed="\{\{demoHalfSpeedActive\}\}"/);
+  assert.match(dashboard, /aria-pressed="\{\{demoNormalSpeedActive\}\}"/);
 });
 
 test('app initializes the declared CloudBase environment and safely restores mode', () => {

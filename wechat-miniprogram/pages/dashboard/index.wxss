@@ -575,12 +575,14 @@
   text-align: center;
 }
 
-.demo-controls__main {
-  flex: 1;
-}
-
+.demo-controls__main,
 .demo-controls__next {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  padding: 0 12rpx;
+  white-space: nowrap;
 }
 
 .demo-controls__next--disabled {
@@ -595,27 +597,41 @@
 }
 
 .demo-options {
+  gap: 12rpx;
+  min-width: 0;
   justify-content: space-between;
   margin-top: 16rpx;
 }
 
+.demo-speed {
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 8rpx;
+}
+
 .demo-speed__label {
-  margin-right: 10rpx;
+  flex: 0 0 auto;
+  margin-right: 2rpx;
   color: #61788c;
   font-size: 22rpx;
+  white-space: nowrap;
 }
 
 .demo-speed__button,
 .demo-reset {
-  height: 58rpx;
-  margin: 0 0 0 8rpx;
+  height: 72rpx;
+  margin: 0;
   padding: 0 20rpx;
   border-radius: 15rpx;
   font-size: 22rpx;
-  line-height: 58rpx;
+  line-height: 72rpx;
 }
 
 .demo-speed__button {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  padding: 0 12rpx;
   background: #edf3f8;
   color: #526b80;
 }
@@ -626,8 +642,11 @@
 }
 
 .demo-reset {
+  flex: 0 0 auto;
+  padding: 0 12rpx;
   background: transparent;
   color: #39647f;
+  white-space: nowrap;
 }
 
 .progress-track {
