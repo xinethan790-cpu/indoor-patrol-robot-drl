@@ -1,0 +1,61 @@
+# Verified R2b rebaseline preregistration (2026-09-02).
+#
+# RB2A passed its locked 100-episode validation gate at 76% success / 24%
+# collision.  This stage resumes an immutable copy of that exact post-update
+# endpoint, preserving the optimizer and learned action distribution.  Relative
+# to RB2A, only the run identity and obstacle-speed distribution change; the
+# reward, PPO settings, route geometry and all safety-shield fields stay fixed.
+schema_version: 1
+transfer_model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip
+require_clean_git: true
+model_variant: r2b_rebaseline_v1
+port_base: 14220
+validation:
+  split: validation
+  seed_start: 6000
+  episodes: 100
+  min_success_rate: 0.75
+  max_collision_rate: 0.25
+stages:
+  - id: RB2B
+    name: verified_single_medium_high_resume_baseline
+    obstacle_count: 1
+    training_steps: 40960
+    preferred_resume_model: artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip
+    preferred_resume_sha256: f52a4691dbe7d787f6a9dfdb02383d206f597999e15f991063bc812a66706c2c
+    controller_env:
+      WEBOTS_RUN_ID: r2b_rebaseline_v1
+      WEBOTS_OBSTACLE_SPEED_MIN: "0.18"
+      WEBOTS_OBSTACLE_SPEED_MAX: "0.25"
+      WEBOTS_HORIZONTAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_VERTICAL_ROUTE_HALF_LENGTH: "1.10"
+      WEBOTS_SAFETY_SHIELD: "true"
+      WEBOTS_SAFETY_SHIELD_FRONT_STOP_DISTANCE: "0.24"
+      WEBOTS_SAFETY_SHIELD_FRONT_SLOWDOWN_DISTANCE: "0.75"
+      WEBOTS_SAFETY_SHIELD_SIDE_STOP_DISTANCE: "0.12"
+      WEBOTS_SAFETY_SHIELD_SIDE_SLOWDOWN_DISTANCE: "0.32"
+      WEBOTS_SAFETY_SHIELD_FRONT_HALF_ANGLE: "1.0471975511965976"
+      WEBOTS_SAFETY_SHIELD_SIDE_INNER_ANGLE: "1.0471975511965976"
+      WEBOTS_SAFETY_SHIELD_SIDE_OUTER_ANGLE: "1.8325957145940461"
+      WEBOTS_SAFETY_SHIELD_CLEARANCE_QUANTILE: "0.0"
+      WEBOTS_SAFETY_SHIELD_SIDE_SPEED_FLOOR: "1.0"
+      WEBOTS_SAFETY_SHIELD_SIDE_TURN_WEIGHT: "0.55"
+      WEBOTS_SAFETY_SHIELD_TURN_GAIN: "0.9"
+      WEBOTS_SAFETY_SHIELD_TURN_BLEND: "0.0"
+      WEBOTS_SAFETY_SHIELD_SIDE_DEADBAND: "0.03"
+      WEBOTS_SAFETY_SHIELD_INTERVENTION_EPSILON: "1e-06"
+      WEBOTS_REWARD_SAFETY_DISTANCE: "0.35"
+      WEBOTS_REWARD_PROXIMITY_DISTANCE: "0.70"
+      WEBOTS_REWARD_PROXIMITY_SPEED_WEIGHT: "0.80"
+      WEBOTS_REWARD_SAFETY_WEIGHT: "-0.60"
+      WEBOTS_REWARD_SMOOTHNESS_WEIGHT: "-0.005"
+      WEBOTS_REWARD_GOAL: "30.0"
+      WEBOTS_REWARD_COLLISION_PENALTY: "-30.0"
+      WEBOTS_REWARD_TIMEOUT_PENALTY: "-5.0"
+      WEBOTS_PPO_N_STEPS: "2048"
+      WEBOTS_PPO_BATCH_SIZE: "128"
+      WEBOTS_PPO_N_EPOCHS: "5"
+      WEBOTS_PPO_LEARNING_RATE: "0.00003"
+      WEBOTS_PPO_ENT_COEF: "0.001"
+      WEBOTS_PPO_GAMMA: "0.995"
+      WEBOTS_PPO_TARGET_KL: "0.02"

@@ -74,6 +74,26 @@ the same pinned shield, and use the same fixed `6000-6099` validation grid. R2b
 uses a new variant and output directory. R2a and R2b results describe different
 speed distributions and are not a paired improvement comparison.
 
+### Locked RB2B realization
+
+Following the RB2A pass, the conditional design was materialized before launch as
+`configs/train/webots_r2b_rebaseline_v1.yaml`, file SHA-256
+`f0878a3610f3c4df1396c12b71431b712729df98d503a3152105fcc4dcae96bd`.
+Its only allowed source is the variant-local immutable copy
+`artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip`,
+whose SHA-256 remains `f52a4691dbe7d787f6a9dfdb02383d206f597999e15f991063bc812a66706c2c`
+and whose internal step counter is `40,960`.
+
+The RB2B config has no policy-transfer model, no warm-start requirement and no
+initial-action-standard-deviation override. It must resume the bound source so
+the optimizer and learned action distribution are retained. Against RB2A, the
+controller environment differs only in run id, obstacle speed (`0.18-0.25 m/s`)
+and removal of the original one-time action-std override. The reward, PPO update
+settings, route geometry, all 15 safety-shield fields, validation seeds and gates
+are unchanged. The portable pre-launch checksum list is
+`r2b_rebaseline_v1_preregistration.sha256`. The runner will still refuse a dirty
+worktree or source-hash mismatch and will record the exact launch revision.
+
 ## Evidence boundary
 
 This rebaseline is a single-training-seed, single-obstacle Webots development

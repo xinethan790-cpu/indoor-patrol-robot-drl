@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
+
+from stable_baselines3 import PPO
 
 from indoor_patrol_rl.evaluation.checkpoint_sweep import load_safety_shield_profile
 from indoor_patrol_rl.training import (
@@ -50,6 +53,68 @@ def test_r2a_rebaseline_binds_recoverable_source_and_fresh_validation_grid() -> 
     )
     for name, value in profile.controller_environment.items():
         assert stage.controller_env[name] == value
+
+
+def test_r2b_rebaseline_resumes_exact_rb2a_endpoint_and_changes_only_speed() -> None:
+    r2a = load_webots_curriculum(
+        REPOSITORY_ROOT / "configs/train/webots_r2a_rebaseline_v1.yaml"
+    )
+    r2b = load_webots_curriculum(
+        REPOSITORY_ROOT / "configs/train/webots_r2b_rebaseline_v1.yaml"
+    )
+
+    source = Path(
+        "artifacts/models/webots/seed_11/r2b_rebaseline_v1/sources/"
+        "ppo_webots_s11_r2b_rebaseline_v1_source_r2a_rebaseline_v1_40960_steps.zip"
+    )
+    source_path = REPOSITORY_ROOT / source
+    source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
+
+    assert r2b.model_variant == "r2b_rebaseline_v1"
+    assert r2b.require_clean_git is True
+    assert r2b.transfer_model == source
+    assert r2b.policy_transfer_model is None
+    assert r2b.warm_start_requirement is None
+    assert source_sha256 == (
+        "f52a4691dbe7d787f6a9dfdb02383d206f597999e15f991063bc812a66706c2c"
+    )
+
+    assert len(r2a.stages) == len(r2b.stages) == 1
+    r2a_stage = r2a.stages[0]
+    r2b_stage = r2b.stages[0]
+    assert r2b_stage.stage_id == "RB2B"
+    assert r2b_stage.training_steps == 40960
+    assert r2b_stage.preferred_resume_model == source
+    assert r2b_stage.preferred_resume_sha256 == source_sha256
+    assert r2b_stage.gate == r2a_stage.gate
+    assert r2b_stage.gate.seed_start == 6000
+    assert r2b_stage.gate.episodes == 100
+    assert r2b_stage.gate.min_success_rate == 0.75
+    assert r2b_stage.gate.max_collision_rate == 0.25
+
+    r2a_environment = dict(r2a_stage.controller_env)
+    r2b_environment = dict(r2b_stage.controller_env)
+    assert r2a_environment.pop("WEBOTS_RUN_ID") == "r2a_rebaseline_v1"
+    assert r2b_environment.pop("WEBOTS_RUN_ID") == "r2b_rebaseline_v1"
+    assert r2a_environment.pop("WEBOTS_OBSTACLE_SPEED_MIN") == "0.10"
+    assert r2a_environment.pop("WEBOTS_OBSTACLE_SPEED_MAX") == "0.20"
+    assert r2b_environment.pop("WEBOTS_OBSTACLE_SPEED_MIN") == "0.18"
+    assert r2b_environment.pop("WEBOTS_OBSTACLE_SPEED_MAX") == "0.25"
+    assert r2a_environment.pop("WEBOTS_PPO_INITIAL_ACTION_STD") == "0.45"
+    assert "WEBOTS_PPO_INITIAL_ACTION_STD" not in r2b_environment
+    assert r2b_environment == r2a_environment
+
+    model = PPO.load(source_path, device="cpu")
+    assert model.num_timesteps == 40960
+    assert model.n_steps == 2048
+    assert model.batch_size == 128
+    assert model.n_epochs == 5
+    assert model.learning_rate == 3e-05
+    assert model.ent_coef == 0.001
+    assert model.gamma == 0.995
+    assert model.target_kl == 0.02
+    assert model.observation_space.shape == (79,)
+    assert model.action_space.shape == (2,)
 
 
 def test_r2a_targeted_config_locks_policy_transfer_and_validation_gate() -> None:
