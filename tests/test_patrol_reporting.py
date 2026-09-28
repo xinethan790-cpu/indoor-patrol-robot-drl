@@ -23,6 +23,18 @@ from indoor_patrol_rl.evaluation import (
 )
 
 
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    """Create a symlink; on Windows this needs the SeCreateSymbolicLink
+    privilege (admin account or Developer Mode), so skip when unavailable."""
+    try:
+        link.symlink_to(target)
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            pytest.skip("symlink privilege unavailable on this Windows account")
+        raise
+
+
+
 def test_critical_proximity_edge_tracker_records_one_event_per_interval() -> None:
     tracker = PatrolCriticalProximityEdgeTracker()
 
@@ -689,7 +701,7 @@ def test_patrol_outputs_preserve_webots_route_evidence(tmp_path: Path) -> None:
 
     symlink_output = tmp_path / "symlink-output"
     symlink_output.mkdir()
-    (symlink_output / summary.trajectory_file).symlink_to(tmp_path / "outside.csv")
+    _symlink_or_skip(symlink_output / summary.trajectory_file, tmp_path / "outside.csv")
     with pytest.raises(ValueError, match="stay inside"):
         write_patrol_outputs(
             symlink_output,

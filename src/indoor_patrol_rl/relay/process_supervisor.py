@@ -21,6 +21,11 @@ from typing import Protocol
 SUPERVISOR_RELAY_FAILURE_EXIT_CODE = 70
 SUPERVISOR_DRAIN_TIMEOUT_EXIT_CODE = 75
 
+# Windows has neither SIGKILL nor POSIX process groups; SIGTERM exists there as
+# a signal number but taskkill is the only hard tree-termination mechanism.
+_HAS_POSIX_PROCESS_GROUPS = hasattr(os, "killpg") and hasattr(signal, "SIGKILL")
+FORCE_STOP_SIGNAL = getattr(signal, "SIGKILL", signal.SIGTERM)
+
 
 class ManagedPatrolProcess(Protocol):
     """Minimal subprocess surface needed by :class:`PatrolProcessSupervisor`."""
@@ -264,7 +269,7 @@ class PatrolProcessSupervisor:
                 break
             self._sleep(min(self.poll_interval_s, max(0.0, deadline - now)))
         for process in processes:
-            self._stop_process(process, signal.SIGKILL)
+            self._stop_process(process, FORCE_STOP_SIGNAL)
         for process in processes:
             try:
                 process.wait(timeout=max(0.1, self.shutdown_grace_s))
@@ -280,4 +285,19 @@ class PatrolProcessSupervisor:
 
 
 def _signal_process_group(pid: int, signum: int) -> None:
-    os.killpg(pid, signum)
+    if _HAS_POSIX_PROCESS_GROUPS:
+        os.killpg(pid, signum)
+        return
+    # Windows: terminate the whole child tree, the closest equivalent of a
+    # process-group SIGKILL.  taskkill exits 128 when the PID is already gone.
+    completed = subprocess.run(
+        ["taskkill", "/PID", str(pid), "/T", "/F"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode == 0:
+        return
+    if completed.returncode == 128:
+        raise ProcessLookupError(pid)
+    raise OSError(f"taskkill failed for pid {pid}: {completed.stderr.strip()}")

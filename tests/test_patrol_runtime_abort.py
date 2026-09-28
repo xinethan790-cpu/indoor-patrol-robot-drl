@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import stat
 from dataclasses import replace
 from pathlib import Path
@@ -114,7 +115,9 @@ def test_runtime_abort_is_redacted_bounded_and_projects_as_incomplete(
     raw = (run_directory / RUNTIME_ABORT_FILENAME).read_text(encoding="utf-8")
     assert secret_message not in raw
     assert abort.failure_reason == "unhandled controller exception (RuntimeError)"
-    assert stat.S_IMODE((run_directory / RUNTIME_ABORT_FILENAME).stat().st_mode) == 0o600
+    if os.name == "posix":
+        # NTFS has no POSIX mode bits; owner-only enforcement there uses ACLs.
+        assert stat.S_IMODE((run_directory / RUNTIME_ABORT_FILENAME).stat().st_mode) == 0o600
 
     evidence = PatrolDashboardRepository(run_directory).read()
     payload = project_dashboard(evidence, DashboardMap.from_yaml(MAP_CONFIG))

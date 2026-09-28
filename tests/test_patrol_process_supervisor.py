@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from indoor_patrol_rl.relay import (
+    FORCE_STOP_SIGNAL,
     SUPERVISOR_DRAIN_TIMEOUT_EXIT_CODE,
     SUPERVISOR_RELAY_FAILURE_EXIT_CODE,
     PatrolProcessSupervisor,
@@ -300,6 +301,10 @@ def test_terminal_ack_before_producer_exit_waits_and_preserves_producer_code(
     assert outcome.terminal_acknowledged is True
 
 
+@pytest.mark.skipif(
+    not hasattr(signal, "SIGKILL"),
+    reason="graceful-to-kill escalation needs SIGTERM and SIGKILL to differ",
+)
 def test_grace_timeout_escalates_to_sigkill_and_reaps_processes(tmp_path: Path) -> None:
     class StubbornProcess(_Process):
         waited = False
@@ -318,8 +323,8 @@ def test_grace_timeout_escalates_to_sigkill_and_reaps_processes(tmp_path: Path) 
 
     def signal_group(pid: int, signum: int) -> None:
         calls.append((pid, signum))
-        if signum == signal.SIGKILL:
-            by_pid[pid].returncode = -signal.SIGKILL
+        if signum == FORCE_STOP_SIGNAL:
+            by_pid[pid].returncode = -FORCE_STOP_SIGNAL
 
     supervisor = PatrolProcessSupervisor(
         producer,
@@ -340,8 +345,8 @@ def test_grace_timeout_escalates_to_sigkill_and_reaps_processes(tmp_path: Path) 
     assert calls == [
         (producer.pid, signal.SIGTERM),
         (relay.pid, signal.SIGTERM),
-        (producer.pid, signal.SIGKILL),
-        (relay.pid, signal.SIGKILL),
+        (producer.pid, FORCE_STOP_SIGNAL),
+        (relay.pid, FORCE_STOP_SIGNAL),
     ]
     assert producer.waited is True
     assert relay.waited is True

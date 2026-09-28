@@ -18,6 +18,18 @@ from indoor_patrol_rl.training import (
 )
 
 
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    """Create a symlink; on Windows this needs the SeCreateSymbolicLink
+    privilege (admin account or Developer Mode), so skip when unavailable."""
+    try:
+        link.symlink_to(target)
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            pytest.skip("symlink privilege unavailable on this Windows account")
+        raise
+
+
+
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -295,7 +307,7 @@ def test_requirement_rejects_symbolic_linked_model(tmp_path: Path) -> None:
     config, paths = _load_fixture(tmp_path)
     real_model = paths["model"].with_name("real-model.zip")
     paths["model"].replace(real_model)
-    paths["model"].symlink_to(real_model.name)
+    _symlink_or_skip(paths["model"], real_model.name)
 
     with pytest.raises(WarmStartPreflightError, match="must not use a symbolic link"):
         verify_warm_start_requirement(repository_root=tmp_path, config=config)

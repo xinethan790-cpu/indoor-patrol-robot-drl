@@ -26,6 +26,17 @@ from indoor_patrol_rl.relay import (
 )
 
 
+def _symlink_or_skip(link: Path, target: Path, *, target_is_directory: bool = False) -> None:
+    """Create a symlink; on Windows this needs the SeCreateSymbolicLink
+    privilege (admin account or Developer Mode), so skip when unavailable."""
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            pytest.skip("symlink privilege unavailable on this Windows account")
+        raise
+
+
 @dataclass
 class _Current:
     run_id: str
@@ -276,7 +287,7 @@ def test_outbox_rejects_symlink_directory_and_state(tmp_path: Path) -> None:
     outside.mkdir()
     run_with_link = tmp_path / "linked-run"
     run_with_link.mkdir()
-    (run_with_link / RELAY_OUTBOX_DIRECTORY_NAME).symlink_to(outside, target_is_directory=True)
+    _symlink_or_skip(run_with_link / RELAY_OUTBOX_DIRECTORY_NAME, outside, target_is_directory=True)
     with pytest.raises(RelayStateError, match="symbolic link"):
         RelayOutbox(run_with_link, device_id="macmini-m4")
 
@@ -286,7 +297,7 @@ def test_outbox_rejects_symlink_directory_and_state(tmp_path: Path) -> None:
     outbox_directory.mkdir(mode=0o700)
     outside_state = tmp_path / "outside-state.json"
     outside_state.write_text("{}", encoding="utf-8")
-    (outbox_directory / RELAY_OUTBOX_STATE_FILENAME).symlink_to(outside_state)
+    _symlink_or_skip(outbox_directory / RELAY_OUTBOX_STATE_FILENAME, outside_state)
     with pytest.raises(RelayStateError, match="non-symlink"):
         RelayOutbox(run_with_state_link, device_id="macmini-m4")
 

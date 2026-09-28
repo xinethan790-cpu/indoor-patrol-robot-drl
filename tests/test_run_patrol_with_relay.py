@@ -79,8 +79,10 @@ def test_commands_and_logs_never_contain_secret_and_webots_does_not_inherit_it(
     assert "WEBOTS_PATROL_MODEL" not in producer_environment
     assert "WEBOTS_PATROL_MAX_STEPS" not in producer_environment
     assert "WEBOTS_AUTO_QUIT" not in producer_environment
-    assert relay_command[1].endswith("scripts/publish_patrol_relay.py")
-    assert producer_command[1].endswith("scripts/run_webots_patrol.py")
+    assert Path(relay_command[1]).parent.name == "scripts"
+    assert Path(relay_command[1]).name == "publish_patrol_relay.py"
+    assert Path(producer_command[1]).parent.name == "scripts"
+    assert Path(producer_command[1]).name == "run_webots_patrol.py"
     assert "--headless" in producer_command
     assert producer_command[-1] == "--auto-quit"
     assert SECRET not in RUNNER._safe_supervisor_line(
@@ -212,6 +214,10 @@ def test_forwarded_arguments_cannot_override_supervisor_identity(
         )
 
 
+@pytest.mark.skipif(
+    not hasattr(signal, "SIGKILL"),
+    reason="graceful-to-kill reaping uses POSIX process-group signals",
+)
 def test_second_child_start_failure_terminates_and_reaps_first_child(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

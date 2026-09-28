@@ -11,6 +11,7 @@ from indoor_patrol_rl.relay.outbox import (
     RelayOutboxPending,
 )
 from indoor_patrol_rl.relay.process_supervisor import (
+    FORCE_STOP_SIGNAL,
     SUPERVISOR_DRAIN_TIMEOUT_EXIT_CODE,
     SUPERVISOR_RELAY_FAILURE_EXIT_CODE,
     PatrolProcessSupervisor,
@@ -43,6 +44,7 @@ from indoor_patrol_rl.relay.publisher import (
 
 __all__ = [
     "DEFAULT_DEVICE_ENVIRONMENT_VARIABLE",
+    "FORCE_STOP_SIGNAL",
     "DEFAULT_DEVICE_ID",
     "DEFAULT_SECRET_ENVIRONMENT_VARIABLE",
     "MAX_REQUEST_BODY_BYTES",

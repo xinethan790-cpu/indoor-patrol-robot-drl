@@ -33,6 +33,18 @@ from indoor_patrol_rl.inspection import (
     write_inspection_bundle,
 )
 
+
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    """Create a symlink; on Windows this needs the SeCreateSymbolicLink
+    privilege (admin account or Developer Mode), so skip when unavailable."""
+    try:
+        link.symlink_to(target)
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            pytest.skip("symlink privilege unavailable on this Windows account")
+        raise
+
+
 REPOSITORY_ROOT = Path(__file__).absolute().parents[1]
 MAP_CONFIG = REPOSITORY_ROOT / "configs/maps/patrol_route.yaml"
 INSPECTION_CONFIG = REPOSITORY_ROOT / "configs/inspection/environmental_patrol_v1.yaml"
@@ -713,7 +725,7 @@ def test_repository_rejects_symlinked_evidence_that_escapes_run_directory(
     run_directory.mkdir()
     outside = tmp_path / "outside.json"
     outside.write_text(json.dumps(_snapshot(0).to_dict()), encoding="utf-8")
-    (run_directory / "status.json").symlink_to(outside)
+    _symlink_or_skip(run_directory / "status.json", outside)
     (run_directory / "events.jsonl").write_text(
         json.dumps(_snapshot(0).to_dict()) + "\n", encoding="utf-8"
     )
@@ -731,7 +743,7 @@ def test_terminal_repository_rejects_symlinked_bundle_member(
     samples = run_directory / "inspection_samples.csv"
     outside = tmp_path / "outside.csv"
     samples.replace(outside)
-    samples.symlink_to(outside)
+    _symlink_or_skip(samples, outside)
 
     with pytest.raises(DashboardEvidenceError, match="符号链接"):
         PatrolDashboardRepository(run_directory).read()

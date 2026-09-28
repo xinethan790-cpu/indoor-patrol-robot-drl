@@ -179,10 +179,23 @@ def _stop_unmanaged_processes(
     *,
     grace_s: float,
 ) -> None:
+    has_posix_groups = hasattr(os, "killpg") and hasattr(signal, "SIGKILL")
+
+    def signal_tree(process: subprocess.Popen[bytes], signum: int) -> None:
+        if has_posix_groups:
+            os.killpg(process.pid, signum)
+        else:
+            # Windows has no process groups; terminate the whole child tree.
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                check=False,
+                capture_output=True,
+            )
+
     active = [process for process in processes if process is not None and process.poll() is None]
     for process in active:
         try:
-            os.killpg(process.pid, signal.SIGTERM)
+            signal_tree(process, signal.SIGTERM)
         except ProcessLookupError:
             pass
     for process in active:
@@ -192,7 +205,7 @@ def _stop_unmanaged_processes(
         except subprocess.TimeoutExpired:
             pass
         try:
-            os.killpg(process.pid, signal.SIGKILL)
+            signal_tree(process, getattr(signal, "SIGKILL", signal.SIGTERM))
         except ProcessLookupError:
             pass
         try:

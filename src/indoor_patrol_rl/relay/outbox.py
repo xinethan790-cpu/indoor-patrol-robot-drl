@@ -169,7 +169,9 @@ class RelayOutbox:
             raise RelayStateError(f"Relay outbox directory is not accessible: {error}") from error
         if resolved.parent != self.run_directory or not stat.S_ISDIR(metadata.st_mode):
             raise RelayStateError("Relay outbox directory escaped the explicit run directory.")
-        if stat.S_IMODE(metadata.st_mode) & 0o077:
+        # POSIX mode bits are not meaningful on Windows/NTFS, where actual access
+        # is governed by ACLs; Python's st_mode there does not reflect them.
+        if os.name == "posix" and stat.S_IMODE(metadata.st_mode) & 0o077:
             raise RelayStateError("Relay outbox directory permissions must be owner-only.")
 
     def _load_state(
@@ -206,7 +208,8 @@ class RelayOutbox:
             raise RelayStateError(f"Relay outbox state is not accessible: {error}") from error
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
             raise RelayStateError("Relay outbox state must be a regular non-symlink file.")
-        if stat.S_IMODE(metadata.st_mode) & 0o077:
+        # POSIX mode bits are not meaningful on Windows/NTFS; see _validate_directory.
+        if os.name == "posix" and stat.S_IMODE(metadata.st_mode) & 0o077:
             raise RelayStateError("Relay outbox state permissions must be owner-only.")
         if metadata.st_size > MAX_OUTBOX_STATE_BYTES:
             raise RelayStateError("Relay outbox state exceeds its size limit.")
@@ -275,7 +278,8 @@ class RelayOutbox:
         )
         temporary_path = Path(temporary_name)
         try:
-            os.fchmod(descriptor, 0o600)
+            if hasattr(os, "fchmod"):
+                os.fchmod(descriptor, 0o600)
             with os.fdopen(descriptor, "wb") as handle:
                 handle.write(encoded)
                 handle.write(b"\n")
@@ -526,6 +530,11 @@ def _exact_keys(value: Mapping[str, Any], expected: set[str], label: str) -> Non
 
 
 def _fsync_directory(path: Path) -> None:
+    if os.name != "posix":
+        # Windows cannot open directories as file descriptors, so the
+        # directory-entry flush is POSIX-only; rename durability there relies
+        # on the NTFS journal.
+        return
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
     try:
         descriptor = os.open(path, flags)

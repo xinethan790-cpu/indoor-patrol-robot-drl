@@ -242,11 +242,15 @@ def write_patrol_runtime_abort(
             os.fsync(handle.fileno())
         os.chmod(temporary, 0o600)
         os.replace(temporary, path)
-        directory_descriptor = os.open(directory, os.O_RDONLY)
-        try:
-            os.fsync(directory_descriptor)
-        finally:
-            os.close(directory_descriptor)
+        if os.name == "posix":
+            # Windows cannot open directories as file descriptors, so the
+            # directory-entry flush is POSIX-only; os.replace durability there
+            # relies on the NTFS journal.
+            directory_descriptor = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(directory_descriptor)
+            finally:
+                os.close(directory_descriptor)
     except Exception:
         temporary.unlink(missing_ok=True)
         raise

@@ -64,6 +64,9 @@ def _fixture_repository(tmp_path: Path) -> Path:
     webots.write_bytes(b"fake Webots executable\n")
     (root / ".gitignore").write_text("artifacts/results/\n", encoding="utf-8")
     _git(root, "init", "-q")
+    # Pin line endings so evidence byte-comparisons match the committed
+    # blobs regardless of the developer machine's core.autocrlf setting.
+    _git(root, "config", "core.autocrlf", "false")
     _git(root, "config", "user.name", "Fixture")
     _git(root, "config", "user.email", "fixture@example.invalid")
     _git(root, "add", "-A")

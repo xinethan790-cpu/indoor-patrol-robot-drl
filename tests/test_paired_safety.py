@@ -149,6 +149,9 @@ def _aggregate(
 def _build_fixture(root: Path, *, minimum_success_rate: float = 0.5) -> Path:
     root.mkdir()
     _git(root, "init", "-q")
+    # Pin line endings so evidence byte-comparisons match the committed
+    # blobs regardless of the developer machine's core.autocrlf setting.
+    _git(root, "config", "core.autocrlf", "false")
     (root / "README.md").write_text("paired fixture\n", encoding="utf-8")
     _git(root, "add", "README.md")
     _git(

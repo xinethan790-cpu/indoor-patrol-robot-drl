@@ -15,10 +15,11 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -30,6 +31,13 @@ except ImportError as error:  # pragma: no cover - exercised only on an incomple
     ) from error
 
 
+def _default_ffmpeg() -> Path:
+    discovered = shutil.which("ffmpeg")
+    if discovered:
+        return Path(discovered)
+    return DEFAULT_FFMPEG
+
+
 VIDEO_SCHEMA_VERSION = "defense-demo-video/v1"
 OUTPUT_WIDTH = 1920
 OUTPUT_HEIGHT = 1080
@@ -37,11 +45,16 @@ DEFAULT_OUTPUT_FPS = 10.0
 DEFAULT_DURATION_S = 90.0
 DEFAULT_FFMPEG = Path("/opt/homebrew/bin/ffmpeg")
 FRAME_PATTERN = re.compile(r"frame_(\d{8})\.jpg")
+_WINDOWS_FONT_DIRECTORY = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
 DEFAULT_FONT_CANDIDATES = (
     Path("/System/Library/Fonts/STHeiti Medium.ttc"),
     Path("/System/Library/Fonts/PingFang.ttc"),
     Path("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
     Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+    _WINDOWS_FONT_DIRECTORY / "msyh.ttc",
+    _WINDOWS_FONT_DIRECTORY / "msyhbd.ttc",
+    _WINDOWS_FONT_DIRECTORY / "simhei.ttf",
+    _WINDOWS_FONT_DIRECTORY / "simsun.ttc",
 )
 
 
@@ -107,7 +120,7 @@ class SegmentPlan:
 @dataclass(frozen=True, slots=True)
 class VideoBuildConfig:
     output: Path
-    ffmpeg: Path = DEFAULT_FFMPEG
+    ffmpeg: Path = field(default_factory=_default_ffmpeg)
     font: Path | None = None
     fps: float = DEFAULT_OUTPUT_FPS
     duration_s: float = DEFAULT_DURATION_S
