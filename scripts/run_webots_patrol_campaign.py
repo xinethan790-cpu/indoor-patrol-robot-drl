@@ -38,6 +38,7 @@ ACCEPTANCE_FAILURE_EXIT_CODE = 5
 SCENARIO_CONFIGS = {
     "operational": DEFAULT_OPERATIONAL_PATROL_SCENARIO_PATH,
     "stress": DEFAULT_STRESS_PATROL_SCENARIO_PATH,
+    "hotel": Path("configs/patrol/scenario_hotel_corridor_v1.yaml"),
 }
 CRITICAL_SOURCE_PATHS = {
     "single_run_launcher": "scripts/run_webots_patrol.py",

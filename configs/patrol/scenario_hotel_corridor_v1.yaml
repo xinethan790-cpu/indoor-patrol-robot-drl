@@ -1,0 +1,40 @@
+# Hotel-corridor application scenario: dynamic agents cross the patrol route
+# and one of them pauses on it, so the robot must decelerate for moving
+# crossings and slow-bypass or stop-and-wait for the parked agent.  Obstacle
+# lanes sit on the deterministic A* patrol legs of worlds/patrol_route_ppo.wbt
+# (start -> P1 uses the lower corridor at y ~= -0.80, P1 -> P2 the right leg at
+# x ~= 1.55, P3 -> P4 the left leg at x ~= -1.56):
+#   DYNAMIC_OBSTACLE_0 sweeps vertically across the lower corridor at x = 0.00
+#   (pure crossing: the robot yields and crawls through the brake zone).
+#   DYNAMIC_OBSTACLE_1 sweeps horizontally across both vertical legs at
+#   y = 0.65 and parks on the P1 -> P2 leg centreline (x = 1.55) every pass:
+#   a luggage-cart-style obstacle stopped inside the walking lane.
+# The non-moving lane coordinate of each obstacle lives in the world file
+# translation; this file drives the axis motion, timing, and dwell behaviour.
+schema_version: 1
+scenario_id: hotel_corridor_v1
+mode: operational
+inherits_r2a_system_qualification: false
+dynamic_obstacles:
+  - def_name: DYNAMIC_OBSTACLE_0
+    axis: 1
+    # Sweep mostly below the corridor: the agent only dips into the route
+    # briefly, so the front-brake zone clears between crossings and the robot
+    # can resume instead of crawling behind a permanently loaded sensor.
+    bounds_m: [-1.85, -0.70]
+    speed_mps: 0.16
+    start_position_m: -0.70
+    start_direction: -1
+  - def_name: DYNAMIC_OBSTACLE_1
+    axis: 0
+    # Luggage-cart-style agent beside the P1 -> P2 leg: parks ON the leg
+    # centreline (x = 1.55) for 4 s so the robot must stop and wait, then
+    # retreats to x = 2.00 (clear of the lane, near the wall) and stays there
+    # for 30 s so the waiting robot has a window to crawl past.  Cycle: lane
+    # blocked ~4 s, lane clear ~38 s.
+    bounds_m: [1.30, 2.00]
+    speed_mps: 0.16
+    start_position_m: 1.30
+    start_direction: 1
+    dwell_points_m: [1.55, 2.00]
+    dwell_seconds: [4.0, 30.0]

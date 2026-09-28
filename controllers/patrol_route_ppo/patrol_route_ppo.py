@@ -102,6 +102,9 @@ class MovingObstacleControl:
     upper: float
     speed: float
     direction: float
+    dwell_points: tuple[float, ...] = ()
+    dwell_durations: tuple[float, ...] = ()
+    dwell_remaining: float = 0.0
 
 
 def wrap_angle(angle: float) -> float:
@@ -1770,14 +1773,32 @@ def _initialize_obstacles(
                 f"Dynamic obstacle {configuration.def_name} has an invalid radius."
             )
         values = translation.getSFVec3f()
-        values[configuration.axis] = float(
-            random.uniform(
-                configuration.lower_bound_m,
-                configuration.upper_bound_m,
+        if configuration.start_position_m is not None:
+            values[configuration.axis] = float(configuration.start_position_m)
+        else:
+            values[configuration.axis] = float(
+                random.uniform(
+                    configuration.lower_bound_m,
+                    configuration.upper_bound_m,
+                )
             )
-        )
         translation.setSFVec3f(values)
         node.resetPhysics()
+        if configuration.start_direction is not None:
+            direction = float(configuration.start_direction)
+        else:
+            direction = float(random.choice([-1.0, 1.0]))
+        dwell_points = tuple(
+            float(point) for point in (configuration.dwell_points_m or ())
+        )
+        if configuration.dwell_seconds is None:
+            dwell_durations: tuple[float, ...] = ()
+        elif isinstance(configuration.dwell_seconds, tuple):
+            dwell_durations = tuple(
+                float(item) for item in configuration.dwell_seconds
+            )
+        else:
+            dwell_durations = (float(configuration.dwell_seconds),) * len(dwell_points)
         result.append(
             MovingObstacleControl(
                 obstacle_id=configuration.def_name,
@@ -1787,7 +1808,9 @@ def _initialize_obstacles(
                 lower=configuration.lower_bound_m,
                 upper=configuration.upper_bound_m,
                 speed=configuration.speed_mps,
-                direction=float(random.choice([-1.0, 1.0])),
+                direction=direction,
+                dwell_points=dwell_points,
+                dwell_durations=dwell_durations,
             )
         )
     return result
@@ -1815,8 +1838,29 @@ def _validate_route_checkpoint_nodes(
 def _move_obstacles(obstacles: list[MovingObstacleControl], basic_time_step: int) -> None:
     seconds = basic_time_step / 1000.0
     for obstacle in obstacles:
+        if obstacle.dwell_remaining > 0.0:
+            # Hotel-style agent: the obstacle stays parked on the route until
+            # its dwell elapses, then continues in the same direction.
+            obstacle.dwell_remaining = max(0.0, obstacle.dwell_remaining - seconds)
+            continue
         values = obstacle.translation.getSFVec3f()
-        values[obstacle.axis] += obstacle.direction * obstacle.speed * seconds
+        previous = values[obstacle.axis]
+        moved = previous + obstacle.direction * obstacle.speed * seconds
+        dwell_hit = None
+        for point in obstacle.dwell_points:
+            if obstacle.direction > 0.0:
+                crossed = previous < point <= moved
+            else:
+                crossed = moved <= point < previous
+            if crossed:
+                dwell_hit = point
+                break
+        if dwell_hit is not None:
+            values[obstacle.axis] = dwell_hit
+            index = obstacle.dwell_points.index(dwell_hit)
+            obstacle.dwell_remaining = obstacle.dwell_durations[index]
+        else:
+            values[obstacle.axis] = moved
         if values[obstacle.axis] >= obstacle.upper:
             values[obstacle.axis] = obstacle.upper
             obstacle.direction = -1.0
@@ -1918,7 +1962,10 @@ def _dynamic_obstacle_live_status(
         values = obstacle.translation.getSFVec3f()
         position = (float(values[0]), float(values[1]))
         velocity = [0.0, 0.0]
-        velocity[obstacle.axis] = obstacle.direction * obstacle.speed
+        # A dwelling agent reports zero velocity; the nominal speed only
+        # applies while it is actually moving between dwell points.
+        if obstacle.dwell_remaining <= 0.0:
+            velocity[obstacle.axis] = obstacle.direction * obstacle.speed
         result.append(
             PatrolLiveDynamicObstacle(
                 obstacle_id=obstacle.obstacle_id,

@@ -22,6 +22,10 @@ from indoor_patrol_rl.application.scenario import (
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _sha256_of(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _scenario(*, mode: str = "operational") -> dict[str, Any]:
     speeds = (0.18, 0.16) if mode == "operational" else (0.31, 0.27)
     return {
@@ -198,6 +202,116 @@ dynamic_obstacles: []
 
     with pytest.raises(PatrolScenarioConfigError, match="Duplicate"):
         load_patrol_scenario_config(source)
+
+
+def _hotel_obstacle(**overrides: Any) -> dict[str, Any]:
+    obstacle = {
+        "def_name": "DYNAMIC_OBSTACLE_0",
+        "axis": 1,
+        "bounds_m": [-1.35, -0.62],
+        "speed_mps": 0.16,
+        "start_position_m": -0.62,
+        "start_direction": -1,
+        "dwell_points_m": [-0.80],
+        "dwell_seconds": 3.0,
+    }
+    obstacle.update(overrides)
+    return obstacle
+
+
+def _hotel_scenario() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "scenario_id": "hotel_corridor_test",
+        "mode": "operational",
+        "inherits_r2a_system_qualification": False,
+        "dynamic_obstacles": [
+            _hotel_obstacle(),
+            {
+                "def_name": "DYNAMIC_OBSTACLE_1",
+                "axis": 0,
+                "bounds_m": [-1.75, 1.75],
+                "speed_mps": 0.16,
+            },
+        ],
+    }
+
+
+def test_loads_hotel_dwell_scenario_fields(tmp_path: Path) -> None:
+    source = _write_scenario(tmp_path, _hotel_scenario())
+
+    config = load_patrol_scenario_config(source)
+
+    obstacle = config.obstacle("DYNAMIC_OBSTACLE_0")
+    assert obstacle.start_position_m == -0.62
+    assert obstacle.start_direction == -1.0
+    assert obstacle.dwell_points_m == (-0.80,)
+    assert obstacle.dwell_seconds == 3.0
+    plain = config.obstacle("DYNAMIC_OBSTACLE_1")
+    assert plain.start_position_m is None
+    assert plain.dwell_points_m is None
+
+
+def test_rejects_start_position_outside_bounds(tmp_path: Path) -> None:
+    raw = _hotel_scenario()
+    raw["dynamic_obstacles"][0]["start_position_m"] = -2.0
+
+    with pytest.raises(PatrolScenarioConfigError, match="start_position_m"):
+        load_patrol_scenario_config(_write_scenario(tmp_path, raw))
+
+
+def test_rejects_dwell_point_outside_bounds(tmp_path: Path) -> None:
+    raw = _hotel_scenario()
+    raw["dynamic_obstacles"][0]["dwell_points_m"] = [0.0]
+
+    with pytest.raises(PatrolScenarioConfigError, match="dwell_points_m"):
+        load_patrol_scenario_config(_write_scenario(tmp_path, raw))
+
+
+def test_rejects_dwell_seconds_without_points(tmp_path: Path) -> None:
+    raw = _hotel_scenario()
+    raw["dynamic_obstacles"][0]["dwell_seconds"] = 3.0
+    del raw["dynamic_obstacles"][0]["dwell_points_m"]
+
+    with pytest.raises(PatrolScenarioConfigError, match="dwell_seconds requires"):
+        load_patrol_scenario_config(_write_scenario(tmp_path, raw))
+
+
+def test_rejects_nonbinary_start_direction(tmp_path: Path) -> None:
+    raw = _hotel_scenario()
+    raw["dynamic_obstacles"][0]["start_direction"] = 0.5
+
+    with pytest.raises(PatrolScenarioConfigError, match="start_direction"):
+        load_patrol_scenario_config(_write_scenario(tmp_path, raw))
+
+
+def test_rejects_unknown_obstacle_field(tmp_path: Path) -> None:
+    raw = _hotel_scenario()
+    raw["dynamic_obstacles"][0]["path_m"] = [[0.0, 0.0]]
+
+    with pytest.raises(PatrolScenarioConfigError, match="fields differ"):
+        load_patrol_scenario_config(_write_scenario(tmp_path, raw))
+
+
+def test_loads_repository_hotel_scenario_with_source_identity() -> None:
+    config = load_patrol_scenario_config(
+        Path("configs/patrol/scenario_hotel_corridor_v1.yaml"),
+        repository_root=_REPOSITORY_ROOT,
+    )
+
+    assert config.scenario_id == "hotel_corridor_v1"
+    assert config.mode is PatrolScenarioMode.OPERATIONAL
+    assert config.source_sha256 == _sha256_of(
+        _REPOSITORY_ROOT / "configs/patrol/scenario_hotel_corridor_v1.yaml"
+    )
+    crossing = config.obstacle("DYNAMIC_OBSTACLE_0")
+    assert crossing.dwell_points_m is None
+    assert crossing.start_position_m == -0.70
+    parked = config.obstacle("DYNAMIC_OBSTACLE_1")
+    assert parked.dwell_points_m == (1.55, 2.00)
+    assert parked.dwell_seconds == (4.0, 30.0)
+    assert parked.lower_bound_m == 1.30
+    assert parked.upper_bound_m == 2.00
 
 
 def test_repository_root_rejects_source_escape(tmp_path: Path) -> None:

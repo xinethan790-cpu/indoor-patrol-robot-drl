@@ -15,6 +15,7 @@ from pathlib import Path
 SCENARIO_CONFIGS = {
     "operational": "configs/patrol/scenario_operational_v1.yaml",
     "stress": "configs/patrol/scenario_stress_v1.yaml",
+    "hotel": "configs/patrol/scenario_hotel_corridor_v1.yaml",
 }
 
 
@@ -51,6 +52,7 @@ def parse_args() -> argparse.Namespace:
         default="operational",
         help=(
             "Patrol obstacle profile: operational is the default application run; "
+            "hotel agents cross and pause on the patrol route; "
             "stress keeps the faster out-of-domain diagnostic challenge."
         ),
     )

@@ -41,6 +41,12 @@ _ROOT_FIELDS = {
     "dynamic_obstacles",
 }
 _OBSTACLE_FIELDS = {"def_name", "axis", "bounds_m", "speed_mps"}
+_OBSTACLE_OPTIONAL_FIELDS = {
+    "start_position_m",
+    "start_direction",
+    "dwell_points_m",
+    "dwell_seconds",
+}
 
 
 class PatrolScenarioConfigError(ValueError):
@@ -60,13 +66,25 @@ class PatrolScenarioMode(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class PatrolDynamicObstacle:
-    """One deterministic cross-axis obstacle configured in the Webots world."""
+    """One deterministic dynamic obstacle configured in the Webots world.
+
+    The obstacle sweeps along ``axis`` between the configured bounds.  When the
+    optional hotel-style fields are provided the motion is fully deterministic:
+    ``start_position_m``/``start_direction`` replace the random initial state,
+    and the obstacle parks at each ``dwell_points_m`` coordinate for
+    ``dwell_seconds`` on every pass, modelling an agent that steps onto the
+    patrol route and pauses there.
+    """
 
     def_name: str
     axis: int
     lower_bound_m: float
     upper_bound_m: float
     speed_mps: float
+    start_position_m: float | None = None
+    start_direction: float | None = None
+    dwell_points_m: tuple[float, ...] | None = None
+    dwell_seconds: float | tuple[float, ...] | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -87,9 +105,70 @@ class PatrolDynamicObstacle:
             )
         if speed <= 0.0:
             raise PatrolScenarioConfigError("dynamic obstacle speed_mps must be positive.")
+        start = self.start_position_m
+        if start is not None:
+            start = _finite_number(start, "dynamic obstacle start_position_m")
+            if not lower <= start <= upper:
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle start_position_m must lie within bounds_m."
+                )
+        direction = self.start_direction
+        if direction is not None:
+            direction = _finite_number(direction, "dynamic obstacle start_direction")
+            if direction not in (-1.0, 1.0):
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle start_direction must be exactly -1 or 1."
+                )
+        dwell_points = self.dwell_points_m
+        if dwell_points is not None:
+            if not isinstance(dwell_points, tuple) or not dwell_points:
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle dwell_points_m must be a non-empty sequence."
+                )
+            dwell_points = tuple(
+                _finite_number(point, "dynamic obstacle dwell_points_m entry")
+                for point in dwell_points
+            )
+            for point in dwell_points:
+                if not lower <= point <= upper:
+                    raise PatrolScenarioConfigError(
+                        "dynamic obstacle dwell_points_m entries must lie within bounds_m."
+                    )
+        dwell_seconds = self.dwell_seconds
+        if dwell_seconds is not None:
+            if isinstance(dwell_seconds, (list, tuple)):
+                if dwell_points is None or len(dwell_seconds) != len(dwell_points):
+                    raise PatrolScenarioConfigError(
+                        "dynamic obstacle dwell_seconds list must match dwell_points_m length."
+                    )
+                normalized: float | tuple[float, ...] = tuple(
+                    _finite_number(item, "dynamic obstacle dwell_seconds entry")
+                    for item in dwell_seconds
+                )
+            else:
+                normalized = _finite_number(dwell_seconds, "dynamic obstacle dwell_seconds")
+            entries = (
+                normalized if isinstance(normalized, tuple) else (normalized,)
+            )
+            if any(entry <= 0.0 for entry in entries):
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle dwell_seconds must be positive."
+                )
+            if dwell_points is None:
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle dwell_seconds requires dwell_points_m."
+                )
+        elif dwell_points is not None:
+            raise PatrolScenarioConfigError(
+                "dynamic obstacle dwell_points_m requires dwell_seconds."
+            )
         object.__setattr__(self, "lower_bound_m", lower)
         object.__setattr__(self, "upper_bound_m", upper)
         object.__setattr__(self, "speed_mps", speed)
+        object.__setattr__(self, "start_position_m", start)
+        object.__setattr__(self, "start_direction", direction)
+        object.__setattr__(self, "dwell_points_m", dwell_points)
+        object.__setattr__(self, "dwell_seconds", normalized if dwell_seconds is not None else None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -350,12 +429,16 @@ def load_patrol_scenario_config(
         raise PatrolScenarioConfigError("dynamic_obstacles must be a sequence.")
     obstacles: list[PatrolDynamicObstacle] = []
     for index, value in enumerate(raw_obstacles):
-        obstacle = _exact_mapping(
-            value,
-            _OBSTACLE_FIELDS,
-            f"dynamic_obstacles[{index}]",
-        )
-        bounds = obstacle["bounds_m"]
+        mapping = _mapping(value, f"dynamic_obstacles[{index}]")
+        actual = set(mapping)
+        allowed = _OBSTACLE_FIELDS | _OBSTACLE_OPTIONAL_FIELDS
+        if not _OBSTACLE_FIELDS <= actual or not actual <= allowed:
+            raise PatrolScenarioConfigError(
+                f"dynamic_obstacles[{index}] fields differ from the schema; "
+                f"missing={sorted(_OBSTACLE_FIELDS - actual)}, "
+                f"extra={sorted(str(name) for name in actual - allowed)}."
+            )
+        bounds = mapping["bounds_m"]
         if (
             isinstance(bounds, (str, bytes))
             or not isinstance(bounds, Sequence)
@@ -364,13 +447,28 @@ def load_patrol_scenario_config(
             raise PatrolScenarioConfigError(
                 f"dynamic_obstacles[{index}].bounds_m must contain two numbers."
             )
+        dwell_points_raw = mapping.get("dwell_points_m")
+        if dwell_points_raw is not None:
+            if isinstance(dwell_points_raw, (str, bytes)) or not isinstance(
+                dwell_points_raw, Sequence
+            ):
+                raise PatrolScenarioConfigError(
+                    f"dynamic_obstacles[{index}].dwell_points_m must be a sequence."
+                )
+            dwell_points = tuple(float(point) for point in dwell_points_raw)
+        else:
+            dwell_points = None
         obstacles.append(
             PatrolDynamicObstacle(
-                def_name=obstacle["def_name"],
-                axis=obstacle["axis"],
+                def_name=mapping["def_name"],
+                axis=mapping["axis"],
                 lower_bound_m=bounds[0],
                 upper_bound_m=bounds[1],
-                speed_mps=obstacle["speed_mps"],
+                speed_mps=mapping["speed_mps"],
+                start_position_m=mapping.get("start_position_m"),
+                start_direction=mapping.get("start_direction"),
+                dwell_points_m=dwell_points,
+                dwell_seconds=mapping.get("dwell_seconds"),
             )
         )
     if len(obstacles) != 2:

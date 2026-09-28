@@ -38,6 +38,7 @@
 - [x] 完成 Webots 与云端中继的一键联动、首帧等待状态及只读巡检历史页
 - [x] 完成仿真终态证据、CloudBase 安全归档与小程序完整巡检报告闭环
 - [ ] 完成 R2C 两障碍到三障碍、由中速到高速的分阶段强化学习新基线
+- [ ] 面向酒店通用环境的轮式单臂机器人避障：hotel_corridor 场景（穿越/驻停留客模型）已落地，后续扩展多 agent 与真机集成
 - [ ] 完成域随机化训练与分阶段课程的对照实验，评估两种训练分布对 G0～G3 泛化的影响
 - [ ] 增加告警触发的撤离场景（障碍行为随环境状态切换），验证异常响应阶段的动态避障
 - [ ] 完成真实 CloudBase 资源部署、合法 HMAC 探针和微信真机端到端验收
@@ -260,6 +261,8 @@ python scripts/benchmark_kinematic.py --split validation \
 ```bash
 python scripts/run_webots_patrol.py --headless --scenario operational --seed 7000
 ```
+
+酒店走廊场景（`--scenario hotel`）把动态障碍放在巡检路线本身：穿越型 agent 横穿下走廊触发减速让行，驻留型 agent（行李推车式）停在 P1→P2 腿中心线上触发停车等待，待其让出车道后机器人再通过。已验证 seed 7000 完成 4/4 巡检点、0 碰撞，避障代价 +20.4s。
 
 运行 5 个种子的开发期试验：
 

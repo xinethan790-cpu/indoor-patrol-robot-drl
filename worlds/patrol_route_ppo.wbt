@@ -64,7 +64,10 @@ DEF ROUTE_CHECKPOINT_P4 Pose {
   children [ Shape { appearance PBRAppearance { baseColor 0.95 0.4 0.1 emissiveColor 0.22 0.06 0.01 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
 }
 DEF DYNAMIC_OBSTACLE_0 Solid {
-  translation -0.92 -0.95 0.36
+  # Vertical-sweep hotel agent: lane fixed at x = 0.00, crossing the lower
+  # patrol corridor (start -> P1 centreline y ~= -0.80); the axis coordinate
+  # is overwritten by the scenario start_position_m at episode reset.
+  translation 0.00 -0.62 0.36
   children [
     Shape {
       appearance PBRAppearance {
@@ -87,7 +90,10 @@ DEF DYNAMIC_OBSTACLE_0 Solid {
   locked TRUE
 }
 DEF DYNAMIC_OBSTACLE_1 Solid {
-  translation 0.95 0.60 0.36
+  # Horizontal-sweep hotel agent: lane fixed at y = 0.65, crossing both
+  # vertical patrol legs (P1 -> P2 centreline x ~= 1.55, P3 -> P4 x ~= -1.56);
+  # the axis coordinate is overwritten by the scenario start_position_m.
+  translation 0.00 0.65 0.36
   children [
     Shape {
       appearance PBRAppearance {
