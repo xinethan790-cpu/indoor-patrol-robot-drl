@@ -83,23 +83,40 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--webots",
         type=Path,
-        help="Webots executable; normally discovered automatically on macOS.",
+        help="Webots executable; discovered via WEBOTS_HOME, PATH, or platform defaults.",
     )
     return parser.parse_args()
 
 
 def discover_webots(explicit: Path | None) -> Path:
     if explicit is not None:
-        executable = explicit.expanduser().resolve()
+        candidates = [explicit.expanduser().resolve()]
     else:
-        macos_default = Path("/Applications/Webots.app/Contents/MacOS/webots")
-        command = shutil.which("webots")
-        executable = macos_default if macos_default.is_file() else Path(command or "")
-    if not executable.is_file():
-        raise FileNotFoundError(
-            "Webots executable was not found. Install Webots R2025a or pass --webots."
-        )
-    return executable
+        candidates = []
+        webots_home = os.environ.get("WEBOTS_HOME")
+        if webots_home:
+            home = Path(webots_home)
+            candidates.extend(
+                (
+                    home / "msys64/mingw64/bin/webotsw.exe",
+                    home / "msys64/mingw64/bin/webots.exe",
+                    home / "webots.exe",
+                    home / "webots",
+                    home / "Contents/MacOS/webots",
+                )
+            )
+        for command_name in ("webots", "webots.exe", "webotsw.exe"):
+            discovered = shutil.which(command_name)
+            if discovered:
+                candidates.append(Path(discovered))
+        candidates.append(Path("/Applications/Webots.app/Contents/MacOS/webots"))
+        candidates.append(Path(r"C:\Program Files\Webots\msys64\mingw64\bin\webotsw.exe"))
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(
+        "Webots executable was not found. Install Webots R2025a, set WEBOTS_HOME, or pass --webots."
+    )
 
 
 def main() -> int:

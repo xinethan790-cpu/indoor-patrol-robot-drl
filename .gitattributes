@@ -4,3 +4,8 @@ artifacts/results/**/episodes.csv binary
 artifacts/results/**/*.stdout.log binary
 artifacts/results/**/*.stderr.log binary
 artifacts/logs/**/*.monitor.csv binary
+
+# Hash-bound evidence and source bundles must have identical bytes on every
+# platform (FinalLock and manifests bind SHA-256 of text files).  Force LF so
+# autocrlf on Windows cannot change the files behind the digests.
+* text=auto eol=lf
