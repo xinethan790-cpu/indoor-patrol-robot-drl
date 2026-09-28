@@ -32,6 +32,10 @@ SUBTREES = (
     "projects/objects/factory",
     "projects/objects/geometries",
     "projects/appearances",
+    "projects/humans",
+    "projects/objects/living_room_furniture",
+    "projects/objects/plants",
+    "projects/objects/cabinet",
 )
 
 

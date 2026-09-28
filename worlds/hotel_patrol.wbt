@@ -1,0 +1,231 @@
+#VRML_SIM R2025a utf8
+
+# Hotel-corridor patrol world: same 4.5 x 3.5 m footprint, map, waypoints and
+# TurtleBot3 as patrol_route_ppo.wbt, dressed as a hotel lounge with walking
+# guests (Webots Pedestrian, self-driven trajectories), a room-service cart
+# (supervisor-driven dwell agent) and lounge furniture.  Agent lanes match
+# configs/patrol/scenario_hotel_corridor_v1.yaml.
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/WoodenBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/devices/robotis/protos/RobotisLds01.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/robotis/turtlebot/protos/TurtleBot3Burger.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/humans/pedestrian/protos/Pedestrian.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/living_room_furniture/protos/Sofa.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/living_room_furniture/protos/Armchair.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/plants/protos/FlowerPot.proto"
+
+WorldInfo {
+  basicTimeStep 32
+  title "Hotel Indoor Patrol Robot - A Star, Waypoints and PPO"
+}
+Viewpoint {
+  orientation -0.382 0.841 0.382 1.75
+  position 2.9 -3.4 3.2
+  follow "PatrolRobot"
+  followType "Pan and Tilt Shot"
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+  floorSize 4.5 3.5
+  wallHeight 0.6
+}
+WoodenBox {
+  translation 0 0 0.30
+  name "central cabinet"
+  size 1.20 0.80 0.60
+}
+DEF LOCAL_TARGET Pose {
+  translation -1.6 0 0.055
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.82 0.05
+        emissiveColor 0.30 0.16 0
+        roughness 0.5
+        metalness 0
+      }
+      geometry Cylinder {
+        height 0.05
+        radius 0.09
+      }
+    }
+  ]
+}
+DEF ROUTE_CHECKPOINT_P1 Pose {
+  translation 1.6 0 0.025
+  children [ Shape { appearance PBRAppearance { baseColor 0.1 0.8 0.25 emissiveColor 0.02 0.20 0.05 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
+}
+DEF ROUTE_CHECKPOINT_P2 Pose {
+  translation 1.6 1.3 0.025
+  children [ Shape { appearance PBRAppearance { baseColor 0.1 0.55 0.95 emissiveColor 0.02 0.08 0.22 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
+}
+DEF ROUTE_CHECKPOINT_P3 Pose {
+  translation -1.6 1.3 0.025
+  children [ Shape { appearance PBRAppearance { baseColor 0.7 0.25 0.95 emissiveColor 0.14 0.03 0.20 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
+}
+DEF ROUTE_CHECKPOINT_P4 Pose {
+  translation -1.6 -1.15 0.025
+  children [ Shape { appearance PBRAppearance { baseColor 0.95 0.4 0.1 emissiveColor 0.22 0.06 0.01 roughness 0.5 metalness 0 } geometry Cylinder { height 0.05 radius 0.18 } } ]
+}
+# Tracked agent 1 (scenario kind: pedestrian): a guest pacing across the
+# lower patrol corridor at x = 0.00, crossing the start -> P1 lane.
+DEF DYNAMIC_OBSTACLE_0 Solid {
+  # Delivery-robot agent (cylindrical, like real hotel service robots):
+  # supervisor-driven, sweeping vertically across the lower patrol corridor
+  # at x = 0.00 per the scenario bounds; the screen panel faces the robot.
+  translation 0.00 -0.70 0.36
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.92 0.12 0.08
+        emissiveColor 0.12 0.01 0
+        roughness 0.65
+        metalness 0
+      }
+      geometry Cylinder {
+        height 0.72
+        radius 0.18
+      }
+    }
+    Pose {
+      translation 0 0 0.28
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.05 0.10 0.18
+            emissiveColor 0.02 0.08 0.16
+            roughness 0.2
+            metalness 0
+          }
+          geometry Box {
+            size 0.26 0.02 0.16
+          }
+        }
+      ]
+    }
+  ]
+  name "DeliveryRobot"
+  boundingObject Cylinder {
+    height 0.72
+    radius 0.18
+  }
+  locked TRUE
+}
+# Tracked agent 2 (scenario kind: solid): room-service cart.  The patrol
+# supervisor parks it on the P1 -> P2 leg centreline (x = 1.55) and retreats
+# it to x = 2.00, per the scenario dwell configuration.
+DEF DYNAMIC_OBSTACLE_1 Solid {
+  translation 1.30 0.65 0
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.93 0.93 0.96
+        roughness 0.4
+        metalness 0
+      }
+      geometry Box {
+        size 0.45 0.32 0.50
+      }
+    }
+    Pose {
+      translation 0 0 0.31
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.82 0.14 0.12
+            roughness 0.7
+            metalness 0
+          }
+          geometry Box {
+            size 0.48 0.35 0.10
+          }
+        }
+      ]
+    }
+    Pose {
+      translation 0 0 0.45
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.93 0.93 0.96
+            roughness 0.4
+            metalness 0
+          }
+          geometry Box {
+            size 0.40 0.28 0.22
+          }
+        }
+      ]
+    }
+  ]
+  name "RoomServiceCart"
+  boundingObject Cylinder {
+    height 0.70
+    radius 0.17
+  }
+  locked TRUE
+}
+# Ambient guests (decorative, self-driven loops in the central lounge zone;
+# visible to the robot's LiDAR but not part of the tracked evidence schema).
+DEF HOTEL_GUEST_2 Pedestrian {
+  translation 0.90 0.05 1.26
+  name "HotelStaffCentral"
+  controllerArgs [
+    "--trajectory=0.35 0.60, 0.95 0.60"
+    "--speed=0.5"
+  ]
+  shirtColor 0.90 0.90 0.92
+  pantsColor 0.15 0.15 0.18
+  enableBoundingObject FALSE
+}
+DEF HOTEL_GUEST_3 Pedestrian {
+  translation -0.90 0.05 1.26
+  name "HotelGuestCentral"
+  controllerArgs [
+    "--trajectory=-0.90 0.05, -0.90 0.95"
+    "--speed=0.45"
+  ]
+  shirtColor 0.85 0.45 0.10
+  pantsColor 0.25 0.28 0.35
+  enableBoundingObject FALSE
+}
+FlowerPot {
+  translation -0.50 -1.55 0
+  name "hall plant 1"
+}
+FlowerPot {
+  translation 1.70 -1.52 0
+  name "hall plant 2"
+}
+WoodenBox {
+  translation 2.02 -1.30 0.375
+  name "reception counter"
+  size 0.40 0.70 0.75
+}
+
+# Invisible personal-space bubbles (radius 0.35 m) that the patrol supervisor
+# keeps centred on each walking guest: LiDAR sees the bubble so the robot can
+# brake with full clearance, while the rendered guest stays fully visible.
+# Guest limb swing stays inside the bubble, so no physical contact can occur.
+TurtleBot3Burger {
+  translation -1.6 0 0
+  name "PatrolRobot"
+  controller "patrol_route_ppo"
+  supervisor TRUE
+  extensionSlot [
+    RobotisLds01 {
+    }
+    GPS {
+      name "gps"
+    }
+    InertialUnit {
+      name "imu"
+    }
+  ]
+}

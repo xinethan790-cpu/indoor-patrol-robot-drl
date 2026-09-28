@@ -42,11 +42,13 @@ _ROOT_FIELDS = {
 }
 _OBSTACLE_FIELDS = {"def_name", "axis", "bounds_m", "speed_mps"}
 _OBSTACLE_OPTIONAL_FIELDS = {
+    "kind",
     "start_position_m",
     "start_direction",
     "dwell_points_m",
     "dwell_seconds",
 }
+_OBSTACLE_KINDS = {"solid", "pedestrian"}
 
 
 class PatrolScenarioConfigError(ValueError):
@@ -68,19 +70,22 @@ class PatrolScenarioMode(StrEnum):
 class PatrolDynamicObstacle:
     """One deterministic dynamic obstacle configured in the Webots world.
 
-    The obstacle sweeps along ``axis`` between the configured bounds.  When the
-    optional hotel-style fields are provided the motion is fully deterministic:
-    ``start_position_m``/``start_direction`` replace the random initial state,
-    and the obstacle parks at each ``dwell_points_m`` coordinate for
-    ``dwell_seconds`` on every pass, modelling an agent that steps onto the
-    patrol route and pauses there.
+    Two kinds exist.  A ``solid`` agent is driven by the patrol supervisor: it
+    sweeps along ``axis`` between the configured bounds and, when the optional
+    hotel-style fields are provided, parks at each ``dwell_points_m``
+    coordinate for ``dwell_seconds`` on every pass (an agent that steps onto
+    the patrol route and pauses there).  A ``pedestrian`` agent is a Webots
+    ``Pedestrian`` that walks its own world-defined trajectory; the patrol
+    supervisor only tracks its position for telemetry, so the sweep fields are
+    not required for it.
     """
 
     def_name: str
-    axis: int
-    lower_bound_m: float
-    upper_bound_m: float
-    speed_mps: float
+    axis: int | None
+    lower_bound_m: float | None
+    upper_bound_m: float | None
+    speed_mps: float | None
+    kind: str = "solid"
     start_position_m: float | None = None
     start_direction: float | None = None
     dwell_points_m: tuple[float, ...] | None = None
@@ -94,17 +99,58 @@ class PatrolDynamicObstacle:
             raise PatrolScenarioConfigError(
                 "dynamic obstacle def_name must be an uppercase Webots DEF identifier."
             )
-        if type(self.axis) is not int or self.axis not in {0, 1}:
-            raise PatrolScenarioConfigError("dynamic obstacle axis must be integer 0 or 1.")
-        lower = _finite_number(self.lower_bound_m, "dynamic obstacle lower_bound_m")
-        upper = _finite_number(self.upper_bound_m, "dynamic obstacle upper_bound_m")
-        speed = _finite_number(self.speed_mps, "dynamic obstacle speed_mps")
-        if lower >= upper:
+        if self.kind not in _OBSTACLE_KINDS:
             raise PatrolScenarioConfigError(
-                "dynamic obstacle bounds must satisfy lower_bound_m < upper_bound_m."
+                "dynamic obstacle kind must be one of: " + ", ".join(sorted(_OBSTACLE_KINDS))
             )
-        if speed <= 0.0:
-            raise PatrolScenarioConfigError("dynamic obstacle speed_mps must be positive.")
+        if self.kind == "pedestrian" and any(
+            value is not None
+            for value in (
+                self.start_position_m,
+                self.start_direction,
+                self.dwell_points_m,
+                self.dwell_seconds,
+            )
+        ):
+            raise PatrolScenarioConfigError(
+                "A pedestrian obstacle walks its own world-defined trajectory; "
+                "start/dwell fields are solid-only."
+            )
+        if self.axis is None:
+            if self.kind != "pedestrian":
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle axis is required for solid obstacles."
+                )
+        else:
+            if type(self.axis) is not int or self.axis not in {0, 1}:
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle axis must be integer 0 or 1."
+                )
+        if self.lower_bound_m is None or self.upper_bound_m is None:
+            if self.kind != "pedestrian":
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle bounds_m is required for solid obstacles."
+                )
+            lower = upper = None
+        else:
+            lower = _finite_number(self.lower_bound_m, "dynamic obstacle lower_bound_m")
+            upper = _finite_number(self.upper_bound_m, "dynamic obstacle upper_bound_m")
+            if lower >= upper:
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle bounds must satisfy lower_bound_m < upper_bound_m."
+                )
+        if self.speed_mps is None:
+            if self.kind != "pedestrian":
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle speed_mps is required for solid obstacles."
+                )
+            speed = None
+        else:
+            speed = _finite_number(self.speed_mps, "dynamic obstacle speed_mps")
+            if speed <= 0.0:
+                raise PatrolScenarioConfigError(
+                    "dynamic obstacle speed_mps must be positive."
+                )
         start = self.start_position_m
         if start is not None:
             start = _finite_number(start, "dynamic obstacle start_position_m")
@@ -224,23 +270,34 @@ class PatrolScenarioConfig:
         def_names = {obstacle.def_name for obstacle in self.dynamic_obstacles}
         if len(def_names) != 2:
             raise PatrolScenarioConfigError("dynamic obstacle DEF names must be unique.")
-        if {obstacle.axis for obstacle in self.dynamic_obstacles} != {0, 1}:
+        solid_axes = [
+            obstacle.axis
+            for obstacle in self.dynamic_obstacles
+            if obstacle.kind == "solid"
+        ]
+        if len(solid_axes) != len(set(solid_axes)):
             raise PatrolScenarioConfigError(
-                "The two patrol obstacles must cover cross axes 0 and 1 exactly once."
+                "Solid patrol obstacles must sweep along distinct axes."
             )
 
-        speeds = tuple(obstacle.speed_mps for obstacle in self.dynamic_obstacles)
+        solid_speeds = tuple(
+            obstacle.speed_mps
+            for obstacle in self.dynamic_obstacles
+            if obstacle.kind == "solid"
+        )
         if self.mode is PatrolScenarioMode.OPERATIONAL:
             if not all(
                 OPERATIONAL_OBSTACLE_SPEED_MIN_MPS
                 <= speed
                 <= OPERATIONAL_OBSTACLE_SPEED_MAX_MPS
-                for speed in speeds
+                for speed in solid_speeds
             ):
                 raise PatrolScenarioConfigError(
-                    "Operational obstacle speeds must remain within 0.10-0.20 m/s."
+                    "Operational solid obstacle speeds must remain within 0.10-0.20 m/s."
                 )
-        elif not any(speed > OPERATIONAL_OBSTACLE_SPEED_MAX_MPS for speed in speeds):
+        elif not any(
+            speed > OPERATIONAL_OBSTACLE_SPEED_MAX_MPS for speed in solid_speeds
+        ):
             raise PatrolScenarioConfigError(
                 "Stress mode must contain at least one obstacle above 0.20 m/s."
             )
@@ -432,21 +489,24 @@ def load_patrol_scenario_config(
         mapping = _mapping(value, f"dynamic_obstacles[{index}]")
         actual = set(mapping)
         allowed = _OBSTACLE_FIELDS | _OBSTACLE_OPTIONAL_FIELDS
-        if not _OBSTACLE_FIELDS <= actual or not actual <= allowed:
+        kind = mapping.get("kind", "solid")
+        required = _OBSTACLE_FIELDS if kind == "solid" else {"def_name"}
+        if not required <= actual or not actual <= allowed:
             raise PatrolScenarioConfigError(
                 f"dynamic_obstacles[{index}] fields differ from the schema; "
-                f"missing={sorted(_OBSTACLE_FIELDS - actual)}, "
+                f"missing={sorted(required - actual)}, "
                 f"extra={sorted(str(name) for name in actual - allowed)}."
             )
-        bounds = mapping["bounds_m"]
-        if (
-            isinstance(bounds, (str, bytes))
-            or not isinstance(bounds, Sequence)
-            or len(bounds) != 2
-        ):
-            raise PatrolScenarioConfigError(
-                f"dynamic_obstacles[{index}].bounds_m must contain two numbers."
-            )
+        bounds = mapping.get("bounds_m")
+        if bounds is not None:
+            if (
+                isinstance(bounds, (str, bytes))
+                or not isinstance(bounds, Sequence)
+                or len(bounds) != 2
+            ):
+                raise PatrolScenarioConfigError(
+                    f"dynamic_obstacles[{index}].bounds_m must contain two numbers."
+                )
         dwell_points_raw = mapping.get("dwell_points_m")
         if dwell_points_raw is not None:
             if isinstance(dwell_points_raw, (str, bytes)) or not isinstance(
@@ -461,10 +521,11 @@ def load_patrol_scenario_config(
         obstacles.append(
             PatrolDynamicObstacle(
                 def_name=mapping["def_name"],
-                axis=mapping["axis"],
-                lower_bound_m=bounds[0],
-                upper_bound_m=bounds[1],
-                speed_mps=mapping["speed_mps"],
+                kind=mapping.get("kind", "solid"),
+                axis=mapping.get("axis"),
+                lower_bound_m=None if bounds is None else bounds[0],
+                upper_bound_m=None if bounds is None else bounds[1],
+                speed_mps=mapping.get("speed_mps"),
                 start_position_m=mapping.get("start_position_m"),
                 start_direction=mapping.get("start_direction"),
                 dwell_points_m=dwell_points,

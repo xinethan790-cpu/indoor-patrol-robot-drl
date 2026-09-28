@@ -18,23 +18,23 @@ inherits_r2a_system_qualification: false
 dynamic_obstacles:
   - def_name: DYNAMIC_OBSTACLE_0
     axis: 1
-    # Sweep mostly below the corridor: the agent only dips into the route
-    # briefly, so the front-brake zone clears between crossings and the robot
-    # can resume instead of crawling behind a permanently loaded sensor.
+    # Delivery-robot agent (cylindrical, like real hotel service robots):
+    # sweeps vertically across the lower corridor, dipping into the lane
+    # briefly so the front-brake zone clears between crossings.
     bounds_m: [-1.85, -0.70]
     speed_mps: 0.16
     start_position_m: -0.70
     start_direction: -1
   - def_name: DYNAMIC_OBSTACLE_1
     axis: 0
-    # Luggage-cart-style agent beside the P1 -> P2 leg: parks ON the leg
-    # centreline (x = 1.55) for 4 s so the robot must stop and wait, then
-    # retreats to x = 2.00 (clear of the lane, near the wall) and stays there
-    # for 30 s so the waiting robot has a window to crawl past.  Cycle: lane
-    # blocked ~4 s, lane clear ~38 s.
-    bounds_m: [1.30, 2.00]
+    # Luggage-cart-style agent parked ON the P1 -> P2 leg centreline
+    # (x = 1.55) when the robot arrives: the robot must stop and wait, then
+    # creep past after the cart retreats west to x = 0.95 (cabinet side) and
+    # stays parked there for the rest of the episode.  No return sweeps, so
+    # the robot's wait always resolves.
+    bounds_m: [0.95, 1.75]
     speed_mps: 0.16
-    start_position_m: 1.30
-    start_direction: 1
-    dwell_points_m: [1.55, 2.00]
-    dwell_seconds: [4.0, 30.0]
+    start_position_m: 1.75
+    start_direction: -1
+    dwell_points_m: [1.55, 0.95]
+    dwell_seconds: [60.0, 3600.0]

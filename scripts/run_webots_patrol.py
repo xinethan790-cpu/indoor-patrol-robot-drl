@@ -17,6 +17,10 @@ SCENARIO_CONFIGS = {
     "stress": "configs/patrol/scenario_stress_v1.yaml",
     "hotel": "configs/patrol/scenario_hotel_corridor_v1.yaml",
 }
+WORLD_CONFIGS = {
+    "patrol": "worlds/patrol_route_ppo.wbt",
+    "hotel": "worlds/hotel_patrol.wbt",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,6 +59,12 @@ def parse_args() -> argparse.Namespace:
             "hotel agents cross and pause on the patrol route; "
             "stress keeps the faster out-of-domain diagnostic challenge."
         ),
+    )
+    parser.add_argument(
+        "--world",
+        choices=tuple(WORLD_CONFIGS),
+        default="patrol",
+        help="World to load; the hotel world pairs with the hotel scenario.",
     )
     parser.add_argument("--timeout-s", type=float, help="Optional whole-task simulation timeout.")
     parser.add_argument("--port", type=int, default=1262, help="Webots TCP port.")
@@ -209,7 +219,9 @@ def main() -> int:
         command.extend(["--batch", "--mode=realtime"])
     elif args.headless:
         command.extend(["--batch", "--mode=fast", "--no-rendering"])
-    command.append(str(repository_root / "worlds/patrol_route_ppo.wbt"))
+    if args.scenario == "hotel" and args.world != "hotel":
+        raise ValueError("The hotel scenario requires --world hotel (pedestrian agents).")
+    command.append(str(repository_root / WORLD_CONFIGS[args.world]))
     completed = subprocess.run(command, cwd=repository_root, env=environment, check=False)
     meanings = {
         0: "four-point patrol completed",

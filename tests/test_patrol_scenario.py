@@ -129,7 +129,7 @@ def test_rejects_source_changed_after_loading(tmp_path: Path) -> None:
         ),
         (
             lambda raw: raw["dynamic_obstacles"][1].update(axis=1),
-            "cross axes",
+            "distinct axes",
         ),
         (
             lambda raw: raw["dynamic_obstacles"][0].update(bounds_m=[1.0, 1.0]),
@@ -305,13 +305,16 @@ def test_loads_repository_hotel_scenario_with_source_identity() -> None:
         _REPOSITORY_ROOT / "configs/patrol/scenario_hotel_corridor_v1.yaml"
     )
     crossing = config.obstacle("DYNAMIC_OBSTACLE_0")
+    assert crossing.kind == "solid"
+    assert crossing.axis == 1
+    assert crossing.lower_bound_m == -1.85
+    assert crossing.upper_bound_m == -0.70
     assert crossing.dwell_points_m is None
-    assert crossing.start_position_m == -0.70
     parked = config.obstacle("DYNAMIC_OBSTACLE_1")
-    assert parked.dwell_points_m == (1.55, 2.00)
-    assert parked.dwell_seconds == (4.0, 30.0)
-    assert parked.lower_bound_m == 1.30
-    assert parked.upper_bound_m == 2.00
+    assert parked.dwell_points_m == (1.55, 0.95)
+    assert parked.dwell_seconds == (60.0, 3600.0)
+    assert parked.lower_bound_m == 0.95
+    assert parked.upper_bound_m == 1.75
 
 
 def test_repository_root_rejects_source_escape(tmp_path: Path) -> None:

@@ -107,6 +107,10 @@ class MovingObstacleControl:
     dwell_remaining: float = 0.0
 
 
+PEDESTRIAN_TRACKING_RADIUS_M = 0.25
+
+
+
 def wrap_angle(angle: float) -> float:
     return (angle + math.pi) % (2.0 * math.pi) - math.pi
 
@@ -367,7 +371,8 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
         f"sha256={scenario_config.source_sha256} "
         "obstacle_speeds="
         + ",".join(
-            f"{obstacle.def_name}:{obstacle.speed_mps:.3f}"
+            f"{obstacle.def_name}:"
+            + ("pedestrian" if obstacle.speed_mps is None else f"{obstacle.speed_mps:.3f}")
             for obstacle in scenario_config.dynamic_obstacles
         ),
         flush=True,
@@ -828,7 +833,12 @@ def run_patrol(supervisor: Supervisor, repository_root: Path) -> None:
             patrol_scenario_config_sha256=scenario_config.source_sha256,
             dynamic_obstacle_count=len(scenario_config.dynamic_obstacles),
             dynamic_obstacle_speed_max_mps=max(
-                obstacle.speed_mps for obstacle in scenario_config.dynamic_obstacles
+                (
+                    obstacle.speed_mps
+                    for obstacle in scenario_config.dynamic_obstacles
+                    if obstacle.speed_mps is not None
+                ),
+                default=0.0,
             ),
             ttc_escape_guard_enabled=True,
             ttc_escape_guard_id=PATROL_TTC_ESCAPE_GUARD_ID,
@@ -1751,6 +1761,24 @@ def _initialize_obstacles(
                 f"The Webots world is missing DEF {configuration.def_name}."
             )
         translation = node.getField("translation")
+        if configuration.kind == "pedestrian":
+            # A Pedestrian walks its own world-defined trajectory; the patrol
+            # supervisor only tracks its pose for telemetry.  Its collision
+            # shapes live inside the body parts, not in a root boundingObject.
+            values = translation.getSFVec3f()
+            result.append(
+                MovingObstacleControl(
+                    obstacle_id=configuration.def_name,
+                    translation=translation,
+                    radius_m=PEDESTRIAN_TRACKING_RADIUS_M,
+                    axis=None,
+                    lower=0.0,
+                    upper=0.0,
+                    speed=0.0,
+                    direction=1.0,
+                )
+            )
+            continue
         bounding_object_field = node.getField("boundingObject")
         bounding_object = (
             None
@@ -1838,6 +1866,8 @@ def _validate_route_checkpoint_nodes(
 def _move_obstacles(obstacles: list[MovingObstacleControl], basic_time_step: int) -> None:
     seconds = basic_time_step / 1000.0
     for obstacle in obstacles:
+        if obstacle.axis is None:
+            continue  # pedestrians walk themselves
         if obstacle.dwell_remaining > 0.0:
             # Hotel-style agent: the obstacle stays parked on the route until
             # its dwell elapses, then continues in the same direction.
@@ -1964,7 +1994,9 @@ def _dynamic_obstacle_live_status(
         velocity = [0.0, 0.0]
         # A dwelling agent reports zero velocity; the nominal speed only
         # applies while it is actually moving between dwell points.
-        if obstacle.dwell_remaining <= 0.0:
+        # Pedestrians walk themselves, so their nominal velocity is unknown
+        # here and stays at zero.
+        if obstacle.axis is not None and obstacle.dwell_remaining <= 0.0:
             velocity[obstacle.axis] = obstacle.direction * obstacle.speed
         result.append(
             PatrolLiveDynamicObstacle(
