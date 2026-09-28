@@ -56,7 +56,7 @@ Webots 巡检运行
       │   本机网页看板          微信开发者工具实时模式
       │
       ├──▶ 已校验成功证据 ──▶ 90 帧离线夹具 ──▶ 小程序演示回放
-      └──▶ Mac 只出站 sidecar ──HTTPS/HMAC──▶ CloudBase 只读快照 ──watch──▶ 微信真机
+      └──▶ 本机只出站 sidecar ──HTTPS/HMAC──▶ CloudBase 只读快照 ──watch──▶ 微信真机
                                              └──▶ 终态安全报告 ──登录鉴权──▶ 历史详情
 ```
 

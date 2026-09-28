@@ -1,13 +1,13 @@
 # CloudBase 仿真实时中转后端
 
-本目录把 Mac 上的 Webots 仿真状态安全地中转到云开发环境
-`cloud1-5gpkygv2be4de05a`。Mac 只发起出站 HTTPS，不开放本机端口；小程序只能读取
+本目录把本机（Windows/macOS 均可）运行的 Webots 仿真状态安全地中转到云开发环境
+`cloud1-5gpkygv2be4de05a`。本机只发起出站 HTTPS，不开放本机端口；小程序只能读取
 云端快照，不能写入或控制机器人。
 
 ## 数据链路
 
 ```text
-Webots → Mac relay → HTTPS/HMAC → ingestPatrol
+Webots → 本机 relay → HTTPS/HMAC → ingestPatrol
        → patrol_live/main → 小程序 watch
        → patrol_runs      → getPatrolHistory → 小程序历史页
                           └→ getPatrolReport  → 完整巡检报告
@@ -30,7 +30,7 @@ timer → cleanupPatrolNonces → 分批删除过期 nonce
 
 ## 固定协议
 
-Mac 必须以 `POST` 上传未经改写的 `patrol-dashboard/v1` JSON 文本，并携带：
+本机 relay 必须以 `POST` 上传未经改写的 `patrol-dashboard/v1` JSON 文本，并携带：
 
 ```text
 X-Patrol-Signature-Version: patrol-hmac-sha256-v1
@@ -47,9 +47,9 @@ X-Patrol-Signature: <lowercase HMAC-SHA256 hex>
 device_id + "\n" + timestamp + "\n" + nonce + "\n" + body_sha256
 ```
 
-HMAC 密钥只允许从云函数和 Mac 的 `PATROL_RELAY_UPLOAD_SECRET` 环境变量读取。不得放入
+HMAC 密钥只允许从云函数和本机 relay 的 `PATROL_RELAY_UPLOAD_SECRET` 环境变量读取。不得放入
 小程序、配置文件、命令行参数、Git 提交或日志。密钥至少 32 字节；建议由系统安全随机源
-生成 32 字节并保存到 macOS 钥匙串，再注入 relay 进程。运行时会拒绝空值、少于 32 字节
+生成 32 字节并保存到本机凭据管理器（Windows“凭据管理器”、macOS 钥匙串或同等方案），运行时注入 relay 进程环境变量。运行时会拒绝空值、少于 32 字节
 的值、首尾包含空白的值、`{{...}}`/`${...}` 模板表达式，以及包含 `change-me`、
 `example`、`default`、`password` 等标记或字符多样性过低的示例密钥。云函数与 Python
 relay 使用相同规则，并且错误和预检输出都不会包含密钥本身。
@@ -158,26 +158,28 @@ npm run verify:bundles
 `package.json` 和 `package-lock.json` 都把 `wx-server-sdk` 精确锁定为 `3.0.1`，
 `npm run verify:bundles` 会同时核验这一点。
 
-部署前还必须用准备写入云函数的同一份钥匙串密钥执行离线预检：
+部署前还必须用准备写入云函数的同一份密钥执行离线预检：
 
 ```bash
-PATROL_RELAY_UPLOAD_SECRET="$(security find-generic-password \
-  -a indoor-patrol-relay -s PATROL_RELAY_UPLOAD_SECRET -w)" \
+# 密钥预先存入本机凭据管理器(Windows 凭据管理器 / macOS 钥匙串),再注入环境变量:
+#   macOS:   export PATROL_RELAY_UPLOAD_SECRET="$(security find-generic-password -a indoor-patrol-relay -s PATROL_RELAY_UPLOAD_SECRET -w)"
+#   Windows: $env:PATROL_RELAY_UPLOAD_SECRET = "<your-secret>"
 npm run preflight:secret
 ```
 
 预检只输出 `ready`/`not ready`、错误代码和不敏感原因，不输出密钥内容；返回码为 0 才可
 继续。该检查只验证当前本机提供的值，不会连接云端，也不能代替部署后在控制台核对环境变量。
 
-## 启动 Mac 中转程序
+## 启动本机中转程序
 
 云端资源配置完成并取得 `ingestPatrol` 的专用 HTTPS 地址后，推荐用组合入口一次启动
 Webots 与 relay：
 
 ```bash
 cd /path/to/indoor-patrol-robot-drl
-PATROL_RELAY_UPLOAD_SECRET="$(security find-generic-password \
-  -a indoor-patrol-relay -s PATROL_RELAY_UPLOAD_SECRET -w)" \
+# 密钥预先存入本机凭据管理器(Windows 凭据管理器 / macOS 钥匙串),再注入环境变量:
+#   macOS:   export PATROL_RELAY_UPLOAD_SECRET="$(security find-generic-password -a indoor-patrol-relay -s PATROL_RELAY_UPLOAD_SECRET -w)"
+#   Windows: $env:PATROL_RELAY_UPLOAD_SECRET = "<your-secret>"
 python scripts/run_patrol_with_relay.py \
   --endpoint https://YOUR_CLOUDBASE_DOMAIN/api/patrol/ingest \
   --scenario operational \
@@ -196,21 +198,22 @@ python scripts/run_patrol_with_relay.py \
 
 ```bash
 cd /path/to/indoor-patrol-robot-drl
-PATROL_RELAY_UPLOAD_SECRET="$(security find-generic-password \
-  -a indoor-patrol-relay -s PATROL_RELAY_UPLOAD_SECRET -w)" \
+# 密钥预先存入本机凭据管理器(Windows 凭据管理器 / macOS 钥匙串),再注入环境变量:
+#   macOS:   export PATROL_RELAY_UPLOAD_SECRET="$(security find-generic-password -a indoor-patrol-relay -s PATROL_RELAY_UPLOAD_SECRET -w)"
+#   Windows: $env:PATROL_RELAY_UPLOAD_SECRET = "<your-secret>"
 python scripts/publish_patrol_relay.py \
   --run-dir artifacts/results/patrol-cloud-demo-001 \
   --endpoint https://YOUR_CLOUDBASE_DOMAIN/api/patrol/ingest
 ```
 
-请先在 macOS“钥匙串访问”中建立账户名为 `indoor-patrol-relay`、项目名为
-`PATROL_RELAY_UPLOAD_SECRET` 的密码项，并让它与云函数环境变量使用同一个不少于 32 字节
-的随机密钥。命令不会把密钥写入项目文件、参数或日志；进程退出后也不会保留 shell 环境
+请先把密钥保存在本机凭据管理器中（Windows“凭据管理器”或 macOS“钥匙串访问”，
+账户名建议 `indoor-patrol-relay`、项目名 `PATROL_RELAY_UPLOAD_SECRET`），并让它与云函数
+环境变量使用同一个不少于 32 字节的随机密钥。命令不会把密钥写入项目文件、参数或日志；进程退出后也不会保留 shell 环境
 变量。
 
 sidecar 会先把待发的原始 JSON 请求体原子写入
 `<run-dir>/.patrol-relay/state.json`，收到与该请求严格匹配的云端 ACK 后才推进序号。断网、
-进程退出或 Mac 重启后，用同一 `--run-dir`、设备 ID 和端点再次执行上述命令，会原样重发
+进程退出或主机重启后，用同一 `--run-dir`、设备 ID 和端点再次执行上述命令，会原样重发
 尚未确认的数据；若终态已确认则直接结束，不再访问网络。该状态文件只保存公开设备 ID、
 run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
 
@@ -264,7 +267,7 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
    具备微信身份的调用。
 4. 在“环境配置 → HTTP 访问服务”把专用 HTTPS 路径（建议
    `/api/patrol/ingest`）路由到普通事件函数 `ingestPatrol`。只允许 `POST`，单 IP 限频不高于
-   3 QPS，并先设置函数总配额和账单告警。公网路由需要允许 Mac 匿名到达函数，但函数内部
+   3 QPS，并先设置函数总配额和账单告警。公网路由需要允许本机匿名到达函数，但函数内部
    HMAC 鉴权绝不能关闭；限频、总配额和费用告警未实际核验前不得开放 URL。
 5. 核对 `cleanupPatrolNonces` 的每分钟定时触发器为七段 cron `0 * * * * * *`。不要为它创建
    HTTP 路由，也不要授予小程序调用权限；管理员需要补清积压时可在云函数控制台手工触发。
@@ -288,7 +291,7 @@ run ID、序号、请求体及其哈希，不保存 HMAC 密钥或签名。
   `deleted: 0`，证明重复执行安全。生产环境不需要为验证写入伪造数据。
 - `patrol_relay_nonces.expires_at_epoch_ms` 升序索引状态为“可用”，定时函数日志中没有
   nonce、签名、密钥或请求体内容。
-- Mac 上传一条非终态与一条终态数据后，ACK、`patrol_live/main`、`patrol_runs` 和小程序
+- 本机上传一条非终态与一条终态数据后，ACK、`patrol_live/main`、`patrol_runs` 和小程序
   展示的 run ID、序号与终态一致。
 - `getPatrolHistory` 返回的记录固定属于 `macmini-m4`，篡改分页游标会被拒绝，运行进度更新
   不会改变历史排序，新增任务造成的跨页重复由客户端按 `run_id` 去重；上报期间可下拉刷新

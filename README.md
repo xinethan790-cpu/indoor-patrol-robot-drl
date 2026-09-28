@@ -34,7 +34,7 @@
 - [x] 完成 7100～7119 二十种子应用验收：完成率 95%，碰撞率 5%，门禁通过
 - [x] 完成本地巡检看板：地图、轨迹、任务进度、环境数据、告警与终态结果
 - [x] 完成原生微信小程序演示端：离线动态回放、本机实时、云端同步代码、告警与结果追溯
-- [x] 完成 Webots → Mac HTTPS/HMAC 中转 → CloudBase → 微信小程序的链路实现与离线契约验证
+- [x] 完成 Webots → 本机 HTTPS/HMAC 中转 → CloudBase → 微信小程序的链路实现与离线契约验证
 - [x] 完成 Webots 与云端中继的一键联动、首帧等待状态及只读巡检历史页
 - [x] 完成仿真终态证据、CloudBase 安全归档与小程序完整巡检报告闭环
 - [ ] 完成 R2C 两障碍到三障碍、由中速到高速的分阶段强化学习新基线
@@ -104,7 +104,7 @@ python scripts/run_patrol_dashboard.py \
 
 小程序提供三种明确区分的数据模式：
 
-- **云端实时同步（默认）**：Mac 只通过出站 HTTPS 上报经过现有证据仓库校验的仿真快照；CloudBase 验证 HMAC、时间窗、nonce、运行编号和单调序号，再把只读快照推送到微信真机。小程序不能写数据库，也不能控制机器人。
+- **云端实时同步（默认）**：运行仿真的主机只通过出站 HTTPS 上报经过现有证据仓库校验的仿真快照；CloudBase 验证 HMAC、时间窗、nonce、运行编号和单调序号，再把只读快照推送到微信真机。小程序不能写数据库，也不能控制机器人。
 - **仿真演示回放**：将 `graduation-demo-seed7000-v1` 的 823 条状态压缩为 90 帧，在约 15 秒内复现四点巡检、动态障碍、避障决策、36 条采样以及 3 次告警触发和 3 次解除；不依赖网络，适合答辩和断网兜底。
 - **电脑本地实时**：微信开发者工具通过 `http://127.0.0.1:8765/api/dashboard` 读取本机看板数据，带协议版本、运行编号、序号、超时、退避重试与终态停止保护。
 
@@ -115,15 +115,14 @@ cd wechat-miniprogram
 npm test
 ```
 
-详细导入、启动和验收步骤见[微信小程序说明](wechat-miniprogram/README.md)，云函数、数据库权限与 HTTPS 上报部署见[CloudBase 中转说明](cloudfunctions/README.md)。真机中的 `127.0.0.1` 指向手机自身，因此真机实时模式只走 CloudBase，不会暴露 Mac 端口。
+详细导入、启动和验收步骤见[微信小程序说明](wechat-miniprogram/README.md)，云函数、数据库权限与 HTTPS 上报部署见[CloudBase 中转说明](cloudfunctions/README.md)。真机中的 `127.0.0.1` 指向手机自身，因此真机实时模式只走 CloudBase，不会暴露运行主机的端口。
 
-实时链路固定绑定云开发环境 `cloud1-5gpkygv2be4de05a`。上传密钥只存在于 Mac 进程和云函数环境变量中，不进入小程序或 Git。当前仓库只准备并验证了部署代码和配置清单；创建云资源、设置密钥、开放 HTTP 路由以及真机验收必须在部署时显式执行，验收记录模板见[CloudBase 真实链路验收](reports/cloudbase-live-acceptance.md)。
+实时链路固定绑定云开发环境 `cloud1-5gpkygv2be4de05a`。上传密钥只存在于本机 relay 进程和云函数环境变量中，不进入小程序或 Git。当前仓库只准备并验证了部署代码和配置清单；创建云资源、设置密钥、开放 HTTP 路由以及真机验收必须在部署时显式执行，验收记录模板见[CloudBase 真实链路验收](reports/cloudbase-live-acceptance.md)。
 
-云端资源就绪后，可用一条命令启动同一 `run_id` 的 Webots 巡检与只读上传中继：
+云端资源就绪后，可用一条命令启动同一 `run_id` 的 Webots 巡检与只读上传中继（密钥从环境变量注入,可存放在任意本机凭据管理器中;Windows 可用 PowerShell 的 `$env:PATROL_RELAY_UPLOAD_SECRET` 设置）：
 
 ```bash
-PATROL_RELAY_UPLOAD_SECRET="$(security find-generic-password \
-  -a indoor-patrol-relay -s PATROL_RELAY_UPLOAD_SECRET -w)" \
+PATROL_RELAY_UPLOAD_SECRET="$YOUR_UPLOAD_SECRET" \
 python scripts/run_patrol_with_relay.py \
   --endpoint https://YOUR_CLOUDBASE_DOMAIN/api/patrol/ingest \
   --scenario operational \
@@ -156,29 +155,28 @@ python scripts/run_patrol_with_relay.py \
 
 详见[系统架构](docs/architecture.md)、[强化学习设计](docs/rl-design.md)、[实验方案](docs/experiment-plan.md)和[训练复现协议](docs/training-protocol.md)。
 
-## Mac mini M4 环境
+## 开发环境
 
-固定使用原生 ARM64 Python 3.11，PPO 的 MLP 策略默认使用 CPU。训练阶段关闭 Webots 渲染并使用 fast 模式，演示阶段再开启三维窗口。
+项目不绑定特定开发机:主开发机为 Windows 11 笔记本(RTX 4060 Laptop),macOS(Apple Silicon)作为同等支持的参考环境。两平台使用相同的 Python 3.11、Webots R2025a 与训练协议;PPO 的 MLP 策略默认使用 CPU。训练阶段关闭 Webots 渲染并使用 fast 模式,演示阶段再开启三维窗口。
 
 ```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
+python -m venv .venv
+# Windows 激活: .venv\Scripts\activate ;macOS 激活: source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev,train,video]"
 python scripts/configure_webots_python.py
 ```
 
-最后一条命令会为本机生成不提交到 Git 的 `runtime.ini`，确保 Webots
-Controller 使用项目 `.venv`，而不是 macOS 的其他 Python。仓库移动或重新克隆后再运行一次即可。
+最后一条命令会为本机生成不提交到 Git 的 `runtime.ini`,确保 Webots Controller 使用项目 `.venv`,而不是系统里的其他 Python。仓库移动或重新克隆后再运行一次即可。
 
-安装 Webots 后应在 Finder 的“显示简介”中确认没有勾选“使用 Rosetta 打开”。本机安装与检查记录见 [M4 环境说明](docs/mac-m4-setup.md)。
+Windows 侧的完整步骤(含 Webots PROTO 离线缓存补全)见 [Windows 环境说明](docs/windows-setup.md);macOS 侧的历史安装与检查记录见 [M4 环境说明](docs/mac-m4-setup.md)。
 
 ## 快速验证
 
 运行测试：
 
 ```bash
-source .venv/bin/activate
+# Windows: .venv\Scriptsctivate ;macOS: source .venv/bin/activate
 ruff check .
 pytest
 ```
@@ -242,7 +240,8 @@ python scripts/benchmark_kinematic.py --split validation \
 打开 Webots 动态避障演示：
 
 ```bash
-open -a Webots worlds/patrol_dynamic_demo.wbt
+# Windows: start "" "%WEBOTS_HOME%\msys64\mingw64in\webotsw.exe" worlds/patrol_dynamic_demo.wbt
+# macOS:   open -a Webots worlds/patrol_dynamic_demo.wbt
 ```
 
 进入世界后点击工具栏的三角形运行按钮。红色圆柱是横穿走廊的动态障碍，绿色圆盘是目标点。当前里程碑及复现结果见[开发记录](docs/development-log.md)。
@@ -250,7 +249,8 @@ open -a Webots worlds/patrol_dynamic_demo.wbt
 打开 A* + DWA 四点巡检演示：
 
 ```bash
-open -a Webots worlds/patrol_route_demo.wbt
+# Windows: start "" "%WEBOTS_HOME%\msys64\mingw64in\webotsw.exe" worlds/patrol_route_demo.wbt
+# macOS:   open -a Webots worlds/patrol_route_demo.wbt
 ```
 
 机器人会根据已知静态地图绕过中央柜体，依次访问四个彩色巡检点；黄色圆盘表示当前 A* 局部航点。
@@ -297,7 +297,7 @@ artifacts/     本地生成的模型、日志、结果和视频（默认 Git 忽
 
 ## 验收指标
 
-主要指标包括任务成功率、碰撞率、超时率、路径效率、完成时间、最小安全距离、控制平滑度，以及 M4 CPU 上的单步决策延迟。核心比较不是单一成功率的排名，而是 G0～G3 难度递增时各方法的性能衰减曲线。训练奖励只用于诊断，不作为系统效果的主要结论。
+主要指标包括任务成功率、碰撞率、超时率、路径效率、完成时间、最小安全距离、控制平滑度，以及开发主机 CPU 上的单步决策延迟（Windows 参考值:seed 7000 巡检运行 P50 0.34 ms / P95 0.42 ms）。核心比较不是单一成功率的排名，而是 G0～G3 难度递增时各方法的性能衰减曲线。训练奖励只用于诊断，不作为系统效果的主要结论。
 
 ## 参考文档
 

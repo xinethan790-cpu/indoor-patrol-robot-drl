@@ -1,4 +1,7 @@
-# Mac mini M4 环境说明
+# Mac mini M4 环境说明（macOS 参考环境,已归档）
+
+> 本文档记录 macOS(Apple Silicon)参考环境的安装与检查过程,保留为历史记录。
+> 自 2026-09-28 起主开发机为 Windows 笔记本,当前环境搭建步骤见[windows-setup.md](windows-setup.md);两平台共用同一套协议与代码。
 
 ## 已检查环境
 
