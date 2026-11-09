@@ -119,4 +119,4 @@ python scripts/run_webots_patrol_campaign.py \
 
 本节结论是固定 operational 四点巡检场景的**应用性能门禁通过**。运行摘要仍明确
 记录 `patrol_scenario_qualified=false`；它不是形式化安全认证，也不替代三训练 seed、
-多算法、多工况的受保护论文正式测试。
+多算法、多工况的受保护正式测试。

@@ -8,7 +8,7 @@
 
 训练与评测遵循"训练侧场景分布尽量宽、评测侧场景绝对固定"的原则：训练使用分阶段课程并逐步走向随机化场景，评测始终使用预先锁定、互相隔离的固定种子，保证结果可比、可复现、可审计。
 
-项目是纯软件本科毕业设计，重点成果不是单条训练曲线，而是一个可复现的完整闭环：
+项目是纯软件个人项目，重点成果不是单条训练曲线，而是一个可复现的完整闭环：
 
 > 场景生成 → 传感器观测 → 全局路径 → 局部避障 → 机器人执行 → 指标记录 → 批量评测
 
@@ -44,9 +44,9 @@
 - [ ] 完成真实 CloudBase 资源部署、合法 HMAC 探针和微信真机端到端验收
 - [ ] 完成 Webots 三 seed 正式训练、统一批量评测、泛化和奖励消融
 
-轻量二维环境不是最终实验平台。它用于快速验证状态、动作、奖励、随机种子、训练和测试代码，并为 Webots 提供策略热启动。当前验证集选择的是 stage 2（557,056 steps），不是训练最久的 stage 3；完整选择依据见[当前实验进展](reports/current-progress.md)。正式论文效果结论仍以 Webots 批量实验为准。
+轻量二维环境不是最终实验平台。它用于快速验证状态、动作、奖励、随机种子、训练和测试代码，并为 Webots 提供策略热启动。当前验证集选择的是 stage 2（557,056 steps），不是训练最久的 stage 3；完整选择依据见[当前实验进展](reports/current-progress.md)。正式效果结论仍以 Webots 批量实验为准。
 
-正式 Webots 实验的**执行协议已经实现，但正式结果尚未产生**。固定流程为：分别用 `11、22、33` 三个训练 seed 训练和验证 PPO；在 clean Git revision 上将三个模型的训练期 sidecar、训练元数据、W0～W2 课程 manifest、验证选择 manifest 和逐回合验证 CSV 与正式配置、world、evaluator、controller 及完整 source bundle 一起绑定到不可覆盖的 FinalLock v2；先执行不消耗测试机会的 `--dry-run`；最后才对 `10000～10019` held-out seeds 运行一次 `G0～G3 ×（Reactive、DWA、PPO-seed11、PPO-seed22、PPO-seed33）= 20` 个 Webots 调用、共 400 回合。当前仓库没有可引用为论文结论的这 400 回合正式 Webots 输出，详见[训练复现协议](docs/training-protocol.md)和[当前实验进展](reports/current-progress.md)。
+正式 Webots 实验的**执行协议已经实现，但正式结果尚未产生**。固定流程为：分别用 `11、22、33` 三个训练 seed 训练和验证 PPO；在 clean Git revision 上将三个模型的训练期 sidecar、训练元数据、W0～W2 课程 manifest、验证选择 manifest 和逐回合验证 CSV 与正式配置、world、evaluator、controller 及完整 source bundle 一起绑定到不可覆盖的 FinalLock v2；先执行不消耗测试机会的 `--dry-run`；最后才对 `10000～10019` held-out seeds 运行一次 `G0～G3 ×（Reactive、DWA、PPO-seed11、PPO-seed22、PPO-seed33）= 20` 个 Webots 调用、共 400 回合。当前仓库没有可引用为正式结论的这 400 回合正式 Webots 输出，详见[训练复现协议](docs/training-protocol.md)和[当前实验进展](reports/current-progress.md)。
 
 创建 final lock 时，每个 seed 的 `--model-evidence` 必须依次提供 `SEED MODEL METADATA CURRICULUM SELECTION VALIDATION_EPISODES` 六个值。训练期 `.formal-provenance.json` sidecar 不是第七个命令行参数；它必须已由 W2 训练生成并被课程 manifest 登记，create-lock 只做定位和复核，不会事后补写。
 
@@ -95,7 +95,7 @@ python scripts/run_patrol_dashboard.py \
   --port 8765
 ```
 
-随后访问 `http://127.0.0.1:8765`。页面每 0.75 秒刷新一次；任务运行中显示最新快照和快照差分告警，任务结束后改用 `summary.json`、`inspection_summary.json` 与 `alarm_events.jsonl` 的权威终态记录。二维地图来自当前仿真配置，仅用于毕设演示，不代表真实场地测绘或形式化安全边界。
+随后访问 `http://127.0.0.1:8765`。页面每 0.75 秒刷新一次；任务运行中显示最新快照和快照差分告警，任务结束后改用 `summary.json`、`inspection_summary.json` 与 `alarm_events.jsonl` 的权威终态记录。二维地图来自当前仿真配置，仅用于项目演示，不代表真实场地测绘或形式化安全边界。
 
 ## 微信小程序演示端
 
@@ -197,7 +197,7 @@ python scripts/evaluate_ppo.py artifacts/models/ppo_kinematic.zip --episodes 10
 
 `artifacts/` 用于本地模型、日志、结果和视频，默认不提交大文件到 Git。最终模型和演示视频通过 GitHub Release 发布。
 
-## 毕设汇报演示视频
+## 项目汇报演示视频
 
 [下载 90 秒中文演示视频（私有仓库，需登录 GitHub）](https://github.com/xinethan790-cpu/indoor-patrol-robot-drl/releases/tag/graduation-demo-v1)
 
@@ -274,11 +274,11 @@ python scripts/run_webots_patrol_campaign.py \
   --output-dir artifacts/results/patrol-operational-pilot-seeds7000-7004
 ```
 
-批量器会逐回合校验模型、场景、控制器、轨迹和事件文件的一致性。少于 20 回合只标记为 `insufficient_evidence`，用于调试而不能宣称通过应用验收；正式应用门禁至少需要 20 个新种子，完成率不低于 `0.75`、碰撞率不高于 `0.15` 且无执行错误。巡检应用门禁与受保护的论文正式测试协议相互独立。
+批量器会逐回合校验模型、场景、控制器、轨迹和事件文件的一致性。少于 20 回合只标记为 `insufficient_evidence`，用于调试而不能宣称通过应用验收；正式应用门禁至少需要 20 个新种子，完成率不低于 `0.75`、碰撞率不高于 `0.15` 且无执行错误。巡检应用门禁与受保护的正式测试协议相互独立。
 
 Guard v2 已在 `7000～7004` 五个开发 seed 上取得 `5/5` 完成、`0` 碰撞、`0` safety stop 和 `0` 超时；该结果仍按协议标记为 `insufficient_evidence`。逐回合数据、固定哈希和边界说明见[四点巡检应用验证记录](reports/patrol-application-validation.md)。
 
-随后冻结代码并一次性运行 `7100～7119` 二十个新 seed，取得 `19/20` 完成、`1/20` 碰撞、无 safety stop、无超时和无执行错误，应用门禁结果为 `pass`。该结论仅覆盖固定 operational 四点应用场景，不是形式化安全认证，也不替代受保护的论文正式测试。
+随后冻结代码并一次性运行 `7100～7119` 二十个新 seed，取得 `19/20` 完成、`1/20` 碰撞、无 safety stop、无超时和无执行错误，应用门禁结果为 `pass`。该结论仅覆盖固定 operational 四点应用场景，不是形式化安全认证，也不替代受保护的正式测试。
 
 [下载二十种子完整应用验收证据（私有仓库，需登录 GitHub）](https://github.com/xinethan790-cpu/indoor-patrol-robot-drl/releases/tag/patrol-application-acceptance-v1)
 

@@ -7,7 +7,7 @@
 | 后端 | 用途 | 可以支持的结论 |
 |---|---|---|
 | 纯 Python 运动学环境 | 快速训练、接口调试、候选模型筛选、算法链路检查 | 运动学条件下的初步比较、Webots 权重热启动选择 |
-| Webots R2025a | 差速轮动力学、真实 LiDAR 数据流、碰撞与最终系统评测 | 论文和答辩中的正式仿真结论 |
+| Webots R2025a | 差速轮动力学、真实 LiDAR 数据流、碰撞与最终系统评测 | 正式仿真结论 |
 
 运动学模型与 Webots 模型虽然共享 79 维观测和二维动作语义，但两者的速度上限、控制响应、机器人尺寸和传感器误差不同。因此运动学结果不能改名为“Webots 结果”，运动学模型也只能作为 Webots PPO 的初始化权重。
 
@@ -49,7 +49,7 @@ py -3.11 -m venv .venv
 
 `configure_webots_python.py` 会生成各 Controller 的本机 `runtime.ini`。它包含绝对路径，不能提交到 Git；仓库移动、重新克隆或重建虚拟环境后必须再次生成。
 
-每次正式训练前至少记录：Git commit、训练 seed、Python 和 Webots 版本、PPO 配置、课程配置、模型文件 SHA-256。Webots Controller 会在模型目录中生成 `run_metadata*.yaml`，其中包含热启动来源及其 SHA-256；正式论文数据还应保留 TensorBoard 日志和逐回合 CSV。
+每次正式训练前至少记录：Git commit、训练 seed、Python 和 Webots 版本、PPO 配置、课程配置、模型文件 SHA-256。Webots Controller 会在模型目录中生成 `run_metadata*.yaml`，其中包含热启动来源及其 SHA-256；正式实验数据还应保留 TensorBoard 日志和逐回合 CSV。
 
 ## 4. 阶段 A：运动学课程预训练
 
@@ -71,7 +71,7 @@ python scripts/train_curriculum.py \
   --output artifacts/models/ppo_curriculum_seed11
 ```
 
-Stable-Baselines3 以完整 rollout 更新，实际累计步数可能略大于 YAML 中的请求值。seed 11 的实际阶段终点为 `102400、253952、557056、811008` steps；论文应引用模型元数据中的实际步数，而不是简单写成 800k。
+Stable-Baselines3 以完整 rollout 更新，实际累计步数可能略大于 YAML 中的请求值。seed 11 的实际阶段终点为 `102400、253952、557056、811008` steps；正式报告应引用模型元数据中的实际步数，而不是简单写成 800k。
 
 若在完成 stage 2 后中断，可从该权重继续 stage 3：
 
@@ -263,7 +263,7 @@ WEBOTS_PATROL_MODEL=artifacts/models/webots/seed_11/manual_candidate.zip \
 python scripts/run_webots_patrol.py --headless
 ```
 
-若不指定 `WEBOTS_PATROL_MODEL`，同一个开关才会允许 fallback 链。两种路径都会被标记为 `UNVALIDATED`，只能用于调试或演示，不能进入论文正式结果。未设置上述开关时，manifest 缺失、显式模型或校验失败都会报错退出。
+若不指定 `WEBOTS_PATROL_MODEL`，同一个开关才会允许 fallback 链。两种路径都会被标记为 `UNVALIDATED`，只能用于调试或演示，不能进入正式结果。未设置上述开关时，manifest 缺失、显式模型或校验失败都会报错退出。
 
 课程运行 manifest 自 schema 2 起保存完整语义配置快照和 `curriculum_config_sha256`。恢复训练时，训练模型、variant、port、每阶段训练步数、world、门禁、controller 环境变量或恢复 checkpoint 任一变化都会拒绝继续，避免把不同实验接到同一运行记录中。旧 schema 1 manifest 不会被自动升级；应保留原文件作为历史证据，并为新配置启动新的运行记录，而不是手工补哈希。
 
@@ -347,7 +347,7 @@ python scripts/run_webots_formal_test.py \
 
 汇总器要求恰好 20 对输入、400 个唯一 episode、每个 planner/condition 都是完整的二十个相同 test seeds，并复核 PPO 模型哈希。PPO 跨训练 seed 的汇总同时给出均值、样本标准差和基于三个训练重复的双侧 Student-t 95% 置信区间。正常情况下 runner 已自动生成报告；`scripts/summarize_webots_formal.py` 只用于从保留的 20 对 `episodes.csv + summary.json` 重建/复核报告，重建时必须用 `--lock` 传入原 final lock，使全部输入 provenance 与锁定的 world、controller、evaluator、source bundle 和模型证据重新比对；该命令不需要也不允许重新运行仿真。
 
-一旦 ledger 建立，该受保护测试协议的数据访问机会就已全局消耗。如果任一 Webots 调用、provenance 校验或 400 回合汇总失败，runner 会保留日志并把 ledger 置为终态 `invalidated`；该 ledger 不能覆盖或转回 `attempt`。不得通过删除 ledger、改 campaign、改输出目录或重新生成 lock 来重跑相同 held-out 协议。后续只能在论文中如实报告该次 invalidated 结果；除非预先定义了不同且独立的新测试数据集，否则不能把修复后的运行视为新的正式测试机会。
+一旦 ledger 建立，该受保护测试协议的数据访问机会就已全局消耗。如果任一 Webots 调用、provenance 校验或 400 回合汇总失败，runner 会保留日志并把 ledger 置为终态 `invalidated`；该 ledger 不能覆盖或转回 `attempt`。不得通过删除 ledger、改 campaign、改输出目录或重新生成 lock 来重跑相同 held-out 协议。后续只能在正式报告中如实报告该次 invalidated 结果；除非预先定义了不同且独立的新测试数据集，否则不能把修复后的运行视为新的正式测试机会。
 
 截至本页更新时间，仓库只完成了上述协议、控制器和汇总器的实现，**尚未创建满足条件的三模型 final lock，也尚未运行正式 400 回合 Webots held-out test**。现有 240 回合表是运动学验证，不得替代正式 Webots 结果。
 

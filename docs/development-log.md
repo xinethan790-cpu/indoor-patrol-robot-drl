@@ -53,7 +53,7 @@ Webots route demo: 4/4 checkpoints, 541 control steps, no collision
 minimum LiDAR range: 0.225 m
 ```
 
-注意：`minimum LiDAR range` 是传感器到表面的原始读数，不直接等同于机器人外轮廓净空；正式论文表格将使用统一校准后的 `minimum_clearance_m`。
+注意：`minimum LiDAR range` 是传感器到表面的原始读数，不直接等同于机器人外轮廓净空；正式结果表格将使用统一校准后的 `minimum_clearance_m`。
 
 ## 2026-08-28：运动学课程训练与统一验证基准
 
